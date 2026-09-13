@@ -59,7 +59,15 @@ fail() {
 
 command -v ubus >/dev/null 2>&1 || fail "ubus is not installed"
 command -v jsonfilter >/dev/null 2>&1 || fail "jsonfilter is not installed"
-command -v apk >/dev/null 2>&1 || fail "apk is not installed; this release targets apk-based OpenWrt"
+
+package_manager=""
+if command -v apk >/dev/null 2>&1; then
+    package_manager=apk
+elif command -v opkg >/dev/null 2>&1; then
+    package_manager=opkg
+else
+    fail "neither apk nor opkg is installed"
+fi
 
 board_json="$(ubus call system board 2>/dev/null)" || fail "cannot read system board information"
 target="$(printf '%s\n' "$board_json" | jsonfilter -e '@.release.target' 2>/dev/null || true)"
@@ -134,6 +142,7 @@ echo "Freenetic router preflight: PASS"
 echo "  model: $model"
 echo "  target: $target"
 echo "  architecture: ${release_arch:-$machine}"
+echo "  package manager: $package_manager"
 echo "  CPU cores: $cpu_cores (minimum $min_cpu_cores)"
 echo "  RAM: $ram_mib MiB (minimum $min_ram_mib MiB)"
 echo "  free $overlay_path: $overlay_mib MiB (minimum $min_overlay_mib MiB)"
