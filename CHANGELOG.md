@@ -6,7 +6,17 @@ which they became user-visible.
 
 ## [Unreleased]
 
-No changes yet.
+### Improved
+
+- Split the dashboard data/ubus layer from its UI view and moved the shared
+  protocol logic for Other Connections into a dedicated LuCI resource module.
+- GitHub Actions now prepares target-specific release assets on every build and
+  publishes a verified 14-asset GitHub Release when a version tag is pushed.
+
+### Verification
+
+- The `testing` branch passes the complete static, contract, runtime and
+  OpenWrt SDK matrix checks.
 
 ## [0.2.3] — 2026-09-13
 

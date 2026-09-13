@@ -10,6 +10,8 @@ const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'qualit
 assert.match(workflow, /include_fnc: false/, 'filogic IPK build must not publish a duplicate fnc');
 assert.match(workflow, /asset_arch: mipsel_24kc/, 'the MT7621 build must declare its release architecture');
 assert.match(workflow, /release-assets/, 'target builds must prepare release assets');
+assert.match(workflow, /-path '\*\/release-assets\/\*'/,
+	'release publication must find assets below the downloaded artifact root');
 assert.match(workflow, /actions\/download-artifact@v4/, 'release publication must consume the verified build artifacts');
 assert.match(workflow, /publish-release:/, 'the workflow must publish tagged releases');
 assert.match(workflow, /startsWith\(github\.ref, 'refs\/tags\/v'\)/,

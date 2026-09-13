@@ -151,6 +151,11 @@ To build both installable LuCI packages as well:
 make check-package OPENWRT_DIR=/path/to/openwrt DL_DIR=/path/to/openwrt/dl
 ```
 
+Pushing a clean semver tag (`vX.Y.Z`) runs the pinned OpenWrt 24.10/25.12
+matrix in GitHub Actions. After the installer tag and asset version pass the
+release gate, Actions publishes the package assets, matching `fnc` binaries
+and `SHA256SUMS.txt` as one GitHub Release.
+
 The package directories in the buildroot must point to the matching package
 components:
 

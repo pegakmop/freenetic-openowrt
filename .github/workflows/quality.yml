@@ -244,10 +244,8 @@ jobs:
             exit 1
           }
 
-          for asset in artifacts/*/release-assets/*; do
-            [ "${asset##*/}" = ASSET_VERSION ] && continue
-            cp -f "$asset" "$release_dir/"
-          done
+          find artifacts -type f -path '*/release-assets/*' ! -name ASSET_VERSION \
+            -exec cp -f {} "$release_dir/" \;
 
           for package in \
             luci-theme-freenetic \
