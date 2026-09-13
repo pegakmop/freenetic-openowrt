@@ -13,6 +13,8 @@ assert.match(workflow, /release-assets/, 'target builds must prepare release ass
 assert.match(workflow, /-path '\*\/release-assets\/\*'/,
 	'release publication must find assets below the downloaded artifact root');
 assert.match(workflow, /actions\/download-artifact@v4/, 'release publication must consume the verified build artifacts');
+assert.strictEqual((workflow.match(/fetch-depth: 0/g) || []).length, 2,
+	'package and release jobs must use full history for source revision calculation');
 assert.match(workflow, /publish-release:/, 'the workflow must publish tagged releases');
 assert.match(workflow, /startsWith\(github\.ref, 'refs\/tags\/v'\)/,
 	'release publication must be restricted to version tags');
