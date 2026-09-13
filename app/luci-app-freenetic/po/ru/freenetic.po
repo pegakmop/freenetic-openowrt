@@ -591,6 +591,16 @@ msgstr "Соединение при обновлении прервалось"
 msgid "The update was not installed: %s"
 msgstr "Обновление не установлено: %s"
 
+#, javascript-format
+msgid "Update failed during %s: %s"
+msgstr "Обновление завершилось ошибкой на этапе «%s»: %s"
+
+msgid "The previous Freenetic release was restored automatically."
+msgstr "Предыдущий выпуск Freenetic автоматически восстановлен."
+
+msgid "Automatic rollback failed; check the router before retrying."
+msgstr "Автоматический откат не удался; проверьте роутер перед повторной попыткой."
+
 msgid "rpcd may have restarted while applying the update. Reload the interface and check the installed version."
 msgstr "Во время установки мог перезапуститься rpcd. Перезагрузите интерфейс и проверьте установленную версию."
 

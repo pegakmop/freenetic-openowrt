@@ -27,6 +27,10 @@ info() {
 	echo "Freenetic installer: $*"
 }
 
+stage() {
+	info "stage: $1"
+}
+
 cleanup() {
 	[ -z "${FNC_STAGED:-}" ] || rm -f "$FNC_STAGED"
 	[ -z "${FNC_STAGED_DIR:-}" ] || rm -rf "$FNC_STAGED_DIR"
@@ -35,6 +39,7 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
+stage preflight
 for command_name in awk df grep jsonfilter sha256sum ubus uci uname wget; do
 	command -v "$command_name" >/dev/null 2>&1 ||
 		fail "required command is missing: $command_name"
@@ -172,6 +177,7 @@ download_checked() {
 		fail "download failed: $asset_name"
 	[ -s "$destination" ] || fail "downloaded asset is empty: $asset_name"
 
+	stage package_verification
 	actual_sha256="$(sha256sum "$destination" | awk '{ print $1 }')"
 	[ "$actual_sha256" = "$expected_sha256" ] ||
 		fail "SHA-256 mismatch for $asset_name"
@@ -179,12 +185,14 @@ download_checked() {
 
 # APKs are mirrored under each target feed name, while opkg uses the common
 # all-architecture IPK built and tested on the OpenWrt 24.10.x line.
+stage download
 download_checked "$THEME_PACKAGE" "$theme_sha256"
 download_checked "$APP_PACKAGE" "$app_sha256"
 download_checked "$THEME_RU_PACKAGE" "$theme_ru_sha256"
 download_checked "$APP_RU_PACKAGE" "$app_ru_sha256"
 download_checked "$FNC_BIN" "$fnc_sha256"
 
+stage package_install
 info "installing LuCI packages"
 if [ "$package_manager" = apk ]; then
 	# Release APKs are built without a device-side signing key. Their embedded
@@ -207,6 +215,7 @@ fi
 # LuCI caches the resolved menu tree, including depends.uci results. An APK
 # upgrade can leave a previous tree in /tmp, making only the ungated groups
 # visible until the cache is removed.
+stage post_install
 if [ -x /usr/libexec/freenetic-clear-luci-cache ]; then
 	/usr/libexec/freenetic-clear-luci-cache || fail "cannot clear LuCI cache"
 else
@@ -267,6 +276,7 @@ chmod 0755 "$FNC_STAGED" || fail "cannot make fnc launcher executable"
 mv -f "$FNC_STAGED" /usr/bin/fnc || fail "cannot activate /usr/bin/fnc"
 FNC_STAGED=""
 
+stage smoke_test
 if ! /usr/bin/fnc show version >/dev/null 2>&1; then
 	fail "fnc was installed but could not start with the router's runtime libraries"
 fi
@@ -274,11 +284,13 @@ fi
 # Keep one-shot installs and dashboard-triggered updates consistent. The
 # dashboard uses this tag for the friendly release label; package revisions
 # remain the authoritative signal for refreshed assets under the same tag.
+stage state_commit
 uci -q set freenetic.updates=freenetic || fail "cannot initialize update state"
 uci -q set "freenetic.updates.installed_release=$RELEASE_TAG" ||
 	fail "cannot record the installed release"
 uci -q commit freenetic || fail "cannot save the installed release"
 
+stage complete
 info "installed Freenetic $RELEASE_TAG for $target using $package_manager"
 info "fnc is available as /usr/bin/fnc (binary: /usr/lib/freenetic/fnc.bin)"
 info "Russian translations are installed; select Русский in LuCI if needed"

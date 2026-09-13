@@ -23,9 +23,11 @@ assert.match(network, /section\.isolate === '1'/,
 
 assert.match(wan, /managed: s\.freenetic_managed === '1'/,
 	'WAN VLAN discovery must retain ownership information');
-assert.match(wan, /uci\.set\('network', 'device', sectionName, 'freenetic_managed', '1'\)/,
+assert.match(wan, /uci\.set\('network', sectionName, 'type', '8021q'\)/,
+	'new WAN VLAN devices must be written as native 8021q device sections');
+assert.match(wan, /uci\.set\('network', sectionName, 'freenetic_managed', '1'\)/,
 	'new WAN VLAN devices must be marked as Freenetic-managed');
-assert.match(wan, /if \(managed && managed\.freenetic_managed === '1'\)\s+uci\.remove\('network', 'device', this\.vlanSectionName\)/,
+assert.match(wan, /if \(managed && managed\.freenetic_managed === '1'\)\s+uci\.remove\('network', this\.vlanSectionName\)/,
 	'WAN VLAN removal must be guarded by the ownership marker');
 assert.match(wan, /if \(targetMatchesBase && !targetInfo\.managed\)/,
 	'foreign WAN VLAN devices must be reusable without being claimed');

@@ -8,6 +8,9 @@ const root = path.join(__dirname, '..', '..');
 const helperPath = path.join(root, 'app', 'luci-app-freenetic', 'root', 'usr', 'libexec',
 	'freenetic-self-update');
 const helper = fs.readFileSync(helperPath, 'utf8');
+const installer = fs.readFileSync(path.join(root, 'install.sh'), 'utf8');
+const dashboard = fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
+	'luci-static', 'resources', 'view', 'status', 'freenetic-dashboard.js'), 'utf8');
 const acl = JSON.parse(fs.readFileSync(path.join(root, 'app', 'luci-app-freenetic', 'root',
 	'usr', 'share', 'rpcd', 'acl.d', 'luci-app-freenetic.json'), 'utf8'))['luci-app-freenetic'];
 const preflight = fs.readFileSync(path.join(root, 'app', 'freenetic-preflight.mk'), 'utf8');
@@ -44,6 +47,36 @@ assert.match(helper, /opkg status "\$package_name"/,
 	'status must read package versions from legacy opkg');
 assert.match(helper, /json_add_array packages/,
 	'status must expose installed versions without relying on package-manager-call');
+assert.match(helper, /reply_update_error\(\)/,
+	'self-update failures must expose structured update diagnostics');
+assert.match(helper, /last_installer_stage\(\)/,
+	'self-update must identify the last installer stage on failure');
+assert.match(helper, /rollback_release\(\)/,
+	'self-update must have an automatic rollback path');
+assert.match(helper, /previous_tag="\$\(uci -q get freenetic\.updates\.installed_release/,
+	'self-update must capture the previous release before changing packages');
+assert.match(helper, /json_add_boolean rollback_attempted/,
+	'self-update must report whether rollback was attempted');
+assert.match(helper, /json_add_boolean rollback_ok/,
+	'self-update must report rollback success separately from update success');
+assert.match(helper, /fail_after_mutation\(\)/,
+	'package and post-install failures must pass through rollback handling');
+assert.match(installer, /stage preflight/,
+	'the release installer must report the preflight stage');
+assert.match(installer, /stage package_verification/,
+	'the release installer must report package verification failures');
+assert.match(installer, /stage package_install/,
+	'the release installer must report package installation failures');
+assert.match(installer, /stage post_install/,
+	'the release installer must report post-install failures');
+assert.match(installer, /stage smoke_test/,
+	'the release installer must report smoke-test failures');
+assert.match(dashboard, /freeneticUpdateResult/,
+	'dashboard update errors must retain structured helper diagnostics');
+assert.match(dashboard, /Update failed during %s: %s/,
+	'dashboard must show the failing update stage');
+assert.match(dashboard, /Automatic rollback failed; check the router before retrying\./,
+	'dashboard must surface a failed rollback clearly');
 
 assert.deepEqual(acl.read.file['/usr/libexec/freenetic-self-update status'], [ 'exec' ]);
 assert.deepEqual(acl.write.file['/usr/libexec/freenetic-self-update install *'], [ 'exec' ]);

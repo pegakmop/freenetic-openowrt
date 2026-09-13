@@ -24,8 +24,98 @@ reply_error() {
 	json_dump
 }
 
+reply_update_error() {
+	update_stage="$1"
+	rollback_attempted="$2"
+	rollback_ok="$3"
+	update_error="$4"
+	json_init
+	json_add_boolean ok 0
+	json_add_string stage "$update_stage"
+	json_add_boolean rollback_attempted "$rollback_attempted"
+	json_add_boolean rollback_ok "$rollback_ok"
+	json_add_string error "$update_error"
+	json_dump
+}
+
 valid_tag() {
 	printf '%s\n' "$1" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9][A-Za-z0-9.-]*)?$'
+}
+
+last_installer_stage() {
+	last_stage="$(sed -n 's/^Freenetic installer: stage: //p' "$1" 2>/dev/null | tail -n 1 || true)"
+	[ -n "$last_stage" ] || last_stage=install
+	printf '%s\n' "$last_stage"
+}
+
+rollback_required() {
+	case "$1" in
+		preflight|download|manifest|package_verification)
+			return 1
+			;;
+		*)
+			return 0
+			;;
+	esac
+}
+
+rollback_release() {
+	previous_tag="$1"
+	stage_dir="$2"
+	rollback_installer="$stage_dir/rollback-install.sh"
+	rollback_log="$stage_dir/rollback.log"
+
+	valid_tag "$previous_tag" || return 1
+	wget -qO "$rollback_installer" "$RAW_BASE_URL/$previous_tag/install.sh" || return 1
+	rollback_bytes="$(wc -c < "$rollback_installer" 2>/dev/null || true)"
+	case "$rollback_bytes" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	[ "$rollback_bytes" -gt 0 ] && [ "$rollback_bytes" -le "$MAX_INSTALLER_BYTES" ] || return 1
+	grep -Fqx "RELEASE_TAG=\"$previous_tag\"" "$rollback_installer" || return 1
+	sh -n "$rollback_installer" || return 1
+	FREENETIC_RELEASE_BASE_URL="$RELEASES_BASE_URL/$previous_tag" \
+		sh "$rollback_installer" >"$rollback_log" 2>&1
+}
+
+fail_update() {
+	failure_dir="$1"
+	failure_stage="$2"
+	failure_rollback_attempted="$3"
+	failure_rollback_ok="$4"
+	failure_detail="$5"
+	reply_update_error "$failure_stage" "$failure_rollback_attempted" \
+		"$failure_rollback_ok" "$failure_detail"
+	rm -rf "$failure_dir"
+	exit 0
+}
+
+fail_after_mutation() {
+	failure_stage="$1"
+	failure_detail="$2"
+	failure_rollback_attempted=0
+	failure_rollback_ok=0
+	failure_newline='
+'
+
+	if rollback_required "$failure_stage" && valid_tag "$previous_tag"; then
+		failure_rollback_attempted=1
+		if rollback_release "$previous_tag" "$stage_dir"; then
+			failure_rollback_ok=1
+			failure_detail="Automatic rollback to $previous_tag succeeded.${failure_newline}$failure_detail"
+		else
+			rollback_detail="$(tail -n 12 "$stage_dir/rollback.log" 2>/dev/null || true)"
+			[ -n "$rollback_detail" ] || rollback_detail="The previous release installer could not be downloaded, verified or executed."
+			failure_detail="Automatic rollback to $previous_tag failed.${failure_newline}$failure_detail${failure_newline}Rollback details:${failure_newline}$rollback_detail"
+		fi
+	elif rollback_required "$failure_stage"; then
+		failure_detail="No previous release is recorded, so automatic rollback was not attempted.${failure_newline}$failure_detail"
+	else
+		failure_detail="No package changes were made by the updater.${failure_newline}$failure_detail"
+	fi
+
+	fail_update "$stage_dir" "$failure_stage" "$failure_rollback_attempted" \
+		"$failure_rollback_ok" "$failure_detail"
 }
 
 installed_package_version() {
@@ -107,16 +197,16 @@ run_update() {
 	installer="$stage_dir/install.sh"
 	log="$stage_dir/install.log"
 	installer_url="$RAW_BASE_URL/$tag/install.sh"
+	previous_tag=
+	if command -v uci >/dev/null 2>&1; then
+		previous_tag="$(uci -q get freenetic.updates.installed_release 2>/dev/null || true)"
+	fi
 
 	if ! command -v wget >/dev/null 2>&1; then
-		reply_error "wget is not installed"
-		rm -rf "$stage_dir"
-		exit 0
+		fail_update "$stage_dir" download 0 0 "wget is not installed"
 	fi
 	if ! wget -qO "$installer" "$installer_url"; then
-		reply_error "Cannot download the pinned release installer"
-		rm -rf "$stage_dir"
-		exit 0
+		fail_update "$stage_dir" download 0 0 "Cannot download the pinned release installer"
 	fi
 
 	installer_bytes="$(wc -c < "$installer" 2>/dev/null || true)"
@@ -124,19 +214,13 @@ run_update() {
 		''|*[!0-9]*) installer_bytes=0 ;;
 	esac
 	if [ "$installer_bytes" -le 0 ] || [ "$installer_bytes" -gt "$MAX_INSTALLER_BYTES" ]; then
-		reply_error "The release installer has an invalid size"
-		rm -rf "$stage_dir"
-		exit 0
+		fail_update "$stage_dir" manifest 0 0 "The release installer has an invalid size"
 	fi
 	if ! grep -Fqx "RELEASE_TAG=\"$tag\"" "$installer"; then
-		reply_error "The release installer does not match the selected tag"
-		rm -rf "$stage_dir"
-		exit 0
+		fail_update "$stage_dir" manifest 0 0 "The release installer does not match the selected tag"
 	fi
 	if ! sh -n "$installer"; then
-		reply_error "The release installer has invalid shell syntax"
-		rm -rf "$stage_dir"
-		exit 0
+		fail_update "$stage_dir" manifest 0 0 "The release installer has invalid shell syntax"
 	fi
 
 	# Serialize with the stock LuCI package manager. The lock descriptor is
@@ -144,29 +228,30 @@ run_update() {
 	if command -v flock >/dev/null 2>&1; then
 		exec 200>/tmp/ipkg.lock
 		if ! flock -x 200; then
-			reply_error "Cannot acquire the package manager lock"
-			rm -rf "$stage_dir"
-			exit 0
+			fail_update "$stage_dir" lock 0 0 "Cannot acquire the package manager lock"
 		fi
 	fi
 
 	if ! FREENETIC_RELEASE_BASE_URL="$RELEASES_BASE_URL/$tag" sh "$installer" >"$log" 2>&1; then
 		detail="$(tail -n 12 "$log" 2>/dev/null || true)"
 		[ -n "$detail" ] || detail="The release installer failed without output"
-		reply_error "$detail"
-		rm -rf "$stage_dir"
-		exit 0
+		failure_stage="$(last_installer_stage "$log")"
+		fail_after_mutation "$failure_stage" "$detail"
 	fi
 
 	if command -v uci >/dev/null 2>&1; then
-		uci -q set freenetic.updates=freenetic
-		uci -q set "freenetic.updates.installed_release=$tag"
-		uci -q commit freenetic
+		if ! uci -q set freenetic.updates=freenetic ||
+			! uci -q set "freenetic.updates.installed_release=$tag" ||
+			! uci -q commit freenetic; then
+			fail_after_mutation state_commit "The packages were installed, but the installed release could not be recorded."
+		fi
 	fi
 	detail="$(tail -n 12 "$log" 2>/dev/null || true)"
 	json_init
 	json_add_boolean ok 1
 	json_add_string tag "$tag"
+	json_add_string previous_release "$previous_tag"
+	json_add_string stage complete
 	json_add_string detail "$detail"
 	json_dump
 	rm -rf "$stage_dir"

@@ -1885,6 +1885,7 @@ return view.extend({
 									if (!result || result.ok !== true) {
 										const error = new Error(result && result.error || _('The release installer failed.'));
 										error.freeneticConfirmedFailure = true;
+										error.freeneticUpdateResult = result;
 										throw error;
 									}
 									ui.showModal(_('Freenetic was updated'), [
@@ -1899,10 +1900,23 @@ return view.extend({
 								})
 								.catch(error => {
 									const confirmed = error && error.freeneticConfirmedFailure;
+									const result = error && error.freeneticUpdateResult;
+									const stage = result && result.stage ? String(result.stage).replace(/_/g, ' ') : '';
+									const failureMessage = confirmed
+										? (result && result.stage
+											? _('Update failed during %s: %s').format(stage, result.error || error.message)
+											: _('The update was not installed: %s').format(error.message || error))
+										: _('rpcd may have restarted while applying the update. Reload the interface and check the installed version.');
+									const recoveryMessage = result && result.rollback_attempted
+										? (result.rollback_ok
+											? _('The previous Freenetic release was restored automatically.')
+											: _('Automatic rollback failed; check the router before retrying.'))
+										: '';
+									const failureBody = [ E('p', {}, failureMessage) ];
+									if (recoveryMessage)
+										failureBody.push(E('p', {}, recoveryMessage));
 									ui.showModal(confirmed ? _('Freenetic update failed') : _('Update connection was interrupted'), [
-										E('p', {}, confirmed
-											? _('The update was not installed: %s').format(error.message || error)
-											: _('rpcd may have restarted while applying the update. Reload the interface and check the installed version.')),
+										...failureBody,
 										E('div', { class: 'button-row' }, [
 											E('button', { class: 'btn', click: ui.hideModal }, _('Close')),
 											E('button', {

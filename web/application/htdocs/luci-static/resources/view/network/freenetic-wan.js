@@ -574,9 +574,9 @@ return view.extend({
 				   rewrite its options or claim ownership. */
 				if (targetMatchesBase && !targetInfo.managed) {
 					if (this.vlanSectionName && this.vlanSectionName !== targetInfo.sectionName) {
-						const oldManaged = uci.get('network', 'device', this.vlanSectionName);
+						const oldManaged = uci.get('network', this.vlanSectionName);
 						if (oldManaged && oldManaged.freenetic_managed === '1')
-							uci.remove('network', 'device', this.vlanSectionName);
+							uci.remove('network', this.vlanSectionName);
 					}
 					this.vlanSectionName = null;
 					newDevice = desiredDevice;
@@ -585,24 +585,24 @@ return view.extend({
 					let sectionName = this.vlanSectionName;
 					if (targetMatchesBase && targetInfo.managed) {
 						if (sectionName && sectionName !== targetInfo.sectionName) {
-							const oldManaged = uci.get('network', 'device', sectionName);
+							const oldManaged = uci.get('network', sectionName);
 							if (oldManaged && oldManaged.freenetic_managed === '1')
-								uci.remove('network', 'device', sectionName);
+								uci.remove('network', sectionName);
 						}
 						sectionName = targetInfo.sectionName;
 					}
 
-					const managedSection = sectionName && uci.get('network', 'device', sectionName);
+					const managedSection = sectionName && uci.get('network', sectionName);
 					if (!managedSection || managedSection.freenetic_managed !== '1')
 						sectionName = null;
 					if (!sectionName)
 						sectionName = uci.add('network', 'device');
 
-					uci.set('network', 'device', sectionName, 'type', '8021q');
-					uci.set('network', 'device', sectionName, 'ifname', this.baseIfname);
-					uci.set('network', 'device', sectionName, 'vid', fields.vlan);
-					uci.set('network', 'device', sectionName, 'name', desiredDevice);
-					uci.set('network', 'device', sectionName, 'freenetic_managed', '1');
+					uci.set('network', sectionName, 'type', '8021q');
+					uci.set('network', sectionName, 'ifname', this.baseIfname);
+					uci.set('network', sectionName, 'vid', fields.vlan);
+					uci.set('network', sectionName, 'name', desiredDevice);
+					uci.set('network', sectionName, 'freenetic_managed', '1');
 					this.vlanSectionName = sectionName;
 					this.vlanInfo = {
 						vid: String(fields.vlan),
@@ -614,9 +614,9 @@ return view.extend({
 					newDevice = desiredDevice;
 				}
 			} else if (this.vlanSectionName) {
-				const managed = uci.get('network', 'device', this.vlanSectionName);
+				const managed = uci.get('network', this.vlanSectionName);
 				if (managed && managed.freenetic_managed === '1')
-					uci.remove('network', 'device', this.vlanSectionName);
+					uci.remove('network', this.vlanSectionName);
 				this.vlanSectionName = null;
 				this.vlanInfo = {
 					vid: '',
