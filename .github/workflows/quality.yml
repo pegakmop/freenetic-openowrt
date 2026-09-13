@@ -63,6 +63,10 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
+        with:
+          # Package revisions are derived from the latest relevant source
+          # commit; a shallow checkout would incorrectly report HEAD.
+          fetch-depth: 0
 
       - name: Download and verify the OpenWrt SDK
         env:
