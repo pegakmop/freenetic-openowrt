@@ -5,10 +5,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..', '..');
-const source = fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
-	'luci-static', 'resources', 'freenetic-connections-core.js'), 'utf8') + '\n' +
-	fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
-	'luci-static', 'resources', 'view', 'network', 'freenetic-other-connections.js'), 'utf8');
+const resourceRoot = path.join(root, 'web', 'application', 'htdocs',
+	'luci-static', 'resources');
+const source = [
+	'freenetic-connections-core.js',
+	'freenetic-connections-wireguard.js',
+	'view/network/freenetic-other-connections.js'
+].map(file => fs.readFileSync(path.join(resourceRoot, file), 'utf8')).join('\n');
 
 assert.match(source, /'require freenetic-network as networkHelper';/,
 	'VPN editor must use the shared ownership predicate');

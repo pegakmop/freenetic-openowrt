@@ -8,8 +8,9 @@ which they became user-visible.
 
 ### Improved
 
-- Split the dashboard data/ubus layer from its UI view and moved the shared
-  protocol logic for Other Connections into a dedicated LuCI resource module.
+- Split the dashboard data/ubus layer from its UI view and split Other
+  Connections into protocol-specific WireGuard/AWG, OpenVPN and IPsec LuCI
+  modules behind a small dispatcher view.
 - GitHub Actions now prepares target-specific release assets on every build and
   publishes a verified 14-asset GitHub Release when a version tag is pushed.
 

@@ -9,6 +9,8 @@ const viewPath = path.join(root, 'web', 'application', 'htdocs', 'luci-static',
 	'resources', 'view', 'network', 'freenetic-other-connections.js');
 const corePath = path.join(root, 'web', 'application', 'htdocs', 'luci-static',
 	'resources', 'freenetic-connections-core.js');
+const protocolPath = path.join(root, 'web', 'application', 'htdocs', 'luci-static',
+	'resources', 'freenetic-connections-ipsec.js');
 const aclPath = path.join(root, 'app', 'luci-app-freenetic', 'root', 'usr',
 	'share', 'rpcd', 'acl.d', 'luci-app-freenetic.json');
 const appsPath = path.join(root, 'web', 'application', 'htdocs', 'luci-static',
@@ -20,7 +22,8 @@ const helperPath = path.join(root, 'app', 'luci-app-freenetic', 'root', 'usr',
 const statusHelperPath = path.join(root, 'app', 'luci-app-freenetic', 'root', 'usr',
 	'libexec', 'freenetic-ipsec-status');
 
-const view = fs.readFileSync(corePath, 'utf8') + '\n' + fs.readFileSync(viewPath, 'utf8');
+const view = fs.readFileSync(corePath, 'utf8') + '\n' +
+	fs.readFileSync(protocolPath, 'utf8') + '\n' + fs.readFileSync(viewPath, 'utf8');
 const apps = fs.readFileSync(appsPath, 'utf8');
 const wifi = fs.readFileSync(wifiPath, 'utf8');
 const helper = fs.readFileSync(helperPath, 'utf8');

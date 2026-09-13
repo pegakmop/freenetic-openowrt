@@ -9,12 +9,15 @@ const viewPath = path.join(root, 'web', 'application', 'htdocs', 'luci-static',
 	'resources', 'view', 'network', 'freenetic-other-connections.js');
 const corePath = path.join(root, 'web', 'application', 'htdocs', 'luci-static',
 	'resources', 'freenetic-connections-core.js');
+const protocolPath = path.join(root, 'web', 'application', 'htdocs', 'luci-static',
+	'resources', 'freenetic-connections-openvpn.js');
 const aclPath = path.join(root, 'app', 'luci-app-freenetic', 'root', 'usr',
 	'share', 'rpcd', 'acl.d', 'luci-app-freenetic.json');
 const helperPath = path.join(root, 'app', 'luci-app-freenetic', 'root', 'usr',
 	'libexec', 'freenetic-openvpn-profile');
 const acl = JSON.parse(fs.readFileSync(aclPath, 'utf8'))['luci-app-freenetic'];
-const view = fs.readFileSync(corePath, 'utf8') + '\n' + fs.readFileSync(viewPath, 'utf8');
+const view = fs.readFileSync(corePath, 'utf8') + '\n' +
+	fs.readFileSync(protocolPath, 'utf8') + '\n' + fs.readFileSync(viewPath, 'utf8');
 const helper = fs.readFileSync(helperPath, 'utf8');
 
 assert.ok(fs.statSync(helperPath).mode & 0o111, 'OpenVPN profile helper must be executable');

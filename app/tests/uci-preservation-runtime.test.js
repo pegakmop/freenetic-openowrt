@@ -97,6 +97,12 @@ function evaluateView(relative, uci, options = {}) {
 	const resourceRoot = path.join(root, 'web', 'application', 'htdocs', 'luci-static', 'resources');
 	const connectionCoreSource = fs.readFileSync(path.join(resourceRoot,
 		'freenetic-connections-core.js'), 'utf8');
+	const connectionWireguardSource = fs.readFileSync(path.join(resourceRoot,
+		'freenetic-connections-wireguard.js'), 'utf8');
+	const connectionOpenvpnSource = fs.readFileSync(path.join(resourceRoot,
+		'freenetic-connections-openvpn.js'), 'utf8');
+	const connectionIpsecSource = fs.readFileSync(path.join(resourceRoot,
+		'freenetic-connections-ipsec.js'), 'utf8');
 	const dashboardDataSource = fs.readFileSync(path.join(resourceRoot,
 		'freenetic-dashboard-data.js'), 'utf8');
 	const view = {
@@ -144,16 +150,24 @@ function evaluateView(relative, uci, options = {}) {
 	const E = () => makeElement();
 	const connectionCore = new Function('baseclass', 'fs', 'uci', 'rpc', '_', connectionCoreSource)(
 		view, fsModule, uci, rpc, translate);
+	const moduleArgs = [ 'ui', 'uci', 'fs', 'uiHelper', 'networkHelper', 'E', '_', 'L',
+		'window', 'document', 'URL', 'Blob', 'FileReader', 'connectionCore' ];
+	const moduleValues = [ ui, uci, fsModule, uiHelper, networkHelper, E, translate, L,
+		window, document, URL, Blob, undefined, connectionCore ];
+	const evaluateConnectionModule = moduleSource => new Function(...moduleArgs, moduleSource)(...moduleValues);
+	const wireguardView = evaluateConnectionModule(connectionWireguardSource);
+	const openvpnView = evaluateConnectionModule(connectionOpenvpnSource);
+	const ipsecView = evaluateConnectionModule(connectionIpsecSource);
 	const dashboardData = new Function('baseclass', 'fs', 'uci', 'rpc', '_', dashboardDataSource)(
 		view, fsModule, uci, rpc, translate);
 
 	return new Function('view', 'ui', 'uci', 'fs', 'rpc', 'uiHelper',
 		'networkHelper', 'guard', 'poll', 'E', '_', 'L', 'window',
 		'document', 'location', 'confirm', 'URL', 'Blob', 'connectionCore',
-		'dashboardData', source)(
+		'dashboardData', 'wireguardView', 'openvpnView', 'ipsecView', source)(
 		view, ui, uci, fsModule, rpc, uiHelper, networkHelper, guard, poll,
 		E, translate, L, window, document, location, window.confirm, URL, Blob,
-		connectionCore, dashboardData
+		connectionCore, dashboardData, wireguardView, openvpnView, ipsecView
 	);
 }
 
