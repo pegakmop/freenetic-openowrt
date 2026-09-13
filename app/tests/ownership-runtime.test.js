@@ -58,7 +58,15 @@ const uci = new FakeUci({
 	},
 	firewall: {
 		guest: { '.name': 'guest', '.type': 'zone', name: 'guest', network: 'guest' },
-		forwarding: { '.name': 'guest_wan_fwd', '.type': 'forwarding', src: 'guest', dest: 'wan' }
+		forwarding: { '.name': 'guest_wan_fwd', '.type': 'forwarding', src: 'guest', dest: 'wan' },
+		legacyDhcp: {
+			'.name': 'freenetic_guest_dhcp', '.type': 'rule', name: 'Allow guest DHCP',
+			src: 'guest', dest_port: '67', target: 'ACCEPT', family: 'ipv4', unknown_foo: 'rule-value'
+		},
+		legacyDns: {
+			'.name': 'freenetic_guest_dns', '.type': 'rule', name: 'Allow guest DNS',
+			src: 'guest', dest_port: '53', target: 'ACCEPT', family: 'ipv4', unknown_foo: 'dns-rule-value'
+		}
 	}
 });
 
@@ -76,9 +84,29 @@ assert.equal(uci.get('dhcp', 'guest', 'freenetic_managed'), '1');
 assert.equal(uci.get('dhcp', 'guest', 'unknown_foo'), 'dhcp-value');
 assert.equal(uci.get('firewall', 'guest', 'freenetic_managed'), '1');
 assert.equal(uci.get('firewall', 'guest_wan_fwd', 'freenetic_managed'), '1');
+assert.equal(uci.get('firewall', 'freenetic_guest_dhcp', 'freenetic_managed'), '1');
+assert.equal(uci.get('firewall', 'freenetic_guest_dhcp', 'unknown_foo'), 'rule-value');
+assert.equal(uci.get('firewall', 'freenetic_guest_dns', 'freenetic_managed'), '1');
+assert.equal(uci.get('firewall', 'freenetic_guest_dns', 'unknown_foo'), 'dns-rule-value');
 
 assert.equal(uci.get('wireless', 'guest_manual', 'freenetic_managed'), undefined,
 	'foreign guest-like Wi-Fi section must not be adopted');
 assert.equal(uci.get('wireless', 'guest_manual', 'unknown_foo'), 'keep');
+
+const collisionUci = new FakeUci({
+	network: {},
+	dhcp: {},
+	wireless: {},
+	firewall: {
+		guest: { '.name': 'guest', '.type': 'zone', name: 'guest', network: 'guest' },
+		freenetic_guest_dhcp: {
+			'.name': 'freenetic_guest_dhcp', '.type': 'rule', name: 'Manual rule',
+			src: 'guest', dest_port: '67', target: 'ACCEPT', family: 'ipv4'
+		}
+	}
+});
+const collisionHelper = new Function('baseclass', 'uci', source)(baseclass, collisionUci);
+assert.throws(() => collisionHelper.ensureGuestFirewall(), /not Freenetic-managed/,
+	'guest hardening must not claim a foreign rule with a reserved section name');
 
 console.log('ownership runtime: ok');

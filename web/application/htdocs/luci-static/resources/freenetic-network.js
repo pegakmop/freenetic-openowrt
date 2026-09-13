@@ -41,6 +41,8 @@ function ensureRule(rule) {
 		uci.add('firewall', 'rule', rule.section);
 	else if (existing['.type'] !== 'rule')
 		throw new Error('firewall.%s exists but is not a rule'.format(rule.section));
+	else if (!isManaged(existing))
+		throw new Error('firewall.%s exists but is not Freenetic-managed'.format(rule.section));
 
 	Object.keys(rule.values).forEach(option =>
 		uci.set('firewall', rule.section, option, rule.values[option]));
@@ -91,6 +93,10 @@ function adoptLegacyGuest() {
 			? section.network.includes('guest') : section.network === 'guest'));
 	adoptLegacySection('firewall', 'guest_wan_fwd', 'forwarding', section =>
 		section.src === 'guest' && section.dest === 'wan');
+	GUEST_INPUT_RULES.forEach(rule => adoptLegacySection('firewall', rule.section, 'rule', section =>
+		section.name === rule.values.name && section.src === rule.values.src &&
+		String(section.dest_port || '') === String(rule.values.dest_port) &&
+		section.target === rule.values.target && section.family === rule.values.family));
 }
 
 function ipv4NetworkCidr(address, prefix) {

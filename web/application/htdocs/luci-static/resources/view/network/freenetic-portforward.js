@@ -426,7 +426,10 @@ return view.extend({
 		btn.disabled = true;
 
 		return uci.load('firewall').then(() => {
+			const isNew = !this.editingSection;
 			const section = this.editingSection || uci.add('firewall', 'redirect');
+			if (isNew)
+				uci.set('firewall', section, 'freenetic_managed', '1');
 			uci.set('firewall', section, 'target', 'DNAT');
 			uci.set('firewall', section, 'src', fields.inputNetwork || this.zones.wan);
 			uci.set('firewall', section, 'dest', this.zones.lan);

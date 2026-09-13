@@ -572,6 +572,9 @@ return view.extend({
 		btn.disabled = true;
 
 		return uci.load([ 'wireless', 'network', 'dhcp', 'firewall' ]).then(() => {
+			if (isGuest)
+				networkHelper.adoptLegacyGuest();
+
 			if (uci.get('network', ifaceName, 'proto') != null)
 				uci.set('network', ifaceName, 'label', opts.label);
 
@@ -684,12 +687,6 @@ return view.extend({
 				if (v.enc !== 'none')
 					uci.set('wireless', name, 'key', v.key);
 			});
-
-			/* Adopt only unmistakable pre-marker guest objects while the user is
-			   explicitly saving this guest network. Deletion itself never infers
-			   ownership from a section name. */
-			if (isGuest)
-				networkHelper.adoptLegacyGuest();
 
 			return uci.save();
 		}).then(() => applyChanges()).then(() => {

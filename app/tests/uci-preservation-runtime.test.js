@@ -356,6 +356,24 @@ async function testWireguardPreservation(protocol) {
 		'foreign peer missing from the model must not be removed');
 }
 
+async function testIpsecOwnership() {
+	const uci = new FakeUci({ ipsec: {
+		foreign_remote: { '.name': 'foreign_remote', '.type': 'conn', unknown_foo: 'foreign' },
+		managed_remote: { '.name': 'managed_remote', '.type': 'conn', freenetic_managed: '1', unknown_foo: 'managed' }
+	} });
+	const view = evaluateView('network/freenetic-other-connections.js', uci);
+	view.ensureIpsecSection('conn', 'new_remote');
+	assert.equal(uci.get('ipsec', 'new_remote', 'freenetic_managed'), '1');
+	view.removeIpsecSections({
+		remoteSection: 'foreign_remote', childSection: 'managed_remote',
+		secretSection: null, ikeProposalSection: null, espProposalSection: null
+	});
+	assert.ok(uci.get('ipsec', 'foreign_remote'), 'foreign IPsec section must be preserved');
+	assert.equal(uci.get('ipsec', 'managed_remote'), null,
+		'managed IPsec section should be removed during explicit connection deletion');
+	assert.deepEqual(uci.removes, [ 'ipsec.managed_remote' ]);
+}
+
 (async () => {
 	await testFirewallRulePreservation();
 	await testPortForwardPreservation();
@@ -365,6 +383,7 @@ async function testWireguardPreservation(protocol) {
 	await testWanPreservation();
 	await testWireguardPreservation('wireguard');
 	await testWireguardPreservation('amneziawg');
+	await testIpsecOwnership();
 	console.log('UCI preservation runtime: ok');
 })().catch(error => {
 	console.error(error.stack || error);

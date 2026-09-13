@@ -343,6 +343,7 @@ return view.extend({
 	registerClient(mac, name, ip) {
 		return uci.load('dhcp').then(() => {
 			const section = uci.add('dhcp', 'host');
+			uci.set('dhcp', section, 'freenetic_managed', '1');
 			uci.set('dhcp', section, 'mac', mac);
 			if (name) uci.set('dhcp', section, 'name', name);
 			if (ip) uci.set('dhcp', section, 'ip', ip);
@@ -370,6 +371,7 @@ return view.extend({
 	blockClient(mac) {
 		return uci.load('firewall').then(() => {
 			const section = uci.add('firewall', 'rule');
+			uci.set('firewall', section, 'freenetic_managed', '1');
 			uci.set('firewall', section, 'name', 'freenetic_block_' + mac.replace(/:/g, ''));
 			uci.set('firewall', section, 'src', 'lan');
 			uci.set('firewall', section, 'dest', 'wan');

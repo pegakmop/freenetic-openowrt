@@ -1163,6 +1163,7 @@ return view.extend({
 			}
 			existing[key] = true;
 			const section = uci.add('network', route.family === 'ipv6' ? 'route6' : 'route');
+			uci.set('network', section, 'freenetic_managed', '1');
 			uci.set('network', section, 'interface', interfaceSelect.value);
 			uci.set('network', section, 'target', route.target);
 			if (route.family === 'ipv4')
@@ -1273,7 +1274,10 @@ return view.extend({
 
 		button.disabled = true;
 		const type = fields.family === 'ipv6' ? 'route6' : 'route';
+		const isNew = !this.editingSection;
 		const section = this.editingSection || uci.add('network', type);
+		if (isNew)
+			uci.set('network', section, 'freenetic_managed', '1');
 		if (fields.interface)
 			uci.set('network', section, 'interface', fields.interface);
 		else
@@ -1334,8 +1338,10 @@ return view.extend({
 
 		button.disabled = true;
 		let section = this.getDnsConfig().section;
-		if (!section)
+		if (!section) {
 			section = uci.add('dhcp', 'dnsmasq');
+			uci.set('dhcp', section, 'freenetic_managed', '1');
+		}
 
 		const servers = this.getDnsConfig().servers;
 		const raw = encodeDnsServer(fields.domain, fields.server);

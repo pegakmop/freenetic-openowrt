@@ -304,7 +304,10 @@ return view.extend({
 		btn.disabled = true;
 
 		return uci.load('firewall').then(() => {
+			const isNew = !this.editingSection;
 			const section = this.editingSection || uci.add('firewall', 'rule');
+			if (isNew)
+				uci.set('firewall', section, 'freenetic_managed', '1');
 			uci.set('firewall', section, 'name', fields.name);
 			uci.set('firewall', section, 'target', fields.target);
 			if (fields.src) uci.set('firewall', section, 'src', fields.src); else uci.unset('firewall', section, 'src');

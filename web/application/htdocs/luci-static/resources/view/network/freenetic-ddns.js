@@ -395,9 +395,12 @@ return view.extend({
 			uci.add('ddns', 'ddns', 'global');
 			uci.set('ddns', 'global', 'ddns_dateformat', '%F %R');
 			uci.set('ddns', 'global', 'ddns_loglines', '250');
+			uci.set('ddns', 'global', 'freenetic_managed', '1');
 		}
-		if (!uci.get('ddns', section))
+		if (!uci.get('ddns', section)) {
 			uci.add('ddns', 'service', section);
+			uci.set('ddns', section, 'freenetic_managed', '1');
+		}
 		uci.set('ddns', section, 'freenetic_name', fields.name);
 		uci.set('ddns', section, 'lookup_host', fields.host);
 		uci.set('ddns', section, 'domain', fields.host);

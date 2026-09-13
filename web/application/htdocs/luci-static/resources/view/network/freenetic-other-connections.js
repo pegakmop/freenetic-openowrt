@@ -1909,17 +1909,23 @@ return view.extend({
 	},
 
 	ensureIpsecSection(type, name) {
-		if (!name)
-			return uci.add(IPSEC_CONFIG, type);
-		if (!uci.get(IPSEC_CONFIG, name, '.type'))
+		if (!name) {
+			const section = uci.add(IPSEC_CONFIG, type);
+			uci.set(IPSEC_CONFIG, section, 'freenetic_managed', '1');
+			return section;
+		}
+		if (!uci.get(IPSEC_CONFIG, name, '.type')) {
 			uci.add(IPSEC_CONFIG, type, name);
+			uci.set(IPSEC_CONFIG, name, 'freenetic_managed', '1');
+		}
 		return name;
 	},
 
 	removeIpsecSections(connection) {
 		[ connection.remoteSection, connection.childSection, connection.secretSection,
 			connection.ikeProposalSection, connection.espProposalSection ].forEach(name => {
-			if (name && uci.get(IPSEC_CONFIG, name, '.type'))
+			if (name && uci.get(IPSEC_CONFIG, name, '.type') &&
+				uci.get(IPSEC_CONFIG, name, 'freenetic_managed') === '1')
 				uci.remove(IPSEC_CONFIG, name);
 		});
 	},
@@ -1950,7 +1956,10 @@ return view.extend({
 		let ikeName;
 		let espName;
 		return Promise.all([ uci.load('network'), uci.load(IPSEC_CONFIG).catch(() => null) ]).then(() => {
+			const isNew = !fields.section;
 			section = fields.section || uci.add('network', 'interface');
+			if (isNew)
+				uci.set('network', section, 'freenetic_managed', '1');
 			remoteName = fields.remoteSection || managedIpsecSection('fnr_', section + ':l2tp');
 			childName = fields.childSection || managedIpsecSection('fnc_', section + ':l2tp');
 			ikeName = fields.ikeProposalSection || managedIpsecSection('fnp_', section + ':l2tp-ike');
@@ -2041,7 +2050,10 @@ return view.extend({
 		let ikeName;
 		let espName;
 		return Promise.all([ uci.load('network'), uci.load(IPSEC_CONFIG).catch(() => null) ]).then(() => {
+			const isNew = !fields.section;
 			section = fields.section || uci.add('network', 'interface');
+			if (isNew)
+				uci.set('network', section, 'freenetic_managed', '1');
 			remoteName = fields.remoteSection || managedIpsecSection('fnr_', section + ':ikev2');
 			childName = fields.childSection || managedIpsecSection('fnc_', section + ':ikev2');
 			secretName = fields.secretSection || managedIpsecSection('fns_', section + ':ikev2');
@@ -2076,7 +2088,8 @@ return view.extend({
 			else {
 				uci.set(IPSEC_CONFIG, remoteName, 'pre_shared_key', fields.psk);
 				[ 'eap_id', 'remote_ca_certs' ].forEach(option => uci.unset(IPSEC_CONFIG, remoteName, option));
-				if (fields.secretSection && uci.get(IPSEC_CONFIG, fields.secretSection, '.type'))
+				if (fields.secretSection && uci.get(IPSEC_CONFIG, fields.secretSection, '.type') &&
+					uci.get(IPSEC_CONFIG, fields.secretSection, 'freenetic_managed') === '1')
 					uci.remove(IPSEC_CONFIG, fields.secretSection);
 			}
 			this.setOptional(IPSEC_CONFIG, remoteName, 'local_identifier', fields.localIdentifier);
@@ -2141,7 +2154,10 @@ return view.extend({
 		let profilePath;
 		let oldManagedName = '';
 		return uci.load('network').then(() => {
+			const isNew = !fields.section;
 			section = fields.section || uci.add('network', 'interface');
+			if (isNew)
+				uci.set('network', section, 'freenetic_managed', '1');
 			profileName = openvpnProfileName(section);
 			profilePath = openvpnProfilePath(section);
 			oldManagedName = fields.managedProfile ? openvpnProfileNameFromPath(fields.profilePath) : '';

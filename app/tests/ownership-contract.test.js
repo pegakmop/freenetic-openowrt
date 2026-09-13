@@ -10,6 +10,12 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const network = read('web/application/htdocs/luci-static/resources/freenetic-network.js');
 const wan = read('web/application/htdocs/luci-static/resources/view/network/freenetic-wan.js');
 const myNetworks = read('web/application/htdocs/luci-static/resources/view/network/freenetic-mynetworks.js');
+const routing = read('web/application/htdocs/luci-static/resources/view/network/freenetic-routing.js');
+const firewall = read('web/application/htdocs/luci-static/resources/view/network/freenetic-firewall.js');
+const portforward = read('web/application/htdocs/luci-static/resources/view/network/freenetic-portforward.js');
+const ddns = read('web/application/htdocs/luci-static/resources/view/network/freenetic-ddns.js');
+const clients = read('web/application/htdocs/luci-static/resources/view/status/freenetic-clients.js');
+const connections = read('web/application/htdocs/luci-static/resources/view/network/freenetic-other-connections.js');
 const dashboard = read('web/application/htdocs/luci-static/resources/view/status/freenetic-dashboard.js');
 
 assert.match(network, /function isManaged\(section\)/,
@@ -41,5 +47,22 @@ assert.match(myNetworks, /uci\.set\('wireless', name, 'freenetic_managed', '1'\)
 	'guest Wi-Fi created by My Networks must be marked');
 assert.match(dashboard, /uci\.set\('wireless', name, 'freenetic_managed', '1'\)/,
 	'guest Wi-Fi created by Dashboard must be marked');
+
+assert.match(routing, /const section = uci\.add\('network', route\.family === 'ipv6' \? 'route6' : 'route'\);\s+uci\.set\('network', section, 'freenetic_managed', '1'\)/,
+	'imported routes must be marked as Freenetic-managed');
+assert.match(routing, /const isNew = !this\.editingSection;[\s\S]*?if \(isNew\)\s+uci\.set\('network', section, 'freenetic_managed', '1'\)/,
+	'new routes must be marked without claiming edited foreign routes');
+assert.match(firewall, /const isNew = !this\.editingSection;[\s\S]*?uci\.set\('firewall', section, 'freenetic_managed', '1'\)/,
+	'new firewall rules must be marked without claiming edited foreign rules');
+assert.match(portforward, /const isNew = !this\.editingSection;[\s\S]*?uci\.set\('firewall', section, 'freenetic_managed', '1'\)/,
+	'new port forwards must be marked without claiming edited foreign rules');
+assert.match(ddns, /uci\.set\('ddns', section, 'freenetic_managed', '1'\)/,
+	'new DDNS profiles must be marked as Freenetic-managed');
+assert.match(clients, /const section = uci\.add\('dhcp', 'host'\);\s+uci\.set\('dhcp', section, 'freenetic_managed', '1'\)/,
+	'registered DHCP hosts must be marked as Freenetic-managed');
+assert.match(connections, /if \(!uci\.get\(IPSEC_CONFIG, name, '\.type'\)\)\s+\{[\s\S]*?uci\.set\(IPSEC_CONFIG, name, 'freenetic_managed', '1'\)/,
+	'new IPsec sections must be marked as Freenetic-managed');
+assert.match(connections, /uci\.get\(IPSEC_CONFIG, name, 'freenetic_managed'\) === '1'/,
+	'IPsec cleanup must require the ownership marker');
 
 console.log('ownership contracts: ok');
