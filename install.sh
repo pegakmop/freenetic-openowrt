@@ -150,10 +150,10 @@ case "$package_manager" in
 		APP_PACKAGE="luci-app-freenetic-${ASSET_VERSION}-${target_suffix}.apk"
 		THEME_RU_PACKAGE="luci-i18n-theme-freenetic-ru-${ASSET_VERSION}-${target_suffix}.apk"
 		APP_RU_PACKAGE="luci-i18n-freenetic-ru-${ASSET_VERSION}-${target_suffix}.apk"
-		theme_sha256="7492f6de3938b8a586c7e23bba4ea3978e66efcba17c53c9597dbfc09a1de49f"
-		app_sha256="ae4b49d4c986ee7b8cd576a2405b2123390d0927c310590a03d7f5eb058261dd"
-		theme_ru_sha256="63b16a6631d593636febfd399455e6a708e811ef3495ba2a8b8196c0668979dc"
-		app_ru_sha256="2fad25ec761b81dcb0a027918ba013a2a6b3c9c7323570af94e60742e801c359"
+		theme_sha256="c1f214732919885486dc10a663e54d1af8926054a04c573dc0f8e8fc61253546"
+		app_sha256="2c87cd4c9fc28d64dae2ba23b659fc10f2238d33eb6deb9479aba4ac07d21015"
+		theme_ru_sha256="d99d6056f47579139f027b186cbc4a411adf2d23e558716007620c4b9d4b818f"
+		app_ru_sha256="aae53e103d4244cc2f0598625aa143e1b2f862be0e4417b48cec58630a79e9ef"
 		;;
 	opkg)
 		THEME_PACKAGE="luci-theme-freenetic-${ASSET_VERSION}-all.ipk"
