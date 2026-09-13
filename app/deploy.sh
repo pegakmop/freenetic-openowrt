@@ -52,7 +52,22 @@ fi
 # in luci-app-package-manager (declared as a real package dependency in
 # app/luci-app-freenetic/Makefile). deploy.sh bypasses the package install
 # path, so it has to ensure the dependency itself; skip if already installed.
-$SSH_CMD "$ROUTER" 'apk info -e luci-app-package-manager >/dev/null 2>&1 || apk add luci-app-package-manager'
+# OpenWrt 24.10 uses opkg while 25.12 uses apk.
+$SSH_CMD "$ROUTER" '
+    if command -v apk >/dev/null 2>&1; then
+        if ! apk info -e luci-app-package-manager >/dev/null 2>&1; then
+            apk add luci-app-package-manager
+        fi
+    elif command -v opkg >/dev/null 2>&1; then
+        if ! opkg status luci-app-package-manager 2>/dev/null | grep -q "^Status:.* install ok installed"; then
+            opkg update
+            opkg install luci-app-package-manager
+        fi
+    else
+        echo "Neither apk nor opkg is installed on the router." >&2
+        exit 1
+    fi
+'
 
 $SSH_CMD "$ROUTER" 'rm -rf /tmp/freenetic-pkg && mkdir -p /tmp/freenetic-pkg'
 tar czf - -C "$THEME_WEB_DIR" htdocs ucode \
