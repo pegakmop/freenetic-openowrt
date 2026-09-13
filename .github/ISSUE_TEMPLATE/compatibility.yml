@@ -1,0 +1,42 @@
+name: Compatibility report
+description: Report behavior on an OpenWrt device or release line
+title: "compatibility: "
+labels:
+  - compatibility
+  - 0.2.x
+body:
+  - type: input
+    id: freenetic
+    attributes:
+      label: Freenetic release or commit
+      placeholder: v0.2.2
+    validations:
+      required: true
+  - type: input
+    id: openwrt
+    attributes:
+      label: OpenWrt version, target and subtarget
+      placeholder: 25.12.4, mediatek/filogic
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Device, RAM and CPU
+      placeholder: Model, MiB RAM, core count
+    validations:
+      required: true
+  - type: textarea
+    id: tested
+    attributes:
+      label: Features tested
+      description: List the pages and operations actually exercised.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result and sanitized diagnostics
+      description: Do not attach complete configs or secrets.
+    validations:
+      required: true

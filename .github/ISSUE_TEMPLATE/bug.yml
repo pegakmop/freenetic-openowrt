@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a reproducible Freenetic problem
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove passwords, PSKs, private keys, tokens and public IPs from logs and configuration snippets.
+  - type: input
+    id: freenetic
+    attributes:
+      label: Freenetic release
+      placeholder: v0.2.2 or testing commit
+    validations:
+      required: true
+  - type: input
+    id: openwrt
+    attributes:
+      label: OpenWrt version and target
+      placeholder: 24.10.8, mediatek/filogic
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and RAM
+      placeholder: Globitel BT-RB300, 256 MiB
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: What did you do, what happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Include relevant page/helper output with secrets removed.
