@@ -32,6 +32,16 @@ class FakeUci {
 	set(config, sectionName, option, value) {
 		this.section(config, sectionName)[option] = value;
 	}
+
+	add(config, type, name) {
+		const sectionName = name || 'new_' + type;
+		assert.equal(this.section(config, sectionName), null,
+			`section ${config}.${sectionName} already exists`);
+		if (!this.configs[config])
+			this.configs[config] = {};
+		this.configs[config][sectionName] = { '.name': sectionName, '.type': type };
+		return sectionName;
+	}
 }
 
 const uci = new FakeUci({
@@ -108,5 +118,33 @@ const collisionUci = new FakeUci({
 const collisionHelper = new Function('baseclass', 'uci', source)(baseclass, collisionUci);
 assert.throws(() => collisionHelper.ensureGuestFirewall(), /not Freenetic-managed/,
 	'guest hardening must not claim a foreign rule with a reserved section name');
+
+const wifiCollisionUci = new FakeUci({ wireless: {
+	radio0: { '.name': 'radio0', '.type': 'wifi-device' },
+	guest_radio0: {
+		'.name': 'guest_radio0', '.type': 'wifi-iface', device: 'radio0',
+		mode: 'ap', network: 'lan', isolate: '1', unknown_foo: 'keep'
+	}
+} });
+const wifiCollisionHelper = new Function('baseclass', 'uci', source)(baseclass, wifiCollisionUci);
+assert.throws(() => wifiCollisionHelper.ensureGuestWifi('guest_radio0', 'radio0', 'guest'),
+	/not Freenetic-managed/,
+	'guest Wi-Fi helper must not edit a foreign reserved-name section');
+
+const wifiManagedUci = new FakeUci({ wireless: {
+	guest_radio0: {
+		'.name': 'guest_radio0', '.type': 'wifi-iface', device: 'radio0',
+		mode: 'ap', network: 'guest', freenetic_managed: '1', unknown_foo: 'keep'
+	}
+} });
+const wifiManagedHelper = new Function('baseclass', 'uci', source)(baseclass, wifiManagedUci);
+wifiManagedHelper.ensureGuestWifi('guest_radio0', 'radio0', 'guest');
+assert.equal(wifiManagedUci.get('wireless', 'guest_radio0', 'isolate'), '1');
+assert.equal(wifiManagedUci.get('wireless', 'guest_radio0', 'unknown_foo'), 'keep');
+
+const wifiNewUci = new FakeUci({ wireless: {} });
+const wifiNewHelper = new Function('baseclass', 'uci', source)(baseclass, wifiNewUci);
+wifiNewHelper.ensureGuestWifi('guest_radio0', 'radio0', 'guest');
+assert.equal(wifiNewUci.get('wireless', 'guest_radio0', 'freenetic_managed'), '1');
 
 console.log('ownership runtime: ok');

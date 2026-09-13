@@ -99,6 +99,34 @@ function adoptLegacyGuest() {
 		section.target === rule.values.target && section.family === rule.values.family));
 }
 
+/* Guest SSIDs use predictable section names for compatibility with the old
+ * UI, so a manually-created section can collide with one of those names.
+ * Only a newly-created section or a section already carrying our marker may
+ * be edited. Legacy Freenetic sections are marked by adoptLegacyGuest() first
+ * when their complete old shape matches. */
+function ensureGuestWifi(sectionName, radioName, networkName) {
+	const existing = uci.get('wireless', sectionName);
+	if (existing == null) {
+		uci.add('wireless', 'wifi-iface', sectionName);
+		uci.set('wireless', sectionName, 'device', radioName);
+		uci.set('wireless', sectionName, 'mode', 'ap');
+		uci.set('wireless', sectionName, 'network', networkName);
+		uci.set('wireless', sectionName, 'isolate', '1');
+		uci.set('wireless', sectionName, 'freenetic_managed', '1');
+		return sectionName;
+	}
+
+	if (existing['.type'] !== 'wifi-iface' || !isManaged(existing))
+		throw new Error('wireless.%s exists but is not Freenetic-managed'.format(sectionName));
+	if (existing.device !== radioName || existing.mode !== 'ap' || existing.network !== networkName)
+		throw new Error('wireless.%s does not match the Freenetic guest network'.format(sectionName));
+
+	/* Restore the security invariant if an administrator removed the option
+	 * from a section that is still explicitly owned by Freenetic. */
+	uci.set('wireless', sectionName, 'isolate', '1');
+	return sectionName;
+}
+
 function ipv4NetworkCidr(address, prefix) {
 	const octets = String(address || '').split('.').map(Number);
 	prefix = Number(prefix);
@@ -189,6 +217,7 @@ return baseclass.extend({
 	connectedRouteTarget,
 	isManaged,
 	adoptLegacyGuest,
+	ensureGuestWifi,
 
 	ensureGuestFirewall() {
 		const zone = uci.get('firewall', 'guest');

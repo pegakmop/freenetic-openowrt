@@ -22,6 +22,10 @@ assert.match(network, /function isManaged\(section\)/,
 	'network helpers must expose one marker-based ownership predicate');
 assert.match(network, /function adoptLegacyGuest\(\)/,
 	'legacy guest migration must be explicit and centralized');
+assert.match(network, /function ensureGuestWifi\(sectionName, radioName, networkName\)/,
+	'guest Wi-Fi creation must have one marker-aware helper');
+assert.match(network, /existing\['\.type'\] !== 'wifi-iface' \|\| !isManaged\(existing\)/,
+	'guest Wi-Fi helper must reject foreign sections with reserved names');
 assert.match(network, /section\.network === 'guest'/,
 	'legacy guest migration must verify the guest network binding');
 assert.match(network, /section\.isolate === '1'/,
@@ -43,10 +47,10 @@ assert.match(deleteGuest, /if \(networkHelper\.isManaged\(s\)\)\s+uci\.remove\('
 	'guest Wi-Fi deletion must require the ownership marker');
 assert.doesNotMatch(deleteGuest, /indexOf\('guest_'\)/,
 	'guest Wi-Fi deletion must not infer ownership from the section name');
-assert.match(myNetworks, /uci\.set\('wireless', name, 'freenetic_managed', '1'\)/,
-	'guest Wi-Fi created by My Networks must be marked');
-assert.match(dashboard, /uci\.set\('wireless', name, 'freenetic_managed', '1'\)/,
-	'guest Wi-Fi created by Dashboard must be marked');
+assert.match(myNetworks, /networkHelper\.ensureGuestWifi\(name, card\.radioName, ifaceName\)/,
+	'My Networks must use the marker-aware guest Wi-Fi helper');
+assert.match(dashboard, /networkHelper\.ensureGuestWifi\(name, dev\['\.name'\], 'guest'\)/,
+	'Dashboard must use the marker-aware guest Wi-Fi helper');
 
 assert.match(routing, /const section = uci\.add\('network', route\.family === 'ipv6' \? 'route6' : 'route'\);\s+uci\.set\('network', section, 'freenetic_managed', '1'\)/,
 	'imported routes must be marked as Freenetic-managed');

@@ -663,21 +663,21 @@ return view.extend({
 				}
 
 				const name = (isGuest ? 'guest_' : 'default_') + card.radioName;
+				if (isGuest && uci.get('wireless', name) != null)
+					networkHelper.ensureGuestWifi(name, card.radioName, ifaceName);
 				if (!card.enableToggle.checked) {
 					if (uci.get('wireless', name, 'device') != null)
 						uci.set('wireless', name, 'disabled', '1');
 					return;
 				}
 
-				if (uci.get('wireless', name, 'device') == null) {
+				if (isGuest)
+					networkHelper.ensureGuestWifi(name, card.radioName, ifaceName);
+				else if (uci.get('wireless', name, 'device') == null) {
 					uci.add('wireless', 'wifi-iface', name);
 					uci.set('wireless', name, 'device', card.radioName);
 					uci.set('wireless', name, 'mode', 'ap');
 					uci.set('wireless', name, 'network', ifaceName);
-					if (isGuest) {
-						uci.set('wireless', name, 'isolate', '1');
-						uci.set('wireless', name, 'freenetic_managed', '1');
-					}
 				}
 				const v = effectiveWifi(card);
 				uci.set('wireless', card.radioName, 'disabled', '0');

@@ -1194,14 +1194,7 @@ return view.extend({
 
 			radios.forEach(dev => {
 				const name = 'guest_' + dev['.name'];
-				if (uci.get('wireless', name, 'device') == null) {
-					uci.add('wireless', 'wifi-iface', name);
-					uci.set('wireless', name, 'device', dev['.name']);
-					uci.set('wireless', name, 'mode', 'ap');
-					uci.set('wireless', name, 'network', 'guest');
-					uci.set('wireless', name, 'isolate', '1');
-					uci.set('wireless', name, 'freenetic_managed', '1');
-				}
+				networkHelper.ensureGuestWifi(name, dev['.name'], 'guest');
 				uci.set('wireless', dev['.name'], 'disabled', '0');
 				uci.set('wireless', name, 'disabled', '0');
 				uci.set('wireless', name, 'ssid', ssid);
