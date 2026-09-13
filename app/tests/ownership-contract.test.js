@@ -15,7 +15,8 @@ const firewall = read('web/application/htdocs/luci-static/resources/view/network
 const portforward = read('web/application/htdocs/luci-static/resources/view/network/freenetic-portforward.js');
 const ddns = read('web/application/htdocs/luci-static/resources/view/network/freenetic-ddns.js');
 const clients = read('web/application/htdocs/luci-static/resources/view/status/freenetic-clients.js');
-const connections = read('web/application/htdocs/luci-static/resources/view/network/freenetic-other-connections.js');
+const connections = read('web/application/htdocs/luci-static/resources/freenetic-connections-core.js') + '\n' +
+	read('web/application/htdocs/luci-static/resources/view/network/freenetic-other-connections.js');
 const dashboard = read('web/application/htdocs/luci-static/resources/view/status/freenetic-dashboard.js');
 
 assert.match(network, /function isManaged\(section\)/,

@@ -94,6 +94,11 @@ function makeElement() {
 
 function evaluateView(relative, uci, options = {}) {
 	const source = fs.readFileSync(path.join(viewRoot, relative), 'utf8');
+	const resourceRoot = path.join(root, 'web', 'application', 'htdocs', 'luci-static', 'resources');
+	const connectionCoreSource = fs.readFileSync(path.join(resourceRoot,
+		'freenetic-connections-core.js'), 'utf8');
+	const dashboardDataSource = fs.readFileSync(path.join(resourceRoot,
+		'freenetic-dashboard-data.js'), 'utf8');
 	const view = {
 		extend(value) { return value; }
 	};
@@ -137,12 +142,18 @@ function evaluateView(relative, uci, options = {}) {
 	const location = { reload() {} };
 	const L = { url(value) { return value; }, bind(fn, context) { return fn.bind(context); } };
 	const E = () => makeElement();
+	const connectionCore = new Function('baseclass', 'fs', 'uci', 'rpc', '_', connectionCoreSource)(
+		view, fsModule, uci, rpc, translate);
+	const dashboardData = new Function('baseclass', 'fs', 'uci', 'rpc', '_', dashboardDataSource)(
+		view, fsModule, uci, rpc, translate);
 
 	return new Function('view', 'ui', 'uci', 'fs', 'rpc', 'uiHelper',
 		'networkHelper', 'guard', 'poll', 'E', '_', 'L', 'window',
-		'document', 'location', 'confirm', 'URL', 'Blob', source)(
+		'document', 'location', 'confirm', 'URL', 'Blob', 'connectionCore',
+		'dashboardData', source)(
 		view, ui, uci, fsModule, rpc, uiHelper, networkHelper, guard, poll,
-		E, translate, L, window, document, location, window.confirm, URL, Blob
+		E, translate, L, window, document, location, window.confirm, URL, Blob,
+		connectionCore, dashboardData
 	);
 }
 

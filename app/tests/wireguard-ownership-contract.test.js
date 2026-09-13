@@ -6,6 +6,8 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..', '..');
 const source = fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
+	'luci-static', 'resources', 'freenetic-connections-core.js'), 'utf8') + '\n' +
+	fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
 	'luci-static', 'resources', 'view', 'network', 'freenetic-other-connections.js'), 'utf8');
 
 assert.match(source, /'require freenetic-network as networkHelper';/,

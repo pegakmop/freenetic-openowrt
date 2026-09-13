@@ -36,6 +36,7 @@ assert.ok(protocols.protocolChoice('sctp').options.some(option => option[0] === 
 
 const myNetworks = read('view/network/freenetic-mynetworks.js');
 const dashboard = read('view/status/freenetic-dashboard.js');
+const dashboardData = read('freenetic-dashboard-data.js');
 const clients = read('view/status/freenetic-clients.js');
 assert.match(myNetworks, /iface\.disabled === '1' \|\| radio\.disabled === '1'/,
 	'Home Network must show the effective radio and SSID state');
@@ -49,9 +50,9 @@ assert.match(dashboard, /section: radioName, values: \{ disabled: '0' \}/,
 	'Dashboard must enable the parent radio before enabling an SSID');
 assert.match(dashboard, /renderClientsCard\(leases, wifiStations, activeArpMacs, dhcpConfig, guestInfo\)/,
 	'Dashboard must render its client summary from data available on legacy LuCI');
-assert.match(dashboard, /ubusCall\('iwinfo', 'devices'\)/,
+assert.match(dashboardData, /ubusCall\('iwinfo', 'devices'\)/,
 	'Dashboard must discover AP interfaces without relying on network.wireless status');
-assert.match(dashboard, /ubusCall\('iwinfo', 'assoclist', \{ device \}\)/,
+assert.match(dashboardData, /ubusCall\('iwinfo', 'assoclist', \{ device \}\)/,
 	'Dashboard must read authoritative association data for every AP interface');
 assert.match(dashboard, /Promise\.all\(\[ getDhcpLeases\(\), getWifiStations\(\), getActiveArpMacs\(\) \]\)/,
 	'Dashboard client summary must refresh from legacy-compatible ubus objects');

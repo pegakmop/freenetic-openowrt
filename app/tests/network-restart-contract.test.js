@@ -11,12 +11,15 @@ const appsPath = path.join(root, 'web', 'application', 'htdocs', 'luci-static',
 	'resources', 'view', 'system', 'freenetic-apps.js');
 const connectionsPath = path.join(root, 'web', 'application', 'htdocs',
 	'luci-static', 'resources', 'view', 'network', 'freenetic-other-connections.js');
+const connectionsCorePath = path.join(root, 'web', 'application', 'htdocs',
+	'luci-static', 'resources', 'freenetic-connections-core.js');
 const aclPath = path.join(root, 'app', 'luci-app-freenetic', 'root', 'usr',
 	'share', 'rpcd', 'acl.d', 'luci-app-freenetic.json');
 
 const helper = fs.readFileSync(helperPath, 'utf8');
 const apps = fs.readFileSync(appsPath, 'utf8');
-const connections = fs.readFileSync(connectionsPath, 'utf8');
+const connections = fs.readFileSync(connectionsCorePath, 'utf8') + '\n' +
+	fs.readFileSync(connectionsPath, 'utf8');
 const acl = JSON.parse(fs.readFileSync(aclPath, 'utf8'))['luci-app-freenetic'];
 
 assert.ok(fs.statSync(helperPath).mode & 0o111, 'network restart helper must be executable');

@@ -7,9 +7,11 @@ const path = require('node:path');
 const root = path.join(__dirname, '..', '..', '..');
 const dashboard = fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
 	'luci-static', 'resources', 'view', 'status', 'freenetic-dashboard.js'), 'utf8');
+const dashboardData = fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
+	'luci-static', 'resources', 'freenetic-dashboard-data.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'web', 'theme', 'htdocs', 'luci-static',
 	'freenetic', 'cascade.css'), 'utf8');
-assert.match(dashboard, /packages: updaterPackages\.length \? updaterPackages : packages/,
+assert.match(dashboardData, /packages: updaterPackages\.length \? updaterPackages : packages/,
 	'dashboard must use helper package versions when legacy package-manager-call cannot return JSON');
 assert.doesNotMatch(dashboard, /disabled:\s*!updaterReady/,
 	'LuCI E() must not render disabled="false", which still disables the check button');
@@ -23,14 +25,18 @@ assert.match(dashboard, /class: 'fn-freenetic-update-panel'/,
 	'the dashboard must group Freenetic build details and update controls in one panel');
 assert.match(css, /\.fn-freenetic-update-panel\s*\{[\s\S]*?\.fn-update-status-info::before/,
 	'the Freenetic update panel must style its overview, controls and status states');
-const prefix = dashboard.slice(0, dashboard.indexOf('function svgIcon'));
-const helpers = new Function('rpc', prefix +
-	'\nreturn { freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan };')({ call() {} });
-const formatterSource = dashboard.slice(
-	dashboard.indexOf('function freeneticBuildRevision'),
-	dashboard.indexOf('function fmtMB')
+const helpers = new Function('baseclass', 'fs', 'uci', 'rpc', '_', dashboardData)(
+	{ extend: value => value },
+	{ exec_direct() { return Promise.resolve([]); } },
+	{ load() { return Promise.resolve(); }, get() { return null; } },
+	{ call() { return Promise.resolve({}); } },
+	value => value
 );
-const displayVersion = dashboard.match(/const FREENETIC_DISPLAY_VERSION = '([^']+)'/)[1];
+const formatterSource = dashboardData.slice(
+	dashboardData.indexOf('function freeneticBuildRevision'),
+	dashboardData.indexOf('function fmtMB')
+);
+const displayVersion = dashboardData.match(/const FREENETIC_DISPLAY_VERSION = '([^']+)'/)[1];
 const formatFreeneticVersion = new Function('_', 'FREENETIC_DISPLAY_VERSION', formatterSource +
 	'\nreturn formatFreeneticVersion;')(value => value, displayVersion);
 

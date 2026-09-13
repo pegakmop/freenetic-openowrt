@@ -7,7 +7,8 @@ const path = require('node:path');
 const root = path.join(__dirname, '..', '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const wan = read('web/application/htdocs/luci-static/resources/view/network/freenetic-wan.js');
-const connections = read('web/application/htdocs/luci-static/resources/view/network/freenetic-other-connections.js');
+const connections = read('web/application/htdocs/luci-static/resources/freenetic-connections-core.js') + '\n' +
+	read('web/application/htdocs/luci-static/resources/view/network/freenetic-other-connections.js');
 const css = read('web/theme/htdocs/luci-static/freenetic/cascade.css');
 const catalog = read('app/luci-app-freenetic/po/ru/freenetic.po');
 

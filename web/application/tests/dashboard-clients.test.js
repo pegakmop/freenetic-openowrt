@@ -5,18 +5,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..', '..', '..');
-const dashboard = fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
-	'luci-static', 'resources', 'view', 'status', 'freenetic-dashboard.js'), 'utf8');
-const helperSource = dashboard.slice(
-	dashboard.indexOf('function dashboardClientRows'),
-	dashboard.indexOf('function getSystemBoard')
+const dataSource = fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
+	'luci-static', 'resources', 'freenetic-dashboard-data.js'), 'utf8');
+const dashboardData = new Function('baseclass', 'fs', 'uci', 'rpc', '_', dataSource)(
+	{ extend: value => value },
+	{ exec_direct() { return Promise.resolve([]); } },
+	{ load() { return Promise.resolve(); }, get() { return null; } },
+	{ call() { return Promise.resolve({}); } },
+	value => value
 );
-const upperString = value => typeof value === 'string' ? value.trim().toUpperCase() : '';
-const ipInLan = (ip, network) => !!(ip && network && ip.startsWith(network.prefix));
-const dashboardClientRows = new Function('upperString', 'ipInLan', '_', helperSource +
-	'\nreturn dashboardClientRows;')(
-	upperString, ipInLan, value => value
-);
+const dashboardClientRows = dashboardData.dashboardClientRows;
 
 const leases = [
 	{ macaddr: 'aa:bb:cc:00:00:02', hostname: 'Laptop', ipaddr: '192.168.1.22' },
@@ -38,7 +36,7 @@ const dhcp = {
 };
 
 const rows = dashboardClientRows(leases, stations, { 'AA:BB:CC:00:00:02': true }, dhcp,
-	{ prefix: '192.168.50.' });
+	{ address: '192.168.50.1', mask: 24 });
 assert.deepEqual(rows.map(row => row.name), [ 'Phone', 'Work laptop' ],
 	'client rows must use saved names and sort them for stable rendering');
 assert.deepEqual(rows[0], {
@@ -57,7 +55,7 @@ assert.equal(rows[1].online, true);
 
 const offline = dashboardClientRows([ {
 	macaddr: 'AA:BB:CC:00:00:03', hostname: 'Sleeping phone', ipaddr: '192.168.1.30'
-} ], {}, {}, {}, { prefix: '192.168.50.' })[0];
+} ], {}, {}, {}, { address: '192.168.50.1', mask: 24 })[0];
 assert.equal(offline.connection, 'Not connected',
 	'a stale DHCP lease must not be reported as an Ethernet client');
 assert.equal(offline.online, false);
