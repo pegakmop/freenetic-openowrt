@@ -231,6 +231,7 @@ install_opkg() {
 }
 
 main() {
+	[ "$#" -le 1 ] || fail "Usage: $0 {status|install}"
 	ACTION=${1:-status}
 	detect_release
 	detect_manager

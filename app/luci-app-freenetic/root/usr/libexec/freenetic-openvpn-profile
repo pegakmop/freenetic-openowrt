@@ -14,10 +14,11 @@ fail() {
 	exit 0
 }
 
+[ "$#" -eq 2 ] || fail "Usage: freenetic-openvpn-profile <install|remove> <name>."
 [ "$(id -u)" = 0 ] || fail "The OpenVPN profile helper requires root privileges."
 
-action=${1:-}
-name=${2:-}
+action=$1
+name=$2
 case "$name" in
 	''|*[!A-Za-z0-9_-]*) fail "The OpenVPN profile name is invalid." ;;
 esac

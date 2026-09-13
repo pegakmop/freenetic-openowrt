@@ -5,6 +5,11 @@
 # not secrets.
 set -u
 
+[ "$#" -eq 0 ] || {
+	printf '{"ok":false,"available":false,"error":"This helper does not accept arguments."}\n'
+	exit 0
+}
+
 json_escape() {
 	awk 'BEGIN { ORS = "" }
 	{

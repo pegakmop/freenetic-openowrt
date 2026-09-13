@@ -15,7 +15,7 @@ json_escape() {
 
 valid_package_name() {
 	case "$1" in
-		''|*[!A-Za-z0-9+_.:@/-]*) return 1 ;;
+		''|-*|*[!A-Za-z0-9+_.:@/-]*) return 1 ;;
 		*) return 0 ;;
 	esac
 }
@@ -24,6 +24,16 @@ if [ "$#" -eq 0 ]; then
 	printf '{"ok":true,"packages":{}}\n'
 	exit 0
 fi
+
+# Validate every browser-supplied name before invoking either package
+# manager. Apart from rejecting shell metacharacters, the leading-dash guard
+# prevents a package name from becoming an apk/opkg option.
+for package in "$@"; do
+	if ! valid_package_name "$package"; then
+		printf '{"ok":false,"error":"Invalid package name."}\n'
+		exit 0
+	fi
+done
 
 manager=''
 if command -v apk >/dev/null 2>&1; then

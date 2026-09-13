@@ -5,6 +5,11 @@
 # same archive with no custom tar logic needed.
 set -e
 
+[ "$#" -eq 0 ] || {
+	echo "Usage: freenetic-backup-call" >&2
+	exit 2
+}
+
 mkdir -p /etc/freenetic
 if command -v apk >/dev/null 2>&1; then
 	apk list -I 2>/dev/null | sort > /etc/freenetic/installed-packages.list

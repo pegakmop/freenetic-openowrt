@@ -4,6 +4,11 @@
 # script, so detect the service instead of assuming one package layout.
 set -u
 
+[ "$#" -eq 0 ] || {
+	printf '{"ok":false,"error":"This helper does not accept arguments."}\n'
+	exit 0
+}
+
 service=""
 if [ -x /etc/init.d/swanctl ]; then
 	service=/etc/init.d/swanctl

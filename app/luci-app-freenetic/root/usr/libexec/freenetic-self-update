@@ -175,9 +175,11 @@ run_update() {
 action="${1:-}"
 case "$action" in
 	status)
+		[ "$#" -eq 1 ] || { reply_error "Usage: $0 status"; exit 0; }
 		status
 		;;
 	install)
+		[ "$#" -eq 2 ] || { reply_error "Usage: $0 install TAG"; exit 0; }
 		tag="${2:-}"
 		if ! valid_tag "$tag"; then
 			reply_error "Invalid release tag"
@@ -196,6 +198,7 @@ case "$action" in
 		exec "$stage_dir/runner" run "$tag" "$stage_dir"
 		;;
 	run)
+		[ "$#" -eq 3 ] || { reply_error "Usage: $0 run TAG STAGE_DIR"; exit 0; }
 		tag="${2:-}"
 		stage_dir="${3:-}"
 		if ! valid_tag "$tag"; then
