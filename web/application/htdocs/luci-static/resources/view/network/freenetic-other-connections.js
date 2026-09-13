@@ -57,6 +57,17 @@ const AWG_OPTIONS = [
 	[ 'awg_h4', 'H4', 0, 4294967295 ]
 ];
 
+const EDITED_PEER_OPTIONS = [
+	'description', 'disabled', 'public_key', 'private_key', 'preshared_key',
+	'allowed_ips', 'endpoint_host', 'endpoint_port', 'persistent_keepalive',
+	'route_allowed_ips', 'freenetic_managed'
+];
+
+function advancedPeerOptions(peer) {
+	return Object.keys(peer || {}).filter(key => key.charAt(0) !== '.' &&
+		EDITED_PEER_OPTIONS.indexOf(key) === -1);
+}
+
 const KEY_RE = /^[A-Za-z0-9+/]{43}=$/;
 const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const HOST_RE = /^[A-Za-z0-9._:[\]%~-]+$/;
@@ -845,6 +856,7 @@ return view.extend({
 			const peers = peerSectionsFor(name).map(peer => ({
 				section: sectionName(peer),
 				managed: networkHelper.isManaged(peer),
+				advanced: advancedPeerOptions(peer).length > 0,
 				description: peer.description || '',
 				disabled: peer.disabled === '1',
 				publicKey: peer.public_key || '',
@@ -1756,6 +1768,10 @@ return view.extend({
 			const details = E('details', { class: 'fn-oc-peer-editor', open: !peer.publicKey }, [
 				E('summary', {}, [ summaryTitle, E('span', { class: 'fn-oc-peer-summary-key' }, shortKey(peer.publicKey)) ]),
 				E('div', { class: 'fn-oc-peer-grid' }, [
+					peer.advanced ? E('div', { class: 'fn-oc-peer-warning' }, [
+						E('strong', {}, _('Additional OpenWrt options detected')),
+						E('span', {}, _('This peer contains additional OpenWrt parameters that Freenetic does not display. Saving preserves parameters it does not edit.'))
+					]) : '',
 					E('div', { class: 'fn-settings-field fn-oc-wide-field' }, [ E('label', {}, _('Description')), description ]),
 					E('div', { class: 'fn-settings-field fn-oc-wide-field' }, [ E('label', {}, _('Public key')), publicField ]),
 					E('div', { class: 'fn-settings-field' }, [ E('label', {}, _('Private key (optional)')), privateKey ]),
@@ -1778,6 +1794,7 @@ return view.extend({
 		return {
 			section: peer.section || null,
 			managed: !!peer.managed,
+			advanced: !!peer.advanced,
 			description: input.description ? input.description.value.trim() : peer.description || '',
 			disabled: !!(input.disabled && input.disabled.checked),
 			publicKey: input.publicKey ? input.publicKey.value.trim() : peer.publicKey || '',

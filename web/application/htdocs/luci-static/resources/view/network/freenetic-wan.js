@@ -141,6 +141,20 @@ function interfaceSection(name) {
 	return uci.sections('network', 'interface').find(section => section['.name'] === name);
 }
 
+const EDITED_WAN4_OPTIONS = [
+	'disabled', 'proto', 'username', 'password', 'ipaddr', 'netmask', 'gateway',
+	'dns', 'peerdns', 'device'
+];
+const EDITED_WAN6_OPTIONS = [
+	'disabled', 'proto', 'device', 'ip6addr', 'ip6gw', 'ip6prefix',
+	'reqaddress', 'reqprefix', 'dns', 'peerdns'
+];
+
+function advancedInterfaceOptions(section, editedOptions) {
+	return Object.keys(section || {}).filter(key => key.charAt(0) !== '.' &&
+		editedOptions.indexOf(key) === -1);
+}
+
 /* A VLAN'd WAN rides an explicit `config device` (type '8021q') that
    network.wan.device then points at, instead of the raw port name — see
    OpenWrt's 8021q device docs. Locate that section (if any) so the form can
@@ -185,6 +199,10 @@ return view.extend({
 
 		const proto = uci.get('network', 'wan', 'proto') || 'dhcp';
 		const disabled = uci.get('network', 'wan', 'disabled') === '1';
+		const wanSection = interfaceSection('wan') || {};
+		const wan6Section = interfaceSection('wan6') || {};
+		const wan4Advanced = advancedInterfaceOptions(wanSection, EDITED_WAN4_OPTIONS);
+		const wan6Advanced = advancedInterfaceOptions(wan6Section, EDITED_WAN6_OPTIONS);
 		const currentDevice = uci.get('network', 'wan', 'device') || 'wan';
 		const vlanInfo = findVlanDevice(currentDevice);
 		this.baseIfname = vlanInfo.baseIfname;
@@ -230,7 +248,12 @@ return view.extend({
 		protoSelect.addEventListener('change', updateFieldVisibility);
 		updateFieldVisibility();
 
+		const wan4AdvancedNote = wan4Advanced.length ? E('div', { class: 'fn-wan-advanced-note' }, [
+			E('strong', {}, _('Additional OpenWrt options detected')),
+			E('span', {}, _('This connection contains additional OpenWrt parameters that Freenetic does not display. Saving preserves parameters it does not edit.'))
+		]) : '';
 		const settingsBody = E('div', {}, [
+			wan4AdvancedNote,
 			E('div', { class: 'fn-mn-wifi-head', style: 'margin-bottom:16px;' }, [
 				E('label', { class: 'fn-switch' }, [ enableToggle, E('span', { class: 'fn-switch-slider' }) ]),
 				E('span', {}, _('Connection enabled'))
@@ -308,7 +331,12 @@ return view.extend({
 		proto6Select.addEventListener('change', updateIpv6Visibility);
 		updateIpv6Visibility();
 
+		const wan6AdvancedNote = wan6Advanced.length ? E('div', { class: 'fn-wan-advanced-note' }, [
+			E('strong', {}, _('Additional OpenWrt options detected')),
+			E('span', {}, _('This connection contains additional OpenWrt parameters that Freenetic does not display. Saving preserves parameters it does not edit.'))
+		]) : '';
 		const ipv6SettingsBody = E('div', {}, [
+			wan6AdvancedNote,
 			E('div', { class: 'fn-mn-wifi-head', style: 'margin-bottom:16px;' }, [
 				E('label', { class: 'fn-switch' }, [ enable6Toggle, E('span', { class: 'fn-switch-slider' }) ]),
 				E('span', {}, _('Connection enabled'))
