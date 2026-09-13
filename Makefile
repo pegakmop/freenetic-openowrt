@@ -77,6 +77,7 @@ check-package:
 		exit 1; \
 	}
 	@$(MAKE) -C "$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)" \
+		FREENETIC_ROOT="$(CURDIR)" \
 		CONFIG_PACKAGE_luci-theme-freenetic=m CONFIG_PACKAGE_luci-app-freenetic=m \
 		CONFIG_PACKAGE_luci-i18n-theme-freenetic-ru=m CONFIG_PACKAGE_luci-i18n-freenetic-ru=m \
 		package/luci-theme-freenetic/compile package/luci-app-freenetic/compile

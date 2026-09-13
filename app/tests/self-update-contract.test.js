@@ -16,6 +16,7 @@ const acl = JSON.parse(fs.readFileSync(path.join(root, 'app', 'luci-app-freeneti
 const preflight = fs.readFileSync(path.join(root, 'app', 'freenetic-preflight.mk'), 'utf8');
 const appMakefile = fs.readFileSync(path.join(root, 'app', 'luci-app-freenetic', 'Makefile'), 'utf8');
 const themeMakefile = fs.readFileSync(path.join(root, 'app', 'luci-theme-freenetic', 'Makefile'), 'utf8');
+const rootMakefile = fs.readFileSync(path.join(root, 'Makefile'), 'utf8');
 
 assert.ok(fs.statSync(helperPath).mode & 0o111, 'self-update helper must be executable');
 assert.ok(helper.startsWith('#!/bin/sh'), 'self-update helper must be POSIX sh');
@@ -86,5 +87,7 @@ assert.match(appMakefile, /-- \$\(FREENETIC_VERSION_PATHS\)/,
 	'application package must use the shared release revision');
 assert.match(themeMakefile, /-- \$\(FREENETIC_VERSION_PATHS\)/,
 	'theme package must use the shared release revision');
+assert.match(rootMakefile, /FREENETIC_ROOT="\$\(CURDIR\)"/,
+	'package builds must calculate revisions from the Freenetic checkout, not the SDK root');
 
 console.log('Freenetic self-update contract: ok');
