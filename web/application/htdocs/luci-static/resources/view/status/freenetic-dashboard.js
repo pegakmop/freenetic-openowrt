@@ -1186,6 +1186,10 @@ return view.extend({
 		btn.disabled = true;
 
 		return uci.load([ 'wireless', 'network', 'dhcp', 'firewall' ]).then(() => {
+			/* This is an explicit guest-network save. It is the safe point to
+			   adopt sections created by older Freenetic versions; deletion uses
+			   the marker only and never relies on a guest_* name. */
+			networkHelper.adoptLegacyGuest();
 			const radios = uci.sections('wireless', 'wifi-device');
 
 			radios.forEach(dev => {
@@ -1196,6 +1200,7 @@ return view.extend({
 					uci.set('wireless', name, 'mode', 'ap');
 					uci.set('wireless', name, 'network', 'guest');
 					uci.set('wireless', name, 'isolate', '1');
+					uci.set('wireless', name, 'freenetic_managed', '1');
 				}
 				uci.set('wireless', dev['.name'], 'disabled', '0');
 				uci.set('wireless', name, 'disabled', '0');

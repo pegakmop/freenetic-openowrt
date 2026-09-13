@@ -146,10 +146,22 @@ function interfaceSection(name) {
    OpenWrt's 8021q device docs. Locate that section (if any) so the form can
    show/edit the VLAN ID without caring whether it currently exists. */
 function findVlanDevice(deviceName) {
-	let result = { vid: '', baseIfname: deviceName, sectionName: null };
+	let result = {
+		vid: '',
+		baseIfname: deviceName,
+		sectionName: null,
+		deviceName: null,
+		managed: false
+	};
 	uci.sections('network', 'device').forEach(s => {
 		if (s.type === '8021q' && s.name === deviceName) {
-			result = { vid: s.vid || '', baseIfname: s.ifname, sectionName: s['.name'] };
+			result = {
+				vid: s.vid || '',
+				baseIfname: s.ifname || deviceName,
+				sectionName: s['.name'],
+				deviceName: s.name,
+				managed: s.freenetic_managed === '1'
+			};
 		}
 	});
 	return result;
@@ -176,7 +188,8 @@ return view.extend({
 		const currentDevice = uci.get('network', 'wan', 'device') || 'wan';
 		const vlanInfo = findVlanDevice(currentDevice);
 		this.baseIfname = vlanInfo.baseIfname;
-		this.vlanSectionName = vlanInfo.sectionName;
+		this.vlanInfo = vlanInfo;
+		this.vlanSectionName = vlanInfo.managed ? vlanInfo.sectionName : null;
 
 		const enableToggle = E('input', { type: 'checkbox', class: 'fn-switch-input' });
 		enableToggle.checked = !disabled;
@@ -523,18 +536,67 @@ return view.extend({
 			let newDevice = this.baseIfname;
 
 			if (fields.vlan) {
-				let sectionName = this.vlanSectionName;
-				if (!sectionName)
-					sectionName = uci.add('network', 'device');
-				uci.set('network', 'device', sectionName, 'type', '8021q');
-				uci.set('network', 'device', sectionName, 'ifname', this.baseIfname);
-				uci.set('network', 'device', sectionName, 'vid', fields.vlan);
-				newDevice = this.baseIfname + '.' + fields.vlan;
-				uci.set('network', 'device', sectionName, 'name', newDevice);
-				this.vlanSectionName = sectionName;
+				const desiredDevice = this.baseIfname + '.' + fields.vlan;
+				const targetInfo = findVlanDevice(desiredDevice);
+				const targetMatchesBase = targetInfo.sectionName &&
+					targetInfo.baseIfname === this.baseIfname;
+
+				/* A VLAN device that already exists but is not marked is foreign.
+				   Reuse it when it is exactly the requested device, but never
+				   rewrite its options or claim ownership. */
+				if (targetMatchesBase && !targetInfo.managed) {
+					if (this.vlanSectionName && this.vlanSectionName !== targetInfo.sectionName) {
+						const oldManaged = uci.get('network', 'device', this.vlanSectionName);
+						if (oldManaged && oldManaged.freenetic_managed === '1')
+							uci.remove('network', 'device', this.vlanSectionName);
+					}
+					this.vlanSectionName = null;
+					newDevice = desiredDevice;
+					this.vlanInfo = targetInfo;
+				} else {
+					let sectionName = this.vlanSectionName;
+					if (targetMatchesBase && targetInfo.managed) {
+						if (sectionName && sectionName !== targetInfo.sectionName) {
+							const oldManaged = uci.get('network', 'device', sectionName);
+							if (oldManaged && oldManaged.freenetic_managed === '1')
+								uci.remove('network', 'device', sectionName);
+						}
+						sectionName = targetInfo.sectionName;
+					}
+
+					const managedSection = sectionName && uci.get('network', 'device', sectionName);
+					if (!managedSection || managedSection.freenetic_managed !== '1')
+						sectionName = null;
+					if (!sectionName)
+						sectionName = uci.add('network', 'device');
+
+					uci.set('network', 'device', sectionName, 'type', '8021q');
+					uci.set('network', 'device', sectionName, 'ifname', this.baseIfname);
+					uci.set('network', 'device', sectionName, 'vid', fields.vlan);
+					uci.set('network', 'device', sectionName, 'name', desiredDevice);
+					uci.set('network', 'device', sectionName, 'freenetic_managed', '1');
+					this.vlanSectionName = sectionName;
+					this.vlanInfo = {
+						vid: String(fields.vlan),
+						baseIfname: this.baseIfname,
+						sectionName,
+						deviceName: desiredDevice,
+						managed: true
+					};
+					newDevice = desiredDevice;
+				}
 			} else if (this.vlanSectionName) {
-				uci.remove('network', 'device', this.vlanSectionName);
+				const managed = uci.get('network', 'device', this.vlanSectionName);
+				if (managed && managed.freenetic_managed === '1')
+					uci.remove('network', 'device', this.vlanSectionName);
 				this.vlanSectionName = null;
+				this.vlanInfo = {
+					vid: '',
+					baseIfname: this.baseIfname,
+					sectionName: null,
+					deviceName: this.baseIfname,
+					managed: false
+				};
 			}
 
 			uci.set('network', 'wan', 'device', newDevice);

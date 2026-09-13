@@ -671,8 +671,10 @@ return view.extend({
 					uci.set('wireless', name, 'device', card.radioName);
 					uci.set('wireless', name, 'mode', 'ap');
 					uci.set('wireless', name, 'network', ifaceName);
-					if (isGuest)
+					if (isGuest) {
 						uci.set('wireless', name, 'isolate', '1');
+						uci.set('wireless', name, 'freenetic_managed', '1');
+					}
 				}
 				const v = effectiveWifi(card);
 				uci.set('wireless', card.radioName, 'disabled', '0');
@@ -682,6 +684,12 @@ return view.extend({
 				if (v.enc !== 'none')
 					uci.set('wireless', name, 'key', v.key);
 			});
+
+			/* Adopt only unmistakable pre-marker guest objects while the user is
+			   explicitly saving this guest network. Deletion itself never infers
+			   ownership from a section name. */
+			if (isGuest)
+				networkHelper.adoptLegacyGuest();
 
 			return uci.save();
 		}).then(() => applyChanges()).then(() => {
@@ -703,14 +711,11 @@ return view.extend({
 		btn.disabled = true;
 
 		return uci.load([ 'wireless', 'network', 'dhcp', 'firewall' ]).then(() => {
-			/* Only remove sections Freenetic itself created (marked
-			   'freenetic_managed', or — for the per-radio wifi-iface
-			   sections, which predate that marker — named with the
-			   'guest_' prefix saveSegment() always uses). A user or
-			   another package may have its own 'guest'-named network,
-			   dhcp or firewall section; leave those alone. */
+			/* Only remove sections explicitly marked as Freenetic-managed. A
+			   legacy guest_* section is adopted only during an explicit save;
+			   a delete action must never infer ownership from its name. */
 			uci.sections('wireless', 'wifi-iface').forEach(s => {
-				if (s['.name'].indexOf('guest_') === 0)
+				if (networkHelper.isManaged(s))
 					uci.remove('wireless', s['.name']);
 			});
 			if (uci.get('dhcp', 'guest', 'freenetic_managed') === '1')

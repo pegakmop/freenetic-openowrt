@@ -46,6 +46,53 @@ function ensureRule(rule) {
 		uci.set('firewall', rule.section, option, rule.values[option]));
 }
 
+function isManaged(section) {
+	return !!section && section.freenetic_managed === '1';
+}
+
+function adoptLegacySection(config, sectionName, type, predicate) {
+	const section = uci.get(config, sectionName);
+	if (!section || section['.type'] !== type || isManaged(section) || !predicate(section))
+		return false;
+
+	uci.set(config, sectionName, 'freenetic_managed', '1');
+	return true;
+}
+
+/* Guest objects created before freenetic_managed was introduced can be
+ * adopted only during an explicit guest-network save. The shape checks keep
+ * a random section named guest_* from becoming deletable by accident. */
+function adoptLegacyGuest() {
+	uci.sections('wireless', 'wifi-iface').forEach(section => {
+		const name = section['.name'];
+		const radio = section.device;
+		const legacyName = typeof radio === 'string' ? 'guest_' + radio : '';
+		const knownRadio = typeof radio === 'string' &&
+			uci.sections('wireless', 'wifi-device').some(device => device['.name'] === radio);
+
+		if (!isManaged(section) && name === legacyName && knownRadio &&
+			section['.type'] === 'wifi-iface' && section.mode === 'ap' &&
+			section.network === 'guest' && section.isolate === '1')
+			uci.set('wireless', name, 'freenetic_managed', '1');
+	});
+
+	uci.sections('network', 'device').forEach(section => {
+		if (!isManaged(section) && section.name === 'br-guest' &&
+			section.type === 'bridge' && section.bridge_empty === '1')
+			uci.set('network', section['.name'], 'freenetic_managed', '1');
+	});
+
+	adoptLegacySection('network', 'guest', 'interface', section =>
+		section.proto === 'static' && section.device === 'br-guest');
+	adoptLegacySection('dhcp', 'guest', 'dhcp', section =>
+		section.interface === 'guest');
+	adoptLegacySection('firewall', 'guest', 'zone', section =>
+		section.name === 'guest' && (Array.isArray(section.network)
+			? section.network.includes('guest') : section.network === 'guest'));
+	adoptLegacySection('firewall', 'guest_wan_fwd', 'forwarding', section =>
+		section.src === 'guest' && section.dest === 'wan');
+}
+
 function ipv4NetworkCidr(address, prefix) {
 	const octets = String(address || '').split('.').map(Number);
 	prefix = Number(prefix);
@@ -134,6 +181,8 @@ function connectedRouteTarget(address) {
 
 return baseclass.extend({
 	connectedRouteTarget,
+	isManaged,
+	adoptLegacyGuest,
 
 	ensureGuestFirewall() {
 		const zone = uci.get('firewall', 'guest');
@@ -147,7 +196,7 @@ return baseclass.extend({
 
 	removeGuestFirewallRules() {
 		GUEST_INPUT_RULES.forEach(rule => {
-			if (uci.get('firewall', rule.section, 'freenetic_managed') === '1')
+			if (isManaged(uci.get('firewall', rule.section)))
 				uci.remove('firewall', rule.section);
 		});
 	}
