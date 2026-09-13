@@ -6,7 +6,18 @@ which they became user-visible.
 
 ## [Unreleased]
 
-No changes yet.
+### Improved
+
+- Freenetic-created UCI sections now carry an explicit ownership marker across
+  guest networking, routes, firewall/port-forward rules, DDNS, DHCP hosts,
+  policy routing and IPsec configuration. Automatic cleanup preserves foreign
+  sections and unknown options.
+- Guest Wi-Fi creation is shared by Dashboard and My Networks and refuses to
+  overwrite a foreign section that happens to use a legacy reserved name.
+- CI now builds and inspects OpenWrt package artifacts and target-specific CLI
+  builds for the 24.10 IPK and 25.12 APK package generations.
+- Added the release checklist and compatibility matrix used to distinguish
+  SDK/buildroot verification from real-device testing.
 
 ## [0.2.2] — 2026-09-12
 
