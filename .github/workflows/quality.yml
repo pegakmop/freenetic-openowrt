@@ -31,6 +31,9 @@ jobs:
             subtarget: filogic
             format: ipk
             cli_target: filogic
+            asset_arch: aarch64_cortex-a53
+            include_fnc: false
+            publish_packages: true
             sdk_archive: openwrt-sdk-24.10.8-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst
             sdk_sha256: d9fd074f281823a3023e8f6a73aaac598018c898ec9ac4d1c507b596930d7482
           - name: OpenWrt 24.10.8 ramips/mt7621 (IPK + fnc)
@@ -39,6 +42,9 @@ jobs:
             subtarget: mt7621
             format: ipk
             cli_target: mt7621
+            asset_arch: mipsel_24kc
+            include_fnc: true
+            publish_packages: false
             sdk_archive: openwrt-sdk-24.10.8-ramips-mt7621_gcc-13.3.0_musl.Linux-x86_64.tar.zst
             sdk_sha256: 9dd11b0517883b016ad7684f5c408a3483eec5b2455b2ffe004c9edd84063e45
           - name: OpenWrt 25.12.5 mediatek/filogic (APK)
@@ -47,6 +53,9 @@ jobs:
             subtarget: filogic
             format: apk
             cli_target: filogic
+            asset_arch: aarch64_cortex-a53
+            include_fnc: true
+            publish_packages: true
             sdk_archive: openwrt-sdk-25.12.5-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64.tar.zst
             sdk_sha256: ff4a38a397caa2cfe1c39e18f84ddede14878221b3593c3f2c4cfe24e3ec4c25
     steps:
@@ -109,6 +118,65 @@ jobs:
           make check-package-index OPENWRT_DIR="$SDK_DIR"
           make -C cli OPENWRT_DIR="$SDK_DIR" FREENETIC_TARGET="$CLI_TARGET" -B
 
+      - name: Prepare release assets
+        env:
+          PACKAGE_FORMAT: ${{ matrix.format }}
+          ASSET_ARCH: ${{ matrix.asset_arch }}
+          INCLUDE_FNC: ${{ matrix.include_fnc }}
+          PUBLISH_PACKAGES: ${{ matrix.publish_packages }}
+        run: |
+          set -eu
+          release_dir="$GITHUB_WORKSPACE/release-assets"
+          mkdir -p "$release_dir"
+
+          app_archive="$(find "$SDK_DIR/bin" -type f \( \
+            -name 'luci-app-freenetic-*.apk' -o \
+            -name 'luci-app-freenetic_*.ipk' \
+          \) -print | sort -V | tail -n 1)"
+          test -n "$app_archive"
+          app_filename="${app_archive##*/}"
+          case "$PACKAGE_FORMAT" in
+            apk)
+              asset_version="${app_filename#luci-app-freenetic-}"
+              asset_version="${asset_version%.apk}"
+              ;;
+            ipk)
+              asset_version="${app_filename#luci-app-freenetic_}"
+              asset_version="${asset_version%_all.ipk}"
+              ;;
+            *)
+              echo "Unsupported package format: $PACKAGE_FORMAT" >&2
+              exit 1
+              ;;
+          esac
+          asset_version="${asset_version//\~/.}"
+          test -n "$asset_version"
+
+          if [ "$PUBLISH_PACKAGES" = true ]; then
+            for package in \
+              luci-theme-freenetic \
+              luci-app-freenetic \
+              luci-i18n-theme-freenetic-ru \
+              luci-i18n-freenetic-ru; do
+              if [ "$PACKAGE_FORMAT" = apk ]; then
+                archive="$(find "$SDK_DIR/bin" -type f -name "$package-*.apk" -print | sort -V | tail -n 1)"
+                target_name="$package-$asset_version-$ASSET_ARCH.apk"
+              else
+                archive="$(find "$SDK_DIR/bin" -type f -name "${package}_*.ipk" -print | sort -V | tail -n 1)"
+                target_name="$package-$asset_version-all.ipk"
+              fi
+              test -n "$archive"
+              cp -f "$archive" "$release_dir/$target_name"
+            done
+          fi
+
+          if [ "$INCLUDE_FNC" = true ]; then
+            cp -f "$GITHUB_WORKSPACE/cli/fnc" "$release_dir/fnc-$asset_version-$ASSET_ARCH"
+          fi
+
+          printf '%s\n' "$asset_version" > "$release_dir/ASSET_VERSION"
+          find "$release_dir" -maxdepth 1 -type f -printf '%f\n' | sort
+
       - name: Upload verified Freenetic packages
         uses: actions/upload-artifact@v4
         with:
@@ -119,3 +187,101 @@ jobs:
             ${{ runner.temp }}/freenetic-sdk/**/bin/packages/**/base/index.json
             ${{ runner.temp }}/freenetic-sdk/**/bin/targets/**/packages/*freenetic*
             ${{ runner.temp }}/freenetic-sdk/**/bin/targets/**/packages/index.json
+            ${{ github.workspace }}/release-assets/*
+
+  publish-release:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: openwrt-packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@v4
+
+      - name: Download 24.10 mediatek IPK build
+        uses: actions/download-artifact@v4
+        with:
+          name: freenetic-mediatek-filogic-ipk
+          path: artifacts/mediatek-filogic-ipk
+
+      - name: Download 24.10 MT7621 fnc build
+        uses: actions/download-artifact@v4
+        with:
+          name: freenetic-ramips-mt7621-ipk
+          path: artifacts/ramips-mt7621-ipk
+
+      - name: Download 25.12 APK build
+        uses: actions/download-artifact@v4
+        with:
+          name: freenetic-mediatek-filogic-apk
+          path: artifacts/mediatek-filogic-apk
+
+      - name: Assemble and validate release assets
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          release_dir="$RUNNER_TEMP/freenetic-release"
+          mkdir -p "$release_dir"
+
+          versions="$(find artifacts -type f -name ASSET_VERSION -exec cat {} \; | sort -u)"
+          test "$(printf '%s\n' "$versions" | sed '/^$/d' | wc -l)" -eq 1
+          asset_version="$(printf '%s\n' "$versions" | sed -n '1p')"
+          test -n "$asset_version"
+
+          installer_tag="$(sed -n 's/^RELEASE_TAG="\([^"]*\)"/\1/p' install.sh)"
+          installer_version="$(sed -n 's/^ASSET_VERSION="\([^"]*\)"/\1/p' install.sh)"
+          test "$installer_tag" = "$RELEASE_TAG" || {
+            echo "install.sh is pinned to $installer_tag, expected $RELEASE_TAG" >&2
+            exit 1
+          }
+          test "$installer_version" = "$asset_version" || {
+            echo "install.sh is pinned to $installer_version, built assets use $asset_version" >&2
+            exit 1
+          }
+
+          for asset in artifacts/*/release-assets/*; do
+            [ "${asset##*/}" = ASSET_VERSION ] && continue
+            cp -f "$asset" "$release_dir/"
+          done
+
+          for package in \
+            luci-theme-freenetic \
+            luci-app-freenetic \
+            luci-i18n-theme-freenetic-ru \
+            luci-i18n-freenetic-ru; do
+            source="$release_dir/$package-$asset_version-aarch64_cortex-a53.apk"
+            test -f "$source"
+            cp -f "$source" "$release_dir/$package-$asset_version-mipsel_24kc.apk"
+            test -f "$release_dir/$package-$asset_version-all.ipk"
+          done
+          test -f "$release_dir/fnc-$asset_version-aarch64_cortex-a53"
+          test -f "$release_dir/fnc-$asset_version-mipsel_24kc"
+
+          asset_count="$(find "$release_dir" -maxdepth 1 -type f | wc -l)"
+          test "$asset_count" -eq 14
+
+          (
+            cd "$release_dir"
+            sha256sum ./* | sed 's#^\./##' | sort > SHA256SUMS.txt
+          )
+          echo "asset_version=$asset_version" >> "$GITHUB_OUTPUT"
+          echo "release_dir=$release_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_DIR: ${{ steps.release.outputs.release_dir }}
+        run: |
+          set -eu
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "Freenetic ${RELEASE_TAG#v}" \
+            --generate-notes \
+            "$RELEASE_DIR"/*
