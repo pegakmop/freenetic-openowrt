@@ -3,6 +3,7 @@
 'require ui';
 'require uci';
 'require fs';
+'require freenetic-network as networkHelper';
 'require freenetic-rpc as rpc';
 'require freenetic-ui as uiHelper';
 
@@ -843,6 +844,7 @@ return view.extend({
 				return this.getIkev2Connection(section);
 			const peers = peerSectionsFor(name).map(peer => ({
 				section: sectionName(peer),
+				managed: networkHelper.isManaged(peer),
 				description: peer.description || '',
 				disabled: peer.disabled === '1',
 				publicKey: peer.public_key || '',
@@ -1775,6 +1777,7 @@ return view.extend({
 		const input = peer._inputs || {};
 		return {
 			section: peer.section || null,
+			managed: !!peer.managed,
 			description: input.description ? input.description.value.trim() : peer.description || '',
 			disabled: !!(input.disabled && input.disabled.checked),
 			publicKey: input.publicKey ? input.publicKey.value.trim() : peer.publicKey || '',
@@ -2167,9 +2170,25 @@ return view.extend({
 
 		button.disabled = true;
 		dom_content(button, _('Saving…'));
+		let cancelled = false;
 		return uci.load('network').then(() => {
-			const section = fields.section || uci.add('network', 'interface');
-			const oldProtocol = uci.get('network', section, 'proto') || this.formConnection.protocol || WG_PROTO;
+			const existingSection = fields.section || null;
+			const oldProtocol = existingSection
+				? (uci.get('network', existingSection, 'proto') || this.formConnection.protocol || WG_PROTO)
+				: (this.formConnection.protocol || WG_PROTO);
+			const oldPeerSections = existingSection ? peerSectionsFor(existingSection) : [];
+			const typeChanged = oldProtocol !== fields.protocol;
+			if (typeChanged && (oldPeerSections.length || oldProtocol === AWG_PROTO || fields.protocol === AWG_PROTO)) {
+				const proceed = window.confirm(_('Changing the protocol recreates peer sections. Options not shown by Freenetic may not transfer. Continue?'));
+				if (!proceed) {
+					cancelled = true;
+					return null;
+				}
+			}
+
+			const section = existingSection || uci.add('network', 'interface');
+			if (!fields.section)
+				uci.set('network', section, 'freenetic_managed', '1');
 			uci.set('network', section, 'proto', fields.protocol);
 			if (fields.enabled) uci.unset('network', section, 'disabled');
 			else uci.set('network', section, 'disabled', '1');
@@ -2191,17 +2210,26 @@ return view.extend({
 					uci.unset('network', section, item[0]);
 			});
 
-			const allOldPeers = peerSectionsFor(section).map(peer => sectionName(peer));
-			const typeChanged = oldProtocol !== fields.protocol;
+			const allOldPeers = oldPeerSections.map(peer => sectionName(peer));
+			const managedOldPeers = {};
+			oldPeerSections.forEach(peer => {
+				if (networkHelper.isManaged(peer))
+					managedOldPeers[sectionName(peer)] = true;
+			});
 			const newType = peerType(fields.protocol);
 			const activePeerNames = {};
 			if (typeChanged)
-				allOldPeers.forEach(id => uci.remove('network', id));
+				oldPeerSections.forEach(peer => {
+					if (networkHelper.isManaged(peer))
+						uci.remove('network', sectionName(peer));
+				});
 
 			fields.peers.forEach(peer => {
 				let id = !typeChanged && peer.section && allOldPeers.indexOf(peer.section) !== -1 ? peer.section : null;
-				if (!id)
+				if (!id) {
 					id = uci.add('network', newType);
+					uci.set('network', id, 'freenetic_managed', '1');
+				}
 				activePeerNames[id] = true;
 				this.setOptional('network', id, 'description', peer.description);
 				if (peer.disabled) uci.set('network', id, 'disabled', '1');
@@ -2218,9 +2246,18 @@ return view.extend({
 			});
 
 			if (!typeChanged)
-				allOldPeers.forEach(id => { if (!activePeerNames[id]) uci.remove('network', id); });
+				allOldPeers.forEach(id => {
+					if (!activePeerNames[id] && managedOldPeers[id])
+						uci.remove('network', id);
+				});
 			return uci.save();
-		}).then(() => applyChanges()).then(() => {
+		}).then(() => {
+			if (cancelled)
+				return false;
+			return applyChanges();
+		}).then(result => {
+			if (cancelled)
+				return result;
 			ui.hideModal();
 			this.modalOpen = false;
 			notify(_('Connection settings saved.'), 'info');

@@ -1250,6 +1250,9 @@ msgstr "Недоступно"
 msgid "AWG parameters are available in the connection editor."
 msgstr "Параметры AWG доступны в редакторе подключения."
 
+msgid "Changing the protocol recreates peer sections. Options not shown by Freenetic may not transfer. Continue?"
+msgstr "Смена протокола пересоздаёт секции пиров. Параметры, которые Freenetic не отображает, могут не перенестись. Продолжить?"
+
 msgid "Optional WireGuard-compatible obfuscation with AmneziaWG parameters."
 msgstr "Необязательная совместимая с WireGuard обфускация с параметрами AmneziaWG."
 
