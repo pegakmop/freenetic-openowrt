@@ -6,6 +6,10 @@ which they became user-visible.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.2.3] — 2026-09-13
+
 ### Improved
 
 - Freenetic-created UCI sections now carry an explicit ownership marker across
@@ -18,6 +22,12 @@ which they became user-visible.
   builds for the 24.10 IPK and 25.12 APK package generations.
 - Added the release checklist and compatibility matrix used to distinguish
   SDK/buildroot verification from real-device testing.
+
+### Verification
+
+- Static, syntax, contract and runtime tests pass.
+- OpenWrt 24.10.8 IPK and local OpenWrt 25.12 APK release builds pass package
+  contents and index validation, including the MT7621 APK mirror.
 
 ## [0.2.2] — 2026-09-12
 
