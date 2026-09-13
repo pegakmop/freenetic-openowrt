@@ -1,0 +1,66 @@
+# Compatibility matrix
+
+This matrix separates what Freenetic has actually exercised from what the
+package layout is intended to support. A supported target is not the same as
+every device in that target family being tested.
+
+## Status meanings
+
+- **Developer tested** — package/CLI build and local contract checks were run
+  against the stated OpenWrt SDK or buildroot.
+- **User tested** — the Freenetic UI or installer was used on real hardware;
+  the tested feature set is listed explicitly.
+- **Expected compatible** — the release preflight and package/ABI rules allow
+  the profile, but a real-device test is still wanted.
+- **Known issues** — current limitations or areas intentionally outside the
+  0.2.x promise.
+
+## Developer tested
+
+| OpenWrt | Target/subtarget | Package format | Evidence |
+|---|---|---|---|
+| 24.10.8 | `mediatek/filogic` | IPK / `opkg` | official SDK package build, package contents/index, aarch64 CLI build |
+| 24.10.8 | `ramips/mt7621` | IPK / `opkg` | SDK package/CLI compatibility job and mipsel CLI build |
+| 25.12.5 | `mediatek/filogic` | APK / `apk` | official SDK package build, package contents/index, aarch64 CLI build |
+| local 24.10 buildroot | `mediatek/filogic` | IPK / `opkg` | complete `make release` including index validation |
+| local 25.12 buildroot | `mediatek/filogic` | APK / `apk` | complete `make release`, MT7621 mirror and index validation |
+
+## User tested
+
+| Device | OpenWrt profile | Tested path |
+|---|---|---|
+| Globitel BT-RB300 | 24.10.8, `mediatek/filogic`, aarch64 | initramfs boot, package deployment, Freenetic UI smoke test, Wi-Fi toggle in both directions, configuration restored afterward |
+
+The real-device list should grow only from reproducible reports. Add the
+OpenWrt version, target/subtarget, device, RAM and the Freenetic features
+actually used; do not turn a target-level build into a claim about every
+device in that family.
+
+## Expected compatible
+
+- OpenWrt 24.10.x on `mediatek/filogic` and `ramips/mt7621`, with IPK/
+  `opkg`, a supported ABI and the package preflight resource minimums.
+- OpenWrt 25.12.x on published APK target profiles, with the matching `fnc`
+  ABI artifact and the package preflight resource minimums.
+- Other OpenWrt targets are not part of the 0.2.x release promise, even if
+  their LuCI JavaScript happens to render.
+
+Check the concrete release assets and the router preflight before installing.
+
+## Known issues and boundaries
+
+- The 0.2.x line does not contain MWS/mesh orchestration. MWS begins in a
+  separate 0.3 alpha design.
+- `fnc` still uses the private SONAME compatibility shim where the two
+  supported OpenWrt lines expose different library dates. The shim does not
+  replace or alter system libraries; broader ABI coverage remains future work.
+- The installer retains `apk add --allow-untrusted` for OpenWrt's normal
+  package-feed integration. Release SHA-256 verification and package-index
+  checks remain required; independent manifest signing is future hardening.
+- There is no QEMU/OpenWrt virtual smoke environment yet. SDK/buildroot checks
+  catch packaging and ABI regressions, while real-device reports catch runtime
+  differences.
+- Optional third-party VPN protocols and kernel modules remain firmware-
+  dependent. Freenetic should report unavailable capabilities instead of
+  claiming that every LuCI package is portable across targets.
+

@@ -4,7 +4,7 @@
 
 [История изменений](CHANGELOG.md)
 
-[Безопасность](SECURITY.md) · [Участие в разработке](CONTRIBUTING.md) · [Архитектура](ARCHITECTURE.md)
+[Безопасность](SECURITY.md) · [Участие в разработке](CONTRIBUTING.md) · [Архитектура](ARCHITECTURE.md) · [Совместимость](COMPATIBILITY.md) · [Чеклист релиза](RELEASE_CHECKLIST.md)
 
 Freenetic — clean-room реализация UX и CLI Keenetic поверх чистого
 OpenWrt. Не форк и не бинарная совместимость с проприетарной
@@ -20,7 +20,7 @@ OpenWrt: mainline U-Boot, без проприетарных компоненто
 
 ## Поддерживаемое железо
 
-Релизные APK намеренно ограничены двумя проверенными семействами MediaTek:
+Релизные пакеты намеренно ограничены двумя проверенными семействами MediaTek:
 
 | OpenWrt target | CPU ABI | Минимальный профиль |
 |---|---|---|
