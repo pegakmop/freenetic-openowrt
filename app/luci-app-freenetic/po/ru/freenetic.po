@@ -3242,3 +3242,9 @@ msgstr "Не удалось обновить диагностику IPsec: %s"
 
 msgid "The IPsec status helper is unavailable."
 msgstr "Вспомогательная служба статуса IPsec недоступна."
+
+msgid "Additional OpenWrt options detected"
+msgstr "Обнаружены дополнительные параметры OpenWrt"
+
+msgid "This rule contains additional OpenWrt parameters; Freenetic does not display them. Saving preserves parameters it does not edit."
+msgstr "Это правило содержит дополнительные параметры OpenWrt; Freenetic их не отображает. При сохранении параметры, которые не редактируются интерфейсом, сохраняются."

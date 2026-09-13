@@ -2520,6 +2520,22 @@ body.modal-overlay-active { overflow: hidden; }
 /* Firewall: rule table needs its own column layout (toggle/name/action/
    protocol/traffic/buttons) — more columns than Port Forwarding's grid. */
 .fn-fw-row { grid-template-columns: 44px 1.2fr 0.8fr 0.8fr 1.6fr auto; align-items: center; }
+.fn-fw-advanced-note {
+	display: flex;
+	align-items: flex-start;
+	flex-wrap: wrap;
+	gap: 4px 14px;
+	grid-column: 1 / -1;
+	margin: 0 0 16px;
+	padding: 12px 14px;
+	border: 1px solid var(--fn-border-strong);
+	border-left: 3px solid var(--fn-warning);
+	border-radius: var(--fn-radius-sm);
+	background: var(--fn-warning-soft);
+	font-family: var(--fn-font-text);
+}
+.fn-fw-advanced-note strong { color: var(--fn-warning); }
+.fn-fw-advanced-note span { flex: 1 1 300px; color: var(--fn-text-secondary); line-height: 1.4; }
 .fn-route-head-actions { display: flex; align-items: center; gap: 8px; }
 .fn-route-user-head { display: block; margin: 20px 0 12px; }
 .fn-route-user-head h3 { margin: 0 0 16px; font-size: 1.35rem; }

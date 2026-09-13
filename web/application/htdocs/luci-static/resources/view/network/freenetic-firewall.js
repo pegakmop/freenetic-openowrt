@@ -86,6 +86,19 @@ function actionLabel(target) {
 	return _('Allow');
 }
 
+/* Keep the editor intentionally small. Unknown rule options remain in UCI
+   because saveRule only touches this list; surface that fact before a user
+   edits a rule created by LuCI or another firewall package. */
+const EDITED_RULE_OPTIONS = [
+	'name', 'target', 'src', 'dest', 'proto', 'src_ip', 'dest_ip',
+	'src_port', 'dest_port', 'enabled', 'freenetic_managed'
+];
+
+function advancedRuleOptions(rule) {
+	return Object.keys(rule || {}).filter(key => key.charAt(0) !== '.' &&
+		EDITED_RULE_OPTIONS.indexOf(key) === -1);
+}
+
 return view.extend({
 	/* admin/network/firewall is a real stock path (an alias to
 	   luci-app-firewall's own "General Settings" zones page) that we
@@ -198,6 +211,7 @@ return view.extend({
 
 	openForm(rule) {
 		this.editingSection = rule ? rule['.name'] : null;
+		const advancedOptions = advancedRuleOptions(rule);
 
 		const zoneOption = zone => E('option', { value: zone }, zone);
 		const zoneOptions = [ E('option', { value: '' }, _('any')) ].concat(this.zones.map(zoneOption));
@@ -243,8 +257,14 @@ return view.extend({
 		}, saveBtn));
 		cancelBtn.addEventListener('click', () => this.closeForm());
 
-		dom_empty(this.formPanel);
-		this.formPanel.appendChild(E('div', { class: 'fn-pf-form' }, [
+		const form = [];
+		if (advancedOptions.length)
+			form.push(E('div', { class: 'fn-fw-advanced-note' }, [
+				E('strong', {}, _('Additional OpenWrt options detected')),
+				E('span', {}, _('This rule contains additional OpenWrt parameters; Freenetic does not display them. Saving preserves parameters it does not edit.'))
+			]));
+
+		form.push(
 			E('div', { class: 'fn-settings-field' }, [ E('label', {}, _('Name')), nameInput ]),
 			E('div', { class: 'fn-pf-row' }, [
 				E('div', { class: 'fn-settings-field' }, [ E('label', {}, _('From')), srcSelect ]),
@@ -261,7 +281,10 @@ return view.extend({
 				E('div', { class: 'fn-settings-field' }, [ E('label', {}, _('Destination port')), destPortInput ])
 			]),
 			E('div', { class: 'fn-pf-actions' }, [ saveBtn, cancelBtn ])
-		]));
+		);
+
+		dom_empty(this.formPanel);
+		this.formPanel.appendChild(E('div', { class: 'fn-pf-form' }, form));
 		this.formPanel.hidden = false;
 		this.formPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 	},
