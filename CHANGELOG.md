@@ -6,6 +6,10 @@ which they became user-visible.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.2.4] — 2026-09-13
+
 ### Improved
 
 - Split the dashboard data/ubus layer from its UI view and split Other

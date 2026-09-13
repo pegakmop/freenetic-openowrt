@@ -2,15 +2,15 @@
 # Freenetic one-shot installer for supported OpenWrt routers.
 #
 # Usage:
-#   wget -qO- 'https://raw.githubusercontent.com/unisequence/freenetic/v0.2.3/install.sh' | sh
+#   wget -qO- 'https://raw.githubusercontent.com/unisequence/freenetic/v0.2.4/install.sh' | sh
 #
 # The release and checksums are deliberately pinned. Do not install a
 # partially downloaded or silently replaced package.
 set -eu
 
-RELEASE_TAG="v0.2.3"
+RELEASE_TAG="v0.2.4"
 # GitHub normalizes the '~' in the OpenWrt-derived package version to '.'.
-ASSET_VERSION="26.256.55454.351b457"
+ASSET_VERSION="26.256.61925.251d2fd"
 RELEASE_BASE_URL="${FREENETIC_RELEASE_BASE_URL:-https://github.com/unisequence/freenetic/releases/download/$RELEASE_TAG}"
 
 MIN_RAM_MIB=128
@@ -74,7 +74,7 @@ case "$target" in
 	mediatek/filogic)
 		target_suffix="aarch64_cortex-a53"
 		min_overlay_mib="$MIN_OVERLAY_MIB_FILOGIC"
-		fnc_sha256="ff0d203cf7cdbe92077372601bd6cca8ff290db83d16319ebb70234b67bbb831"
+		fnc_sha256="569c07f3523193f646f182f2a09459feda5946c5bc0d9fecf3432a0361481ddb"
 		fnc_ubus_lib="libubus.so.20260628"
 		fnc_ubox_lib="libubox.so.20260721"
 		fnc_blobmsg_lib="libblobmsg_json.so.20260721"
@@ -92,7 +92,7 @@ case "$target" in
 	ramips/mt7621)
 		target_suffix="mipsel_24kc"
 		min_overlay_mib="$MIN_OVERLAY_MIB_MT7621"
-		fnc_sha256="a3071f864f6d04f0a8558f53bfb35f7dda5b3a2aec9ad99f7bd2fd5f7e77d4b8"
+		fnc_sha256="694db49b76061c2cca0a8c4b9ff3d9fc638bfea4ee1d5a48c9f29e06936a1470"
 		fnc_ubus_lib="libubus.so.20251202"
 		fnc_ubox_lib="libubox.so.20260213"
 		fnc_blobmsg_lib="libblobmsg_json.so.20260213"
