@@ -25,17 +25,40 @@ try {
 	assert.deepEqual(verified.map(entry => entry.name).sort(), release.PACKAGE_NAMES.slice().sort());
 
 	fs.unlinkSync(path.join(indexDirectory, 'luci-app-freenetic-' + version + '.apk'));
-	assert.throws(() => release.verifyPackageIndexes(packageRoot), /is missing/,
+	assert.throws(() => release.verifyPackageIndexes(packageRoot), /no matching APK\/IPK/,
 		'a stale index must be rejected when its advertised APK is gone');
 }
 finally {
 	fs.rmSync(packageRoot, { recursive: true, force: true });
 }
 
+const ipkRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'freenetic-release-ipk-contract-'));
+const ipkDirectory = path.join(ipkRoot, 'target-arch', 'base');
+try {
+	fs.mkdirSync(ipkDirectory, { recursive: true });
+	fs.writeFileSync(path.join(ipkDirectory, 'index.json'), JSON.stringify({
+		packages: Object.fromEntries(release.PACKAGE_NAMES.map(name => [ name, version ]))
+	}));
+	for (const name of release.PACKAGE_NAMES)
+		fs.writeFileSync(path.join(ipkDirectory, name + '_' + version + '_all.ipk'), 'ipk fixture');
+
+	const verifiedIpk = release.verifyPackageIndexes(ipkRoot);
+	assert.equal(verifiedIpk.length, release.PACKAGE_NAMES.length);
+	assert.ok(verifiedIpk.every(entry => entry.archive.endsWith('.ipk')),
+		'legacy release indexes must resolve IPK archives');
+}
+finally {
+	fs.rmSync(ipkRoot, { recursive: true, force: true });
+}
+
 assert.match(makefile, /^check-release-tree:/m,
 	'the release flow must reject an uncommitted source tree');
 assert.match(makefile, /^check-package-index:/m,
 	'the release flow must check index/archive consistency');
+assert.match(makefile, /^check-package-contents:/m,
+	'the package flow must inspect the contents of every Freenetic archive');
+assert.match(makefile, /check-package-contents\.js/,
+	'the package flow must invoke the package content checker');
 assert.match(makefile, /^stage-mt7621-packages:/m,
 	'the release flow must stage noarch APKs for the MT7621 feed');
 assert.match(makefile, /FREENETIC_MT7621_PACKAGE_ARCH := mipsel_24kc/,

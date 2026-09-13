@@ -9,7 +9,7 @@ const PACKAGE_NAMES = [
 	'luci-i18n-theme-freenetic-ru',
 	'luci-i18n-freenetic-ru'
 ];
-const INDEXED_PACKAGE_NAMES = [ 'luci-theme-freenetic', 'luci-app-freenetic' ];
+const INDEXED_PACKAGE_NAMES = PACKAGE_NAMES.slice();
 
 function walkIndexes(root, indexes = []) {
 	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
@@ -34,11 +34,11 @@ function packageArchives(packageRoot) {
 				continue;
 			}
 
-			if (!entry.isFile() || !entry.name.endsWith('.apk'))
+			if (!entry.isFile() || (!entry.name.endsWith('.apk') && !entry.name.endsWith('.ipk')))
 				continue;
 
 			for (const name of PACKAGE_NAMES) {
-				if (entry.name.startsWith(name + '-'))
+				if (entry.name.startsWith(name + '-') || entry.name.startsWith(name + '_'))
 					archives.get(name).push(entryPath);
 			}
 		}
@@ -46,6 +46,16 @@ function packageArchives(packageRoot) {
 
 	walk(packageRoot);
 	return archives;
+}
+
+function indexedArchiveCandidates(indexPath, name, version) {
+	const directory = path.dirname(indexPath);
+	return fs.readdirSync(directory, { withFileTypes: true })
+		.filter(entry => entry.isFile())
+		.map(entry => entry.name)
+		.filter(filename => filename === name + '-' + version + '.apk' ||
+			(filename.startsWith(name + '_' + version + '_') && filename.endsWith('.ipk')))
+		.map(filename => path.join(directory, filename));
 }
 
 function packageEntries(packageRoot) {
@@ -64,7 +74,7 @@ function packageEntries(packageRoot) {
 
 		for (const name of PACKAGE_NAMES) {
 			const version = index && index.packages && index.packages[name];
-			if (version)
+			if (version !== undefined && version !== null)
 				entries.push({ name, version: String(version), indexPath });
 		}
 	}
@@ -83,12 +93,19 @@ function verifyPackageIndexes(packageRoot) {
 	const archives = packageArchives(packageRoot);
 
 	for (const entry of packageEntries(packageRoot)) {
-		const archive = path.join(path.dirname(entry.indexPath), entry.name + '-' + entry.version + '.apk');
-		if (!fs.existsSync(archive)) {
+		const candidates = indexedArchiveCandidates(entry.indexPath, entry.name, entry.version);
+		if (!candidates.length) {
 			errors.push(entry.indexPath + ' advertises ' + entry.name + ' ' + entry.version +
-				', but ' + path.basename(archive) + ' is missing');
+				', but no matching APK/IPK is present');
 			continue;
 		}
+		if (candidates.length > 1) {
+			errors.push(entry.indexPath + ' advertises ' + entry.name + ' ' + entry.version +
+				', but multiple matching archives are present: ' + candidates.map(path.basename).join(', '));
+			continue;
+		}
+
+		const archive = candidates[0];
 
 		if (fs.statSync(archive).size === 0) {
 			errors.push(archive + ' is empty');
@@ -100,7 +117,11 @@ function verifyPackageIndexes(packageRoot) {
 
 	for (const name of PACKAGE_NAMES) {
 		if (!archives.get(name).length)
-			errors.push('No built APK was found for ' + name);
+			errors.push('No built APK/IPK was found for ' + name);
+		for (const archive of archives.get(name)) {
+			if (!verified.some(entry => path.resolve(entry.archive) === path.resolve(archive)))
+				errors.push('Package archive is not advertised by its local index: ' + archive);
+		}
 	}
 
 	if (errors.length)

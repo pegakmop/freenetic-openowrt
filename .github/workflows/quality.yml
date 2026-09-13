@@ -16,3 +16,106 @@ jobs:
         uses: actions/checkout@v4
       - name: Run syntax, policy and unit checks
         run: make check-static
+
+  openwrt-packages:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: OpenWrt 24.10.8 mediatek/filogic (IPK)
+            release: 24.10.8
+            target: mediatek
+            subtarget: filogic
+            format: ipk
+            cli_target: filogic
+            sdk_archive: openwrt-sdk-24.10.8-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+            sdk_sha256: d9fd074f281823a3023e8f6a73aaac598018c898ec9ac4d1c507b596930d7482
+          - name: OpenWrt 24.10.8 ramips/mt7621 (IPK + fnc)
+            release: 24.10.8
+            target: ramips
+            subtarget: mt7621
+            format: ipk
+            cli_target: mt7621
+            sdk_archive: openwrt-sdk-24.10.8-ramips-mt7621_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+            sdk_sha256: 9dd11b0517883b016ad7684f5c408a3483eec5b2455b2ffe004c9edd84063e45
+          - name: OpenWrt 25.12.5 mediatek/filogic (APK)
+            release: 25.12.5
+            target: mediatek
+            subtarget: filogic
+            format: apk
+            cli_target: filogic
+            sdk_archive: openwrt-sdk-25.12.5-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+            sdk_sha256: ff4a38a397caa2cfe1c39e18f84ddede14878221b3593c3f2c4cfe24e3ec4c25
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Download and verify the OpenWrt SDK
+        env:
+          PACKAGE_FORMAT: ${{ matrix.format }}
+          SDK_URL: https://downloads.openwrt.org/releases/${{ matrix.release }}/targets/${{ matrix.target }}/${{ matrix.subtarget }}/${{ matrix.sdk_archive }}
+          SDK_ARCHIVE: ${{ matrix.sdk_archive }}
+          SDK_SHA256: ${{ matrix.sdk_sha256 }}
+        run: |
+          set -eu
+          sdk_parent="$RUNNER_TEMP/freenetic-sdk"
+          mkdir -p "$sdk_parent"
+          curl --fail --location --retry 3 --output "$sdk_parent/$SDK_ARCHIVE" "$SDK_URL"
+          printf '%s  %s\n' "$SDK_SHA256" "$sdk_parent/$SDK_ARCHIVE" | sha256sum --check --status
+          tar --use-compress-program=unzstd -xf "$sdk_parent/$SDK_ARCHIVE" -C "$sdk_parent"
+          sdk_dir="$(find "$sdk_parent" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          test -n "$sdk_dir"
+          ln -s "$GITHUB_WORKSPACE/app/luci-theme-freenetic" "$sdk_dir/package/luci-theme-freenetic"
+          ln -s "$GITHUB_WORKSPACE/app/luci-app-freenetic" "$sdk_dir/package/luci-app-freenetic"
+          make -C "$sdk_dir" defconfig
+          # The SDK contains the toolchain, but not the base feed sources
+          # needed to provide libubus/libuci headers and target libraries for
+          # the fnc cross-build.
+          "$sdk_dir/scripts/feeds" update base
+          "$sdk_dir/scripts/feeds" update luci
+          "$sdk_dir/scripts/feeds" install libjson-c libubox libubus libuci libblobmsg-json
+          "$sdk_dir/scripts/feeds" install -a -p luci
+          make -C "$sdk_dir" package/luci-base/host/compile
+          if test "$PACKAGE_FORMAT" = ipk; then
+            "$sdk_dir/staging_dir/host/bin/usign" -G \
+              -s "$sdk_dir/key-build" -p "$sdk_dir/key-build.pub" \
+              -c "Freenetic CI"
+          else
+            openssl ecparam -name prime256v1 -genkey -noout -out "$sdk_dir/private-key.pem"
+            openssl ec -in "$sdk_dir/private-key.pem" -pubout -out "$sdk_dir/public-key.pem"
+          fi
+          echo "SDK_DIR=$sdk_dir" >> "$GITHUB_ENV"
+
+      - name: Build packages and fnc
+        env:
+          PACKAGE_FORMAT: ${{ matrix.format }}
+          CLI_TARGET: ${{ matrix.cli_target }}
+        run: |
+          set -eu
+          make -C "$SDK_DIR" \
+            CONFIG_PACKAGE_libjson-c=m CONFIG_PACKAGE_libubox=m CONFIG_PACKAGE_libblobmsg-json=m \
+            CONFIG_PACKAGE_libubus=m CONFIG_PACKAGE_libuci=m \
+            package/feeds/base/libjson-c/host/compile \
+            package/feeds/base/libjson-c/compile \
+            package/feeds/base/libubox/compile \
+            package/feeds/base/ubus/compile \
+            package/feeds/base/uci/compile
+          make check-package OPENWRT_DIR="$SDK_DIR" DL_DIR="$SDK_DIR/dl" \
+            FREENETIC_PACKAGE_FORMAT="$PACKAGE_FORMAT"
+          make -C "$SDK_DIR" package/index
+          make check-package-index OPENWRT_DIR="$SDK_DIR"
+          make -C cli OPENWRT_DIR="$SDK_DIR" FREENETIC_TARGET="$CLI_TARGET" -B
+
+      - name: Upload verified Freenetic packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: freenetic-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.format }}
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/freenetic-sdk/**/bin/packages/**/base/*freenetic*
+            ${{ runner.temp }}/freenetic-sdk/**/bin/packages/**/base/index.json
+            ${{ runner.temp }}/freenetic-sdk/**/bin/targets/**/packages/*freenetic*
+            ${{ runner.temp }}/freenetic-sdk/**/bin/targets/**/packages/index.json

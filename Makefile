@@ -7,13 +7,22 @@ APPLICATION_PACKAGE_DIR := $(APP_DIR)/luci-app-freenetic
 THEME_WEB_DIR := $(WEB_DIR)/theme
 APPLICATION_WEB_DIR := $(WEB_DIR)/application
 FREENETIC_PRIMARY_PACKAGE_ARCH ?= $(shell sed -n 's/^CONFIG_TARGET_ARCH_PACKAGES="\([^"]*\)"/\1/p' "$(OPENWRT_DIR)/.config")
+FREENETIC_TARGET_BOARD ?= $(shell sed -n 's/^CONFIG_TARGET_BOARD="\([^" ]*\)"/\1/p' "$(OPENWRT_DIR)/.config")
+FREENETIC_TARGET_SUBTARGET ?= $(shell sed -n 's/^CONFIG_TARGET_SUBTARGET="\([^" ]*\)"/\1/p' "$(OPENWRT_DIR)/.config")
 FREENETIC_MT7621_PACKAGE_ARCH := mipsel_24kc
 FREENETIC_PRIMARY_PACKAGE_DIR := $(OPENWRT_DIR)/bin/packages/$(FREENETIC_PRIMARY_PACKAGE_ARCH)/base
+FREENETIC_TARGET_PACKAGE_DIR := $(OPENWRT_DIR)/bin/targets/$(FREENETIC_TARGET_BOARD)/$(FREENETIC_TARGET_SUBTARGET)/packages
+# Full buildroots publish feed packages below bin/packages, while an SDK keeps
+# packages built directly from the target package makefiles below bin/targets.
+# Select the directory after the build so both layouts work transparently.
+FREENETIC_PACKAGE_DIR ?= $(if $(wildcard $(FREENETIC_PRIMARY_PACKAGE_DIR)/luci-theme-freenetic*),$(FREENETIC_PRIMARY_PACKAGE_DIR),$(FREENETIC_TARGET_PACKAGE_DIR))
 FREENETIC_MT7621_PACKAGE_DIR := $(OPENWRT_DIR)/bin/packages/$(FREENETIC_MT7621_PACKAGE_ARCH)/base
+FREENETIC_PACKAGE_FORMAT ?= $(if $(shell grep -q '^CONFIG_USE_APK=y' "$(OPENWRT_DIR)/.config" 2>/dev/null && echo yes),apk,ipk)
+FREENETIC_APK_TOOL ?= $(OPENWRT_DIR)/staging_dir/host/bin/apk
 FREENETIC_RELEASE_PACKAGES := luci-theme-freenetic luci-app-freenetic luci-i18n-theme-freenetic-ru luci-i18n-freenetic-ru
 FREENETIC_APK_SIGN_ARG := $(if $(wildcard $(OPENWRT_DIR)/private-key.pem),--sign $(OPENWRT_DIR)/private-key.pem,)
 
-.PHONY: check check-static check-layout check-js check-shell check-json check-tests check-cli check-cli-mt7621 check-package check-release-tree check-package-index stage-mt7621-packages release
+.PHONY: check check-static check-layout check-js check-shell check-json check-tests check-cli check-cli-mt7621 check-package check-package-contents check-release-tree check-package-index stage-mt7621-packages release
 
 check: check-static check-cli check-cli-mt7621
 
@@ -71,6 +80,17 @@ check-package:
 		CONFIG_PACKAGE_luci-theme-freenetic=m CONFIG_PACKAGE_luci-app-freenetic=m \
 		CONFIG_PACKAGE_luci-i18n-theme-freenetic-ru=m CONFIG_PACKAGE_luci-i18n-freenetic-ru=m \
 		package/luci-theme-freenetic/compile package/luci-app-freenetic/compile
+	@$(MAKE) check-package-contents OPENWRT_DIR="$(OPENWRT_DIR)" \
+		FREENETIC_PACKAGE_FORMAT="$(FREENETIC_PACKAGE_FORMAT)" \
+		FREENETIC_APK_TOOL="$(FREENETIC_APK_TOOL)"
+
+check-package-contents:
+	@test -n "$(FREENETIC_PRIMARY_PACKAGE_ARCH)" || { \
+		echo "Cannot determine the OpenWrt package architecture." >&2; \
+		exit 1; \
+	}
+	@node "$(APP_DIR)/check-package-contents.js" \
+		"$(FREENETIC_PACKAGE_DIR)" "$(FREENETIC_PACKAGE_FORMAT)" "$(FREENETIC_APK_TOOL)"
 
 # The LuCI packages are noarch, but OpenWrt keeps repository indexes under the
 # target ABI directory. Mirror the four Freenetic APKs into the MT7621 feed so
@@ -87,7 +107,7 @@ stage-mt7621-packages:
 	@mkdir -p "$(FREENETIC_MT7621_PACKAGE_DIR)"
 	@for package in $(FREENETIC_RELEASE_PACKAGES); do \
 		find "$(FREENETIC_MT7621_PACKAGE_DIR)" -maxdepth 1 -type f -name "$$package-*.apk" -delete; \
-		archive="$$(find "$(FREENETIC_PRIMARY_PACKAGE_DIR)" -maxdepth 1 -type f -name "$$package-*.apk" -print 2>/dev/null | sort -V | tail -n 1)"; \
+		archive="$$(find "$(FREENETIC_PACKAGE_DIR)" -maxdepth 1 -type f -name "$$package-*.apk" -print 2>/dev/null | sort -V | tail -n 1)"; \
 		test -n "$$archive" || { echo "Missing primary APK for $$package" >&2; exit 1; }; \
 		cp -f "$$archive" "$(FREENETIC_MT7621_PACKAGE_DIR)/"; \
 	done
@@ -110,9 +130,9 @@ check-release-tree:
 	fi
 	@echo "Release worktree: clean"
 
-# Check that every Freenetic entry advertised by every local APK index still
+# Check that every Freenetic entry advertised by every local package index still
 # has its matching archive next to that index. This catches stale index.json
-# files after a package rebuild or cleanup.
+# files after a package rebuild or cleanup for both APK and legacy IPK feeds.
 check-package-index:
 	@node "$(APP_DIR)/check-release.js" "$(OPENWRT_DIR)/bin"
 
@@ -124,5 +144,9 @@ release: check-release-tree
 		package/luci-theme-freenetic/clean package/luci-app-freenetic/clean
 	@$(MAKE) check-package OPENWRT_DIR="$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)"
 	@$(MAKE) -C "$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)" package/index
-	@$(MAKE) stage-mt7621-packages OPENWRT_DIR="$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)"
+	@if test "$(FREENETIC_PACKAGE_FORMAT)" = apk; then \
+		$(MAKE) stage-mt7621-packages OPENWRT_DIR="$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)"; \
+	else \
+		echo "MT7621 APK mirror: skipped for legacy IPK release"; \
+	fi
 	@$(MAKE) check-package-index OPENWRT_DIR="$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)"
