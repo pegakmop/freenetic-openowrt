@@ -59,6 +59,16 @@ rollback_required() {
 	esac
 }
 
+download_installer() {
+	installer_tag="$1"
+	installer_destination="$2"
+	# New releases publish a generated installer beside their packages so its
+	# pinned hashes always match the final release assets. Keep the raw-tag
+	# fallback for older releases that predate that asset.
+	wget -qO "$installer_destination" "$RELEASES_BASE_URL/$installer_tag/install.sh" ||
+		wget -qO "$installer_destination" "$RAW_BASE_URL/$installer_tag/install.sh"
+}
+
 rollback_release() {
 	previous_tag="$1"
 	stage_dir="$2"
@@ -66,7 +76,7 @@ rollback_release() {
 	rollback_log="$stage_dir/rollback.log"
 
 	valid_tag "$previous_tag" || return 1
-	wget -qO "$rollback_installer" "$RAW_BASE_URL/$previous_tag/install.sh" || return 1
+	download_installer "$previous_tag" "$rollback_installer" || return 1
 	rollback_bytes="$(wc -c < "$rollback_installer" 2>/dev/null || true)"
 	case "$rollback_bytes" in
 		''|*[!0-9]*) return 1 ;;
@@ -196,7 +206,6 @@ run_update() {
 
 	installer="$stage_dir/install.sh"
 	log="$stage_dir/install.log"
-	installer_url="$RAW_BASE_URL/$tag/install.sh"
 	previous_tag=
 	if command -v uci >/dev/null 2>&1; then
 		previous_tag="$(uci -q get freenetic.updates.installed_release 2>/dev/null || true)"
@@ -205,7 +214,7 @@ run_update() {
 	if ! command -v wget >/dev/null 2>&1; then
 		fail_update "$stage_dir" download 0 0 "wget is not installed"
 	fi
-	if ! wget -qO "$installer" "$installer_url"; then
+	if ! download_installer "$tag" "$installer"; then
 		fail_update "$stage_dir" download 0 0 "Cannot download the pinned release installer"
 	fi
 

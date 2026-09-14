@@ -81,13 +81,15 @@ fail clearly before leaving a partial installation.
 ## Publishing
 
 - [ ] merge the verified `testing` state to the intended release branch;
-- [ ] update `install.sh` with the intended tag, source asset version and
-      checksums from the verified build;
+- [ ] keep the source installer metadata valid; the release builder writes the
+      final package and `fnc` checksums into the generated release installer;
 - [ ] create and push the release tag from that clean commit;
 - [ ] build artifacts from the tag, not from a local dirty tree;
-- [ ] let the tagged GitHub Actions run complete its installer metadata and
-      14-asset validation;
-- [ ] verify the tagged installer and its `SHA256SUMS.txt` manifest;
+- [ ] let the tagged GitHub Actions run complete its matrix, generated
+      installer and 16-asset validation;
+- [ ] verify the generated installer and its `SHA256SUMS.txt` manifest;
+- [ ] verify that the matching changelog section is present in the release
+      notes;
 - [ ] attach both package-manager variants and matching `fnc` binaries;
 - [ ] record the tested device/target/version in `COMPATIBILITY.md`;
 - [ ] verify the generated GitHub release before updating the pinned release.

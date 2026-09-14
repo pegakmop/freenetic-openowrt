@@ -46,14 +46,15 @@ On a supported OpenWrt router, the current pinned release can be installed
 with one POSIX-compatible command:
 
 ```sh
-wget -qO- 'https://raw.githubusercontent.com/unisequence/freenetic/main/install.sh' | sh
+wget -qO- 'https://github.com/unisequence/freenetic/releases/latest/download/install.sh' | sh
 ```
 
-The installer checks the router before changing it, downloads the four LuCI
-packages and the matching `fnc` binary, verifies every download by
-SHA-256, selects APK or IPK automatically, records the installed release and
-installs `fnc` as `/usr/bin/fnc`. The Russian packages are installed but the
-current LuCI language is not changed automatically.
+The release installer is generated from the final package matrix: it carries
+the exact SHA-256 values for that release's four LuCI packages and matching
+`fnc` binary. It checks the router before changing it, selects APK or IPK
+automatically, records the installed release and installs `fnc` as
+`/usr/bin/fnc`. The Russian packages are installed but the current LuCI
+language is not changed automatically.
 
 | | |
 |---|---|
@@ -152,9 +153,10 @@ make check-package OPENWRT_DIR=/path/to/openwrt DL_DIR=/path/to/openwrt/dl
 ```
 
 Pushing a clean semver tag (`vX.Y.Z`) runs the pinned OpenWrt 24.10/25.12
-matrix in GitHub Actions. After the installer tag and asset version pass the
-release gate, Actions publishes the package assets, matching `fnc` binaries
-and `SHA256SUMS.txt` as one GitHub Release.
+matrix in GitHub Actions. The release job derives package hashes from the
+final matrix, writes them into a generated `install.sh`, extracts the matching
+changelog section as release notes and publishes the packages, matching `fnc`
+binaries, installer and `SHA256SUMS.txt` as one GitHub Release.
 
 The package directories in the buildroot must point to the matching package
 components:

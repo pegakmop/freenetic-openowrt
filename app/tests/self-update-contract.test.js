@@ -26,6 +26,12 @@ assert.match(helper, /RAW_BASE_URL=https:\/\/raw\.githubusercontent\.com\/uniseq
 	'installer source repository must be fixed router-side');
 assert.match(helper, /RELEASES_BASE_URL=https:\/\/github\.com\/unisequence\/freenetic\/releases\/download/,
 	'release asset repository must be fixed router-side');
+assert.match(helper, /download_installer\(\)/,
+	'updates must use the generated release installer when available');
+assert.match(helper, /\$RELEASES_BASE_URL\/\$installer_tag\/install\.sh/,
+	'updates must prefer the installer generated beside release assets');
+assert.match(helper, /\$RAW_BASE_URL\/\$installer_tag\/install\.sh/,
+	'updates must retain a raw-tag fallback for older releases');
 assert.match(helper, /\^v\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+/,
 	'release tags must be constrained to Freenetic semver tags');
 assert.match(helper, /mktemp -d \/tmp\/freenetic-self-update\.XXXXXX/,

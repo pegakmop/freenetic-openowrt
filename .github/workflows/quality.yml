@@ -241,17 +241,6 @@ jobs:
           asset_version="$(printf '%s\n' "$versions" | sed -n '1p')"
           test -n "$asset_version"
 
-          installer_tag="$(sed -n 's/^RELEASE_TAG="\([^"]*\)"/\1/p' install.sh)"
-          installer_version="$(sed -n 's/^ASSET_VERSION="\([^"]*\)"/\1/p' install.sh)"
-          test "$installer_tag" = "$RELEASE_TAG" || {
-            echo "install.sh is pinned to $installer_tag, expected $RELEASE_TAG" >&2
-            exit 1
-          }
-          test "$installer_version" = "$asset_version" || {
-            echo "install.sh is pinned to $installer_version, built assets use $asset_version" >&2
-            exit 1
-          }
-
           find artifacts -type f -path '*/release-assets/*' ! -name ASSET_VERSION \
             -exec cp -f {} "$release_dir/" \;
 
@@ -268,26 +257,32 @@ jobs:
           test -f "$release_dir/fnc-$asset_version-aarch64_cortex-a53"
           test -f "$release_dir/fnc-$asset_version-mipsel_24kc"
 
-          asset_count="$(find "$release_dir" -maxdepth 1 -type f | wc -l)"
-          test "$asset_count" -eq 14
+          notes_file="$RUNNER_TEMP/freenetic-release-notes.md"
+          node app/prepare-release.js \
+            "$release_dir" \
+            "$GITHUB_WORKSPACE/install.sh" \
+            "$GITHUB_WORKSPACE/CHANGELOG.md" \
+            "$notes_file" \
+            "$RELEASE_TAG" \
+            "$asset_version"
 
-          (
-            cd "$release_dir"
-            sha256sum ./* | sed 's#^\./##' | sort > SHA256SUMS.txt
-          )
+          asset_count="$(find "$release_dir" -maxdepth 1 -type f | wc -l)"
+          test "$asset_count" -eq 16
           echo "asset_version=$asset_version" >> "$GITHUB_OUTPUT"
           echo "release_dir=$release_dir" >> "$GITHUB_OUTPUT"
+          echo "release_notes=$notes_file" >> "$GITHUB_OUTPUT"
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_DIR: ${{ steps.release.outputs.release_dir }}
+          RELEASE_NOTES: ${{ steps.release.outputs.release_notes }}
         run: |
           set -eu
           gh release create "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "Freenetic ${RELEASE_TAG#v}" \
-            --generate-notes \
+            --notes-file "$RELEASE_NOTES" \
             "$RELEASE_DIR"/*

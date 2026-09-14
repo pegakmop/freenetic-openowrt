@@ -6,7 +6,10 @@ which they became user-visible.
 
 ## [Unreleased]
 
-No changes yet.
+### Improved
+
+- Release builds now generate a checksum-pinned installer and publish the
+  matching changelog section as GitHub Release notes.
 
 ## [0.2.5] — 2026-09-14
 

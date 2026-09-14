@@ -6,6 +6,7 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..', '..');
 const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'quality.yml'), 'utf8');
+const prepare = fs.readFileSync(path.join(root, 'app', 'prepare-release.js'), 'utf8');
 
 assert.match(workflow, /include_fnc: false/, 'filogic IPK build must not publish a duplicate fnc');
 assert.match(workflow, /asset_arch: mipsel_24kc/, 'the MT7621 build must declare its release architecture');
@@ -20,8 +21,9 @@ assert.match(workflow, /startsWith\(github\.ref, 'refs\/tags\/v'\)/,
 	'release publication must be restricted to version tags');
 assert.match(workflow, /contents: write/, 'the release job must have explicit release permission');
 assert.match(workflow, /--verify-tag/, 'release publication must verify the pushed tag');
-assert.match(workflow, /install\.sh is pinned to/, 'release publication must reject stale installer metadata');
-assert.match(workflow, /asset_count.*-eq 14/, 'the release must contain the expected asset set');
-assert.match(workflow, /SHA256SUMS\.txt/, 'the release must publish checksums for every asset');
+assert.match(workflow, /app\/prepare-release\.js/, 'release publication must generate installer metadata from final assets');
+assert.match(workflow, /asset_count.*-eq 16/, 'the release must contain packages, binaries, installer and manifest');
+assert.match(workflow, /--notes-file/, 'release publication must use the generated changelog notes');
+assert.match(prepare, /SHA256SUMS\.txt/, 'the release preparation helper must publish checksums for every asset');
 
 console.log('Release workflow contract: ok');

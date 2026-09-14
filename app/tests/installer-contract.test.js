@@ -8,7 +8,6 @@ const installer = fs.readFileSync(path.join(__dirname, '../../install.sh'), 'utf
 
 assert(installer.startsWith('#!/bin/sh'), 'installer must be POSIX sh');
 for (const marker of [
-	"RELEASE_TAG=\"v0.2.5\"",
 	"mediatek/filogic",
 	"ramips/mt7621",
 	"aarch64_cortex-a53",
@@ -37,6 +36,15 @@ for (const marker of [
 	"uci -q commit freenetic"
 ]) {
 	assert(installer.includes(marker), `installer is missing: ${marker}`);
+}
+
+assert.match(installer, /^RELEASE_TAG="v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?"$/m,
+	'release installer must carry a semver release tag');
+assert.match(installer, /^ASSET_VERSION="[0-9]{2}\.[0-9]{3}\.[0-9]+\.[0-9a-f]+"$/m,
+	'release installer must carry the OpenWrt-derived asset version');
+for (const name of [ 'theme_sha256', 'app_sha256', 'theme_ru_sha256', 'app_ru_sha256', 'fnc_sha256' ]) {
+	assert.strictEqual((installer.match(new RegExp(`${name}="[0-9a-f]{64}"`, 'g')) || []).length, 2,
+		`${name} must be pinned for APK and IPK/target variants`);
 }
 
 const checksumCount = (installer.match(/download_checked /g) || []).length;
