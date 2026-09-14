@@ -2,15 +2,15 @@
 # Freenetic one-shot installer for supported OpenWrt routers.
 #
 # Usage:
-#   wget -qO- 'https://raw.githubusercontent.com/unisequence/freenetic/v0.2.4/install.sh' | sh
+#   wget -qO- 'https://raw.githubusercontent.com/unisequence/freenetic/v0.2.5/install.sh' | sh
 #
 # The release and checksums are deliberately pinned. Do not install a
 # partially downloaded or silently replaced package.
 set -eu
 
-RELEASE_TAG="v0.2.4"
+RELEASE_TAG="v0.2.5"
 # GitHub normalizes the '~' in the OpenWrt-derived package version to '.'.
-ASSET_VERSION="26.256.61925.251d2fd"
+ASSET_VERSION="26.257.51426.6a30103"
 RELEASE_BASE_URL="${FREENETIC_RELEASE_BASE_URL:-https://github.com/unisequence/freenetic/releases/download/$RELEASE_TAG}"
 
 MIN_RAM_MIB=128

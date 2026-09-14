@@ -6,6 +6,10 @@ which they became user-visible.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.2.5] — 2026-09-14
+
 ### Improved
 
 - Mobile navigation now opens as an off-canvas drawer instead of reserving a
@@ -27,6 +31,11 @@ which they became user-visible.
 - Initial and SPA view loads now show the same full-height CSS loading surface
   with an animated orbit and reduced-motion fallback; it is replaced atomically
   by the rendered cards when the view is ready.
+
+### Fixed
+
+- Traffic Monitor now renders the device chart and legend after conntrack data
+  arrives instead of failing on an undefined chart palette.
 
 ## [0.2.4] — 2026-09-13
 
