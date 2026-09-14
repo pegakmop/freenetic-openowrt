@@ -24,6 +24,14 @@ assert.match(workflow, /--verify-tag/, 'release publication must verify the push
 assert.match(workflow, /app\/prepare-release\.js/, 'release publication must generate installer metadata from final assets');
 assert.match(workflow, /asset_count.*-eq 16/, 'the release must contain packages, binaries, installer and manifest');
 assert.match(workflow, /--notes-file/, 'release publication must use the generated changelog notes');
+assert.match(workflow, /cp -f "\$RELEASE_DIR\/install\.sh" "\$GITHUB_WORKSPACE\/install\.sh"/,
+	'release publication must copy the generated installer into the tagged source');
+assert.match(workflow, /git config user\.name/,
+	'release publication must configure the tag commit author');
+assert.match(workflow, /git tag -a -f/,
+	'release publication must retag the generated installer commit');
+assert.match(workflow, /git push --force origin [^\n]*refs\/tags/,
+	'release publication must push the generated installer tag');
 assert.match(prepare, /SHA256SUMS\.txt/, 'the release preparation helper must publish checksums for every asset');
 
 console.log('Release workflow contract: ok');

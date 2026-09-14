@@ -82,7 +82,8 @@ fail clearly before leaving a partial installation.
 
 - [ ] merge the verified `testing` state to the intended release branch;
 - [ ] keep the source installer metadata valid; the release builder writes the
-      final package and `fnc` checksums into the generated release installer;
+      final package and `fnc` checksums into the generated release installer,
+      then commits that installer to the release tag for raw-URL compatibility;
 - [ ] create and push the release tag from that clean commit;
 - [ ] build artifacts from the tag, not from a local dirty tree;
 - [ ] let the tagged GitHub Actions run complete its matrix, generated

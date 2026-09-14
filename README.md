@@ -154,9 +154,10 @@ make check-package OPENWRT_DIR=/path/to/openwrt DL_DIR=/path/to/openwrt/dl
 
 Pushing a clean semver tag (`vX.Y.Z`) runs the pinned OpenWrt 24.10/25.12
 matrix in GitHub Actions. The release job derives package hashes from the
-final matrix, writes them into a generated `install.sh`, extracts the matching
-changelog section as release notes and publishes the packages, matching `fnc`
-binaries, installer and `SHA256SUMS.txt` as one GitHub Release.
+final matrix, writes them into a generated `install.sh`, commits that installer
+to the release tag for raw-URL compatibility, extracts the matching changelog
+section as release notes and publishes the packages, matching `fnc` binaries,
+installer and `SHA256SUMS.txt` as one GitHub Release.
 
 The package directories in the buildroot must point to the matching package
 components:

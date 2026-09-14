@@ -280,6 +280,18 @@ jobs:
           RELEASE_NOTES: ${{ steps.release.outputs.release_notes }}
         run: |
           set -eu
+          # Keep the generated installer at the tag as well as in the release.
+          # Older routers fetch raw/.../<tag>/install.sh and do not know about
+          # release assets yet; this commit keeps that URL checksum-correct.
+          cp -f "$RELEASE_DIR/install.sh" "$GITHUB_WORKSPACE/install.sh"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add install.sh
+          if ! git diff --cached --quiet -- install.sh; then
+            git commit -m "ci(release): pin installer checksums for $RELEASE_TAG [skip ci]"
+          fi
+          git tag -a -f "$RELEASE_TAG" -m "Release $RELEASE_TAG"
+          git push --force origin "refs/tags/$RELEASE_TAG"
           gh release create "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
