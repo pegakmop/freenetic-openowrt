@@ -34,7 +34,7 @@ jobs:
             format: ipk
             cli_target: filogic
             asset_arch: aarch64_cortex-a53
-            include_fnc: false
+            include_fnc: true
             publish_packages: true
             sdk_archive: openwrt-sdk-24.10.8-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst
             sdk_sha256: d9fd074f281823a3023e8f6a73aaac598018c898ec9ac4d1c507b596930d7482
@@ -60,6 +60,17 @@ jobs:
             publish_packages: true
             sdk_archive: openwrt-sdk-25.12.5-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64.tar.zst
             sdk_sha256: ff4a38a397caa2cfe1c39e18f84ddede14878221b3593c3f2c4cfe24e3ec4c25
+          - name: OpenWrt 25.12.5 ramips/mt7621 (APK + fnc)
+            release: 25.12.5
+            target: ramips
+            subtarget: mt7621
+            format: apk
+            cli_target: mt7621
+            asset_arch: mipsel_24kc
+            include_fnc: true
+            publish_packages: false
+            sdk_archive: openwrt-sdk-25.12.5-ramips-mt7621_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+            sdk_sha256: 9962084f4131610e90e48bc864c6ceade0b238f15f335de5f672910532b20e9c
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -177,7 +188,7 @@ jobs:
           fi
 
           if [ "$INCLUDE_FNC" = true ]; then
-            cp -f "$GITHUB_WORKSPACE/cli/fnc" "$release_dir/fnc-$asset_version-$ASSET_ARCH"
+            cp -f "$GITHUB_WORKSPACE/cli/fnc" "$release_dir/fnc-$asset_version-$ASSET_ARCH-$PACKAGE_FORMAT"
           fi
 
           printf '%s\n' "$asset_version" > "$release_dir/ASSET_VERSION"
@@ -227,6 +238,12 @@ jobs:
           name: freenetic-mediatek-filogic-apk
           path: artifacts/mediatek-filogic-apk
 
+      - name: Download 25.12 MT7621 fnc build
+        uses: actions/download-artifact@v4
+        with:
+          name: freenetic-ramips-mt7621-apk
+          path: artifacts/ramips-mt7621-apk
+
       - name: Assemble and validate release assets
         id: release
         env:
@@ -254,8 +271,19 @@ jobs:
             cp -f "$source" "$release_dir/$package-$asset_version-mipsel_24kc.apk"
             test -f "$release_dir/$package-$asset_version-all.ipk"
           done
-          test -f "$release_dir/fnc-$asset_version-aarch64_cortex-a53"
-          test -f "$release_dir/fnc-$asset_version-mipsel_24kc"
+          test -f "$release_dir/fnc-$asset_version-aarch64_cortex-a53-apk"
+          test -f "$release_dir/fnc-$asset_version-aarch64_cortex-a53-ipk"
+          test -f "$release_dir/fnc-$asset_version-mipsel_24kc-apk"
+          test -f "$release_dir/fnc-$asset_version-mipsel_24kc-ipk"
+          # Keep the old architecture-only names so routers running the
+          # pre-0.2.6 dashboard can discover this release. The generated
+          # installer itself always selects the manager-specific asset.
+          cp -f "$release_dir/fnc-$asset_version-aarch64_cortex-a53-apk" \
+            "$release_dir/fnc-$asset_version-aarch64_cortex-a53"
+          cp -f "$release_dir/fnc-$asset_version-mipsel_24kc-ipk" \
+            "$release_dir/fnc-$asset_version-mipsel_24kc"
+          test -s "$release_dir/fnc-$asset_version-aarch64_cortex-a53"
+          test -s "$release_dir/fnc-$asset_version-mipsel_24kc"
 
           notes_file="$RUNNER_TEMP/freenetic-release-notes.md"
           node app/prepare-release.js \
@@ -267,7 +295,7 @@ jobs:
             "$asset_version"
 
           asset_count="$(find "$release_dir" -maxdepth 1 -type f | wc -l)"
-          test "$asset_count" -eq 16
+          test "$asset_count" -eq 20
           echo "asset_version=$asset_version" >> "$GITHUB_OUTPUT"
           echo "release_dir=$release_dir" >> "$GITHUB_OUTPUT"
           echo "release_notes=$notes_file" >> "$GITHUB_OUTPUT"

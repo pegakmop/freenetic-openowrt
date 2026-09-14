@@ -60,8 +60,14 @@ function releaseHashes(releaseDir, assetVersion) {
 		fileHash(releaseDir, `${name}-${assetVersion}-all.ipk`)
 	]));
 	const fnc = {
-		filogic: fileHash(releaseDir, `fnc-${assetVersion}-${TARGETS.filogic}`),
-		mt7621: fileHash(releaseDir, `fnc-${assetVersion}-${TARGETS.mt7621}`)
+		filogic: {
+			apk: fileHash(releaseDir, `fnc-${assetVersion}-${TARGETS.filogic}-apk`),
+			ipk: fileHash(releaseDir, `fnc-${assetVersion}-${TARGETS.filogic}-ipk`)
+		},
+		mt7621: {
+			apk: fileHash(releaseDir, `fnc-${assetVersion}-${TARGETS.mt7621}-apk`),
+			ipk: fileHash(releaseDir, `fnc-${assetVersion}-${TARGETS.mt7621}-ipk`)
+		}
 	};
 
 	for (const name of PACKAGE_NAMES) {
@@ -77,8 +83,10 @@ function patchInstaller(template, tag, assetVersion, hashes) {
 	let installer = template;
 	installer = replaceAssignment(installer, 'RELEASE_TAG', tag);
 	installer = replaceAssignment(installer, 'ASSET_VERSION', assetVersion);
-	installer = replaceTargetAssignment(installer, 'mediatek/filogic', 'fnc_sha256', hashes.fnc.filogic);
-	installer = replaceTargetAssignment(installer, 'ramips/mt7621', 'fnc_sha256', hashes.fnc.mt7621);
+	installer = replaceTargetAssignment(installer, 'mediatek/filogic', 'fnc_sha256_apk', hashes.fnc.filogic.apk);
+	installer = replaceTargetAssignment(installer, 'mediatek/filogic', 'fnc_sha256_ipk', hashes.fnc.filogic.ipk);
+	installer = replaceTargetAssignment(installer, 'ramips/mt7621', 'fnc_sha256_apk', hashes.fnc.mt7621.apk);
+	installer = replaceTargetAssignment(installer, 'ramips/mt7621', 'fnc_sha256_ipk', hashes.fnc.mt7621.ipk);
 
 	for (const name of PACKAGE_NAMES) {
 		const variable = name === 'luci-theme-freenetic' ? 'theme_sha256' :

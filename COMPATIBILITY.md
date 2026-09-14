@@ -22,6 +22,7 @@ every device in that target family being tested.
 | 24.10.8 | `mediatek/filogic` | IPK / `opkg` | official SDK package build, package contents/index, aarch64 CLI build |
 | 24.10.8 | `ramips/mt7621` | IPK / `opkg` | SDK package/CLI compatibility job and mipsel CLI build |
 | 25.12.5 | `mediatek/filogic` | APK / `apk` | official SDK package build, package contents/index, aarch64 CLI build |
+| 25.12.5 | `ramips/mt7621` | APK / `apk` | official SDK package/CLI compatibility job and mipsel CLI build |
 | local 24.10 buildroot | `mediatek/filogic` | IPK / `opkg` | complete `make release` including index validation |
 | local 25.12 buildroot | `mediatek/filogic` | APK / `apk` | complete `make release`, MT7621 mirror and index validation |
 
@@ -63,4 +64,3 @@ Check the concrete release assets and the router preflight before installing.
 - Optional third-party VPN protocols and kernel modules remain firmware-
   dependent. Freenetic should report unavailable capabilities instead of
   claiming that every LuCI package is portable across targets.
-

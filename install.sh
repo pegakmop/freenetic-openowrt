@@ -74,10 +74,14 @@ case "$target" in
 	mediatek/filogic)
 		target_suffix="aarch64_cortex-a53"
 		min_overlay_mib="$MIN_OVERLAY_MIB_FILOGIC"
-		fnc_sha256="569c07f3523193f646f182f2a09459feda5946c5bc0d9fecf3432a0361481ddb"
-		fnc_ubus_lib="libubus.so.20260628"
-		fnc_ubox_lib="libubox.so.20260721"
-		fnc_blobmsg_lib="libblobmsg_json.so.20260721"
+		fnc_sha256_apk="569c07f3523193f646f182f2a09459feda5946c5bc0d9fecf3432a0361481ddb"
+		fnc_sha256_ipk="569c07f3523193f646f182f2a09459feda5946c5bc0d9fecf3432a0361481ddb"
+		fnc_ubus_lib_apk="libubus.so.20251202"
+		fnc_ubox_lib_apk="libubox.so.20260213"
+		fnc_blobmsg_lib_apk="libblobmsg_json.so.20260213"
+		fnc_ubus_lib_ipk="libubus.so.20250102"
+		fnc_ubox_lib_ipk="libubox.so.20240329"
+		fnc_blobmsg_lib_ipk="libblobmsg_json.so.20240329"
 		fnc_uci_lib="libuci.so.20250120"
 		fnc_jsonc_lib="libjson-c.so.5"
 		case "$machine" in
@@ -92,10 +96,14 @@ case "$target" in
 	ramips/mt7621)
 		target_suffix="mipsel_24kc"
 		min_overlay_mib="$MIN_OVERLAY_MIB_MT7621"
-		fnc_sha256="694db49b76061c2cca0a8c4b9ff3d9fc638bfea4ee1d5a48c9f29e06936a1470"
-		fnc_ubus_lib="libubus.so.20251202"
-		fnc_ubox_lib="libubox.so.20260213"
-		fnc_blobmsg_lib="libblobmsg_json.so.20260213"
+		fnc_sha256_apk="694db49b76061c2cca0a8c4b9ff3d9fc638bfea4ee1d5a48c9f29e06936a1470"
+		fnc_sha256_ipk="694db49b76061c2cca0a8c4b9ff3d9fc638bfea4ee1d5a48c9f29e06936a1470"
+		fnc_ubus_lib_apk="libubus.so.20251202"
+		fnc_ubox_lib_apk="libubox.so.20260213"
+		fnc_blobmsg_lib_apk="libblobmsg_json.so.20260213"
+		fnc_ubus_lib_ipk="libubus.so.20250102"
+		fnc_ubox_lib_ipk="libubox.so.20240329"
+		fnc_blobmsg_lib_ipk="libblobmsg_json.so.20240329"
 		fnc_uci_lib="libuci.so.20250120"
 		fnc_jsonc_lib="libjson-c.so.5"
 		case "$machine" in
@@ -142,8 +150,6 @@ overlay_mib=$((overlay_free_kib / 1024))
 
 info "preflight passed: $model, $target, ${release_arch:-$machine}, ${cpu_cores} cores, ${ram_mib} MiB RAM, ${overlay_mib} MiB free"
 
-FNC_BIN="fnc-${ASSET_VERSION}-${target_suffix}"
-
 case "$package_manager" in
 	apk)
 		THEME_PACKAGE="luci-theme-freenetic-${ASSET_VERSION}-${target_suffix}.apk"
@@ -166,6 +172,24 @@ case "$package_manager" in
 		app_ru_sha256="61e822d9ca8b0636aaa9a061ec85bbd756799d050dbd6dd9bcc25485fe033e79"
 		;;
 esac
+
+case "$package_manager" in
+	apk)
+		fnc_variant=apk
+		fnc_sha256="$fnc_sha256_apk"
+		fnc_ubus_lib="$fnc_ubus_lib_apk"
+		fnc_ubox_lib="$fnc_ubox_lib_apk"
+		fnc_blobmsg_lib="$fnc_blobmsg_lib_apk"
+		;;
+	opkg)
+		fnc_variant=ipk
+		fnc_sha256="$fnc_sha256_ipk"
+		fnc_ubus_lib="$fnc_ubus_lib_ipk"
+		fnc_ubox_lib="$fnc_ubox_lib_ipk"
+		fnc_blobmsg_lib="$fnc_blobmsg_lib_ipk"
+		;;
+esac
+FNC_BIN="fnc-${ASSET_VERSION}-${target_suffix}-${fnc_variant}"
 
 download_checked() {
 	asset_name="$1"

@@ -58,7 +58,8 @@ const release = (packageManager, assetSuffix, selectedVersion = version) => {
 	return {
 		tag_name: 'v0.2.2',
 		assets: packageNames.map(name => ({ name: name + '-' + selectedVersion + packageSuffix }))
-			.concat({ name: 'fnc-' + selectedVersion + '-' + assetSuffix })
+			.concat({ name: 'fnc-' + selectedVersion + '-' + assetSuffix + '-' +
+				(packageManager === 'apk' ? 'apk' : 'ipk') })
 	};
 };
 
@@ -96,7 +97,7 @@ const ipkPlan = helpers.freeneticReleasePlan(
 assert.equal(ipkPlan.compatible, true);
 assert.equal(ipkPlan.comparison, 1);
 assert.equal(ipkPlan.required.filter(name => name.endsWith('-all.ipk')).length, 4);
-assert.ok(ipkPlan.required.includes('fnc-' + version + '-mipsel_24kc'));
+assert.ok(ipkPlan.required.includes('fnc-' + version + '-mipsel_24kc-ipk'));
 
 const samePlan = helpers.freeneticReleasePlan(
 	release('opkg', 'aarch64_cortex-a53'),

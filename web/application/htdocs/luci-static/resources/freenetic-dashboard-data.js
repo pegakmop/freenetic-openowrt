@@ -66,7 +66,8 @@ function freeneticReleasePlan(release, updater, installedPackages) {
 		return { compatible: false, reason: 'assets' };
 
 	const required = FREENETIC_RELEASE_PACKAGES.map(name => name + '-' + version + packageSuffix);
-	required.push('fnc-' + version + '-' + assetSuffix);
+	const fncVariant = packageManager === 'apk' ? 'apk' : 'ipk';
+	required.push('fnc-' + version + '-' + assetSuffix + '-' + fncVariant);
 	if (!required.every(name => names.has(name)))
 		return { compatible: false, reason: 'assets', version, required };
 

@@ -11,6 +11,18 @@ which they became user-visible.
 - Release builds now generate a checksum-pinned installer and publish the
   matching changelog section as GitHub Release notes.
 
+## [0.2.6] — 2026-09-14
+
+### Fixed
+
+- Build and publish `fnc` separately for each OpenWrt package-manager/runtime
+  ABI; MT7621 APK routers now receive a binary built against the 25.12
+  libraries instead of the incompatible 24.10 ABI.
+- Release installers now select the matching `fnc` artifact and checksum for
+  APK or IPK automatically.
+- Architecture-only `fnc` names remain as discovery aliases so routers still
+  running an older dashboard can see the update.
+
 ## [0.2.5] — 2026-09-14
 
 ### Improved

@@ -46,8 +46,12 @@ try {
 		fs.writeFileSync(path.join(releaseDir, `${name}-${assetVersion}-mipsel_24kc.apk`), `${name} APK\n`);
 		fs.writeFileSync(path.join(releaseDir, `${name}-${assetVersion}-all.ipk`), `${name} IPK\n`);
 	}
-	fs.writeFileSync(path.join(releaseDir, `fnc-${assetVersion}-aarch64_cortex-a53`), 'filogic fnc\n');
-	fs.writeFileSync(path.join(releaseDir, `fnc-${assetVersion}-mipsel_24kc`), 'mt7621 fnc\n');
+	fs.writeFileSync(path.join(releaseDir, `fnc-${assetVersion}-aarch64_cortex-a53-apk`), 'filogic apk fnc\n');
+	fs.writeFileSync(path.join(releaseDir, `fnc-${assetVersion}-aarch64_cortex-a53-ipk`), 'filogic ipk fnc\n');
+	fs.writeFileSync(path.join(releaseDir, `fnc-${assetVersion}-mipsel_24kc-apk`), 'mt7621 apk fnc\n');
+	fs.writeFileSync(path.join(releaseDir, `fnc-${assetVersion}-mipsel_24kc-ipk`), 'mt7621 ipk fnc\n');
+	fs.writeFileSync(path.join(releaseDir, `fnc-${assetVersion}-aarch64_cortex-a53`), 'legacy filogic fnc\n');
+	fs.writeFileSync(path.join(releaseDir, `fnc-${assetVersion}-mipsel_24kc`), 'legacy mt7621 fnc\n');
 
 	const result = prepare.prepareRelease({
 		releaseDir,
@@ -61,16 +65,17 @@ try {
 	const installer = fs.readFileSync(installerPath, 'utf8');
 	const manifest = fs.readFileSync(path.join(releaseDir, 'SHA256SUMS.txt'), 'utf8');
 
-	assert.equal(result.assetCount, 16, 'release must contain 14 binaries/packages, installer and manifest');
+	assert.equal(result.assetCount, 20, 'release must contain 18 binaries/packages, installer and manifest');
 	assert.ok(fs.statSync(installerPath).mode & 0o111, 'generated installer must be executable');
 	assert.match(installer, /RELEASE_TAG="v9\.8\.7"/);
 	assert.match(installer, /ASSET_VERSION="26\.257\.51426\.deadbee"/);
 	assert.match(installer, /releases\/download\/v9\.8\.7\/install\.sh/);
 	assert.match(installer, new RegExp(`theme_sha256="${hash(path.join(releaseDir, `luci-theme-freenetic-${assetVersion}-aarch64_cortex-a53.apk`))}"`));
 	assert.match(installer, new RegExp(`app_sha256="${hash(path.join(releaseDir, `luci-app-freenetic-${assetVersion}-all.ipk`))}"`));
-	assert.match(installer, new RegExp(`fnc_sha256="${hash(path.join(releaseDir, `fnc-${assetVersion}-aarch64_cortex-a53`))}"`));
+	assert.match(installer, new RegExp(`fnc_sha256_apk="${hash(path.join(releaseDir, `fnc-${assetVersion}-aarch64_cortex-a53-apk`))}"`));
+	assert.match(installer, new RegExp(`fnc_sha256_ipk="${hash(path.join(releaseDir, `fnc-${assetVersion}-aarch64_cortex-a53-ipk`))}"`));
 	assert.match(manifest, /\.\/install\.sh$/m, 'manifest must cover generated installer');
-	assert.equal(manifest.trim().split('\n').length, 15, 'manifest must cover every pre-manifest asset');
+	assert.equal(manifest.trim().split('\n').length, 19, 'manifest must cover every pre-manifest asset');
 	assert.match(fs.readFileSync(notesPath, 'utf8'), /## \[9\.8\.7\] — 2026-09-14/);
 	assert.match(fs.readFileSync(notesPath, 'utf8'), /Generated installers now carry/);
 }

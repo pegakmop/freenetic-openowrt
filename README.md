@@ -50,9 +50,10 @@ wget -qO- 'https://github.com/unisequence/freenetic/releases/latest/download/ins
 ```
 
 The release installer is generated from the final package matrix: it carries
-the exact SHA-256 values for that release's four LuCI packages and matching
-`fnc` binary. It checks the router before changing it, selects APK or IPK
-automatically, records the installed release and installs `fnc` as
+the exact SHA-256 values for that release's four LuCI packages and the
+package-manager/ABI-matched `fnc` binary. It checks the router before changing
+it, selects APK or IPK automatically, records the installed release and
+installs `fnc` as
 `/usr/bin/fnc`. The Russian packages are installed but the current LuCI
 language is not changed automatically.
 
@@ -153,8 +154,9 @@ make check-package OPENWRT_DIR=/path/to/openwrt DL_DIR=/path/to/openwrt/dl
 ```
 
 Pushing a clean semver tag (`vX.Y.Z`) runs the pinned OpenWrt 24.10/25.12
-matrix in GitHub Actions. The release job derives package hashes from the
-final matrix, writes them into a generated `install.sh`, commits that installer
+matrix in GitHub Actions, including separate `fnc` builds for each target and
+package-manager ABI. The release job derives package hashes from the final
+matrix, writes them into a generated `install.sh`, commits that installer
 to the release tag for raw-URL compatibility, extracts the matching changelog
 section as release notes and publishes the packages, matching `fnc` binaries,
 installer and `SHA256SUMS.txt` as one GitHub Release.

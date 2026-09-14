@@ -87,7 +87,7 @@ fail clearly before leaving a partial installation.
 - [ ] create and push the release tag from that clean commit;
 - [ ] build artifacts from the tag, not from a local dirty tree;
 - [ ] let the tagged GitHub Actions run complete its matrix, generated
-      installer and 16-asset validation;
+      installer and 20-asset validation;
 - [ ] verify the generated installer and its `SHA256SUMS.txt` manifest;
 - [ ] verify that the matching changelog section is present in the release
       notes;
