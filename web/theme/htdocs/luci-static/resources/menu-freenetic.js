@@ -104,23 +104,75 @@ return baseclass.extend({
 		}
 
 		var toggle = document.querySelector('#fn-sidebar-toggle');
+		var mobileToggle = document.querySelector('#fn-mobile-menu-toggle');
 		var shell = document.querySelector('#fn-shell');
+		var sidebar = document.querySelector('#fn-sidebar');
+		var topbar = document.querySelector('#fn-topbar');
 		var backdrop = document.querySelector('#fn-sidebar-backdrop');
+		var mobileQuery = window.matchMedia && window.matchMedia('(max-width: 860px)');
 		var STORE_KEY = 'freenetic-sidebar-expanded';
 
 		var expanded = false;
 		try { expanded = localStorage.getItem(STORE_KEY) === '1'; } catch (e) {}
-		shell.classList.toggle('fn-sidebar-collapsed', !expanded);
+		shell.classList.toggle('fn-sidebar-collapsed', (mobileQuery && mobileQuery.matches) || !expanded);
+
+		function positionMobileSidebar() {
+			if (!sidebar || !topbar)
+				return;
+
+			if (mobileQuery && mobileQuery.matches) {
+				var top = Math.ceil(topbar.getBoundingClientRect().bottom);
+				sidebar.style.top = top + 'px';
+				sidebar.style.height = Math.max(0, window.innerHeight - top) + 'px';
+				if (backdrop)
+					backdrop.style.top = top + 'px';
+			}
+			else {
+				sidebar.style.removeProperty('top');
+				sidebar.style.removeProperty('height');
+				if (backdrop)
+					backdrop.style.removeProperty('top');
+			}
+		}
+
+		positionMobileSidebar();
+		window.addEventListener('resize', positionMobileSidebar);
+		if (window.visualViewport)
+			window.visualViewport.addEventListener('resize', positionMobileSidebar);
+
+		function revealActiveMobileSection() {
+			var sidebar = document.querySelector('#fn-sidebar');
+			var active = sidebar && sidebar.querySelector('.fn-nav-item.fn-active');
+
+			if (sidebar)
+				sidebar.scrollTop = active ? Math.max(0, active.offsetTop - 8) : 0;
+		}
 
 		toggle.addEventListener('click', function() {
 			shell.classList.toggle('fn-sidebar-collapsed');
 			try { localStorage.setItem(STORE_KEY, nowExpanded ? '1' : '0'); } catch (e) {}
 		});
+		if (mobileToggle)
+			mobileToggle.addEventListener('click', function() {
+				var opening = shell.classList.contains('fn-sidebar-collapsed');
+				positionMobileSidebar();
+				shell.classList.toggle('fn-sidebar-collapsed');
+				if (opening) {
+					revealActiveMobileSection();
+					requestAnimationFrame(revealActiveMobileSection);
+				}
+				positionMobileSidebar();
+				syncSidebarA11y();
+			});
 
 		function syncSidebarA11y() {
 			const isExpanded = !shell.classList.contains('fn-sidebar-collapsed');
 			toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
 			toggle.setAttribute('aria-label', _(isExpanded ? 'Collapse menu' : 'Expand menu'));
+			if (mobileToggle) {
+				mobileToggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+				mobileToggle.setAttribute('aria-label', _(isExpanded ? 'Collapse menu' : 'Expand menu'));
+			}
 			if (backdrop)
 				backdrop.setAttribute('aria-hidden', isExpanded ? 'false' : 'true');
 		}
@@ -128,12 +180,17 @@ return baseclass.extend({
 		syncSidebarA11y();
 		shell.freeneticSyncSidebar = syncSidebarA11y;
 		toggle.addEventListener('click', syncSidebarA11y);
+		toggle.addEventListener('click', function() {
+			if (mobileQuery && mobileQuery.matches &&
+				shell.classList.contains('fn-sidebar-collapsed') && mobileToggle)
+				mobileToggle.focus();
+		});
 		if (backdrop)
 			backdrop.addEventListener('click', function() {
 				shell.classList.add('fn-sidebar-collapsed');
 				try { localStorage.setItem(STORE_KEY, '0'); } catch (e) {}
 				syncSidebarA11y();
-				toggle.focus();
+				(mobileQuery && mobileQuery.matches && mobileToggle ? mobileToggle : toggle).focus();
 			});
 
 		document.addEventListener('keydown', function(ev) {
@@ -141,9 +198,22 @@ return baseclass.extend({
 				shell.classList.add('fn-sidebar-collapsed');
 				try { localStorage.setItem(STORE_KEY, '0'); } catch (e) {}
 				syncSidebarA11y();
-				toggle.focus();
+				(mobileQuery && mobileQuery.matches && mobileToggle ? mobileToggle : toggle).focus();
 			}
 		});
+
+		if (mobileQuery && mobileQuery.addEventListener)
+			mobileQuery.addEventListener('change', function(ev) {
+				if (ev.matches) {
+					shell.classList.add('fn-sidebar-collapsed');
+				}
+				else {
+					var desktopExpanded = false;
+					try { desktopExpanded = localStorage.getItem(STORE_KEY) === '1'; } catch (e) {}
+					shell.classList.toggle('fn-sidebar-collapsed', !desktopExpanded);
+				}
+				syncSidebarA11y();
+			});
 	},
 
 	renderTabMenu(tree, url, level) {

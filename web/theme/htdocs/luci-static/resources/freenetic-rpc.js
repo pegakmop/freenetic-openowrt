@@ -3,29 +3,27 @@
 
 /*
  * LuCI's rpc module batches calls through requestAnimationFrame. Backgrounded
- * and headless tabs may never flush that batch, so custom Freenetic views use
- * the same ubus endpoint directly. Keep this workaround in one place.
+ * and headless tabs may never flush that batch, so custom Freenetic views keep
+ * their own scheduler here. A microtask still coalesces calls issued by one
+ * view/poll tick, but it does not depend on a browser paint to make progress.
+ *
+ * Prefer uhttpd's native /ubus handler: on embedded hardware it avoids a full
+ * LuCI dispatcher pass for every state read. Try it directly and retain the
+ * dispatcher endpoint as a compatibility fallback for reverse proxies and
+ * older images.
  */
 const REQUEST_TIMEOUT_MS = 15000;
+const FALLBACK_URL = L.url('admin/ubus');
 let requestId = 1;
-const streams = [];
+let endpointPromise = null;
+let flushScheduled = false;
+const pendingCalls = [];
 
-function cgiRoot() {
-	/* L.env.scriptname is normally /cgi-bin/luci, but may include a reverse
-	 * proxy prefix. Keep the direct SSE CGI alongside that script instead of
-	 * assuming the device is mounted at /cgi-bin. */
-	const scriptName = String((L.env && (L.env.scriptname || L.env.cgi_base)) || '/cgi-bin/luci')
-		.replace(/[?#].*$/, '')
-		.replace(/\/+$/, '');
-	const luciOffset = scriptName.indexOf('/luci');
-
-	return luciOffset >= 0 ? (scriptName.substring(0, luciOffset) || '/cgi-bin') : (scriptName || '/cgi-bin');
-}
-
-function timedFetch(url, options) {
+function timedFetch(url, options, timeoutMs) {
 	const controller = typeof AbortController === 'function' ? new AbortController() : null;
 	let timeoutId;
 	const requestOptions = Object.assign({}, options);
+	timeoutMs = timeoutMs || REQUEST_TIMEOUT_MS;
 
 	if (controller)
 		requestOptions.signal = controller.signal;
@@ -36,89 +34,130 @@ function timedFetch(url, options) {
 			if (controller)
 				controller.abort();
 			reject(new Error('ubus request timed out'));
-		}, REQUEST_TIMEOUT_MS);
+		}, timeoutMs);
 	});
 
 	return Promise.race([ request, timeout ]).finally(() => clearTimeout(timeoutId));
 }
 
+function sessionId() {
+	return (L.env && L.env.sessionid) || '00000000000000000000000000000000';
+}
+
+function fetchJson(url, payload, timeoutMs) {
+	return timedFetch(url, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		credentials: 'include',
+		body: JSON.stringify(payload)
+	}, timeoutMs).then(r => {
+		if (!r.ok)
+			throw new Error('ubus request failed (HTTP ' + r.status + ')');
+
+		return r.json();
+	});
+}
+
+function selectEndpoint() {
+	if (endpointPromise)
+		return endpointPromise;
+
+	const directUrl = L.env && L.env.ubuspath;
+	/* L.env.ubuspath is emitted by LuCI from the same uhttpd instance that
+	 * serves this page. Sending a probe before the first application batch
+	 * doubles one network round-trip on high-latency links and needlessly
+	 * repeats calls such as system.board. Try the native endpoint directly;
+	 * flushCalls() retries the complete batch through the dispatcher only when
+	 * the direct request actually fails at the transport/HTTP layer. */
+	endpointPromise = Promise.resolve(directUrl || FALLBACK_URL);
+
+	return endpointPromise;
+}
+
+function decodeReply(call, msg) {
+	if (msg && msg.error) {
+		const code = msg.error.code != null ? ', code ' + msg.error.code : '';
+		const message = msg.error.message || 'JSON-RPC error';
+		throw new Error('ubus request failed (object=' + call.object + ' method=' + call.method +
+			', ' + message + code + ')');
+	}
+	if (!msg || !Array.isArray(msg.result))
+		throw new Error('Malformed ubus reply');
+
+	const [rc, data] = msg.result;
+	if (rc !== 0)
+		throw new Error('ubus error (object=' + call.object + ' method=' + call.method + ', code ' + rc + ')');
+
+	return data || {};
+}
+
+function dispatchReplies(calls, payload) {
+	const replies = Array.isArray(payload) ? payload : [ payload ];
+	const byId = {};
+	let hasIds = false;
+
+	replies.forEach(reply => {
+		if (reply && reply.id != null) {
+			byId[reply.id] = reply;
+			hasIds = true;
+		}
+	});
+
+	calls.forEach((call, index) => {
+		const reply = hasIds ? byId[call.message.id] : replies[index];
+		try {
+			call.resolve(decodeReply(call, reply));
+		}
+		catch (error) {
+			call.reject(error);
+		}
+	});
+}
+
+function flushCalls() {
+	flushScheduled = false;
+	if (!pendingCalls.length)
+		return;
+
+	const calls = pendingCalls.splice(0, pendingCalls.length);
+	const messages = calls.map(call => call.message);
+	const payload = messages.length === 1 ? messages[0] : messages;
+
+	selectEndpoint().then(url => fetchJson(url, payload).catch(error => {
+		if (url === FALLBACK_URL)
+			throw error;
+
+		return fetchJson(FALLBACK_URL, payload).then(result => {
+			/* Remember a working dispatcher fallback so an older reverse proxy
+			 * does not cost one failed native request on every later poll tick. */
+			endpointPromise = Promise.resolve(FALLBACK_URL);
+			return result;
+		});
+	}))
+		.then(replies => dispatchReplies(calls, replies))
+		.catch(error => calls.forEach(call => call.reject(error)));
+}
+
 return baseclass.extend({
 	call: function(object, method, params) {
-		return timedFetch(L.url('admin/ubus'), {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			credentials: 'include',
-			body: JSON.stringify({
-				jsonrpc: '2.0',
-				id: requestId++,
-				method: 'call',
-				params: [ L.env.sessionid, object, method, params || {} ]
-			})
-		}).then(r => {
-			if (!r.ok)
-				throw new Error('ubus request failed (HTTP ' + r.status + ')');
+		return new Promise((resolve, reject) => {
+			pendingCalls.push({
+				object,
+				method,
+				resolve,
+				reject,
+				message: {
+					jsonrpc: '2.0',
+					id: requestId++,
+					method: 'call',
+					params: [ sessionId(), object, method, params || {} ]
+				}
+			});
 
-			return r.json();
-		}).then(msg => {
-			if (msg && msg.error) {
-				const code = msg.error.code != null ? ', code ' + msg.error.code : '';
-				const message = msg.error.message || 'JSON-RPC error';
-				throw new Error('ubus request failed (object=' + object + ' method=' + method +
-					', ' + message + code + ')');
-			}
-			if (!msg || !Array.isArray(msg.result))
-				throw new Error('Malformed ubus reply');
-
-			const [rc, data] = msg.result;
-			if (rc !== 0)
-				throw new Error('ubus error (object=' + object + ' method=' + method + ', code ' + rc + ')');
-
-			return data || {};
-		});
-	},
-
-	/* Open the authenticated server-to-client state stream. The endpoint is
-	 * intentionally a plain CGI rather than a LuCI dispatcher action because
-	 * dispatcher actions buffer their output and cannot stream SSE frames.
-	 * Callers keep their existing polling fallback until the first snapshot is
-	 * received, so an older image without the endpoint remains usable. */
-	stream: function(onSnapshot, onError) {
-		if (typeof window.EventSource !== 'function')
-			return null;
-
-		/* LuCI's auth cookie is scoped to its CGI directory. The stream is a
-		 * sibling CGI (dispatcher actions buffer output), so include the current
-		 * SID explicitly; the CGI validates it against ubus before streaming. */
-		const sid = L.env.sessionid;
-		const url = cgiRoot() + '/freenetic-events' + (sid ? '?sid=' + encodeURIComponent(sid) : '');
-		const source = new window.EventSource(url, {
-			withCredentials: true
-		});
-		streams.push(source);
-
-		source.addEventListener('snapshot', ev => {
-			try {
-				onSnapshot(JSON.parse(ev.data));
-			}
-			catch (err) {
-				if (onError)
-					onError(err);
+			if (!flushScheduled) {
+				flushScheduled = true;
+				Promise.resolve().then(flushCalls);
 			}
 		});
-
-		if (onError)
-			source.addEventListener('error', onError);
-
-		return source;
-	},
-
-	/* Close all streams opened by Freenetic views. LuCI keeps modules as
-	 * singletons, so a view replaced in-place must explicitly release its
-	 * EventSource instead of leaving it connected to the old callbacks. */
-	closeStreams: function() {
-		while (streams.length) {
-			const source = streams.pop();
-			try { source.close(); } catch (e) {}
-		}
 	}
 });

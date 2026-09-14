@@ -2,7 +2,7 @@
 # Deploy both Freenetic LuCI components to the test router and bust caches.
 set -e
 
-ROUTER="root@192.168.1.1"
+ROUTER="${FREENETIC_ROUTER:-root@192.168.1.1}"
 SSH_CMD="${FREENETIC_SSH_CMD:-ssh}"
 APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$APP_DIR")"
@@ -99,10 +99,18 @@ $SSH_CMD "$ROUTER" '
     cp /tmp/freenetic-pkg/root/usr/share/rpcd/acl.d/*.json /usr/share/rpcd/acl.d/
     cp /tmp/freenetic-pkg/root/usr/libexec/freenetic-* /usr/libexec/
     chmod +x /usr/libexec/freenetic-*
+	# LuCI derives the ?v= cache key for every JS module from the installed
+	# package database mtime. A development copy bypasses apk/opkg, so advance
+	# that same timestamp to prevent a new template loading with stale modules.
+	if [ -e /lib/apk/db/installed ]; then
+		touch /lib/apk/db/installed
+	elif [ -e /usr/lib/opkg/status ]; then
+		touch /usr/lib/opkg/status
+	fi
     mkdir -p /usr/lib/lua/luci/i18n
-    mkdir -p /www/cgi-bin
-    cp /tmp/freenetic-pkg/root/www/cgi-bin/freenetic-events /www/cgi-bin/freenetic-events
-    chmod +x /www/cgi-bin/freenetic-events
+    # Live metrics now use short native /ubus batches. Remove the former
+    # long-running CGI stream so it cannot retain a uhttpd script slot.
+    rm -f /www/cgi-bin/freenetic-events
     /etc/init.d/rpcd reload
     rm -f /tmp/luci-indexcache*
     rm -rf /tmp/luci-modulecache
@@ -110,10 +118,16 @@ $SSH_CMD "$ROUTER" '
     # /etc plus whatever this lists) would wipe them — keep this list synced
     # with everything deploy.sh installs above.
     touch /etc/sysupgrade.conf
+    sed -i "\|^/www/cgi-bin/freenetic-events$|d" /etc/sysupgrade.conf
     for p in /www/luci-static/freenetic /usr/share/ucode/luci/template/themes/freenetic \
              /www/luci-static/resources/freenetic-diagnostics.js \
              /www/luci-static/resources/freenetic-network.js \
              /www/luci-static/resources/freenetic-qrcode.js \
+             /www/luci-static/resources/freenetic-dashboard-data.js \
+             /www/luci-static/resources/freenetic-connections-core.js \
+             /www/luci-static/resources/freenetic-connections-ipsec.js \
+             /www/luci-static/resources/freenetic-connections-openvpn.js \
+             /www/luci-static/resources/freenetic-connections-wireguard.js \
              /www/luci-static/resources/freenetic-rpc.js \
              /www/luci-static/resources/freenetic-ui.js \
              /www/luci-static/resources/freenetic-view-guard.js \
@@ -135,7 +149,6 @@ $SSH_CMD "$ROUTER" '
              /www/luci-static/resources/view/system/freenetic-apps.js \
              /www/luci-static/resources/view/system/freenetic-diagnostics.js \
              /www/luci-static/resources/view/system/freenetic-system.js \
-             /www/cgi-bin/freenetic-events \
              /usr/lib/lua/luci/i18n/freenetic.ru.lmo \
              /usr/lib/lua/luci/i18n/freenetic-theme.ru.lmo \
              /usr/share/luci/menu.d/zz-luci-freenetic.json \

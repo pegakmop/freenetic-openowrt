@@ -5,7 +5,6 @@
 'require poll';
 'require ui';
 'require view';
-'require freenetic-rpc as rpc';
 
 /*
  * Freenetic keeps the familiar LuCI dispatcher URLs, but the pages belonging
@@ -89,6 +88,23 @@ function pathState(url) {
 	return url.pathname + url.search + url.hash;
 }
 
+function loadingScreen() {
+	return E('div', {
+		class: 'fn-loading-screen',
+		role: 'status',
+		'aria-live': 'polite'
+	}, E('div', { class: 'fn-loading-content' }, [
+		E('div', { class: 'fn-loading-orbit', 'aria-hidden': 'true' },
+			E('span', { class: 'fn-loading-orbit-core' })),
+		E('p', { class: 'fn-loading-label' }, _('Loading view…')),
+		E('div', { class: 'fn-loading-dots', 'aria-hidden': 'true' }, [
+			E('span', { class: 'fn-loading-dot' }),
+			E('span', { class: 'fn-loading-dot' }),
+			E('span', { class: 'fn-loading-dot' })
+		])
+	]));
+}
+
 return baseclass.extend({
 	__init__() {
 		/* The footer is present on every authenticated Freenetic page.  Protect
@@ -103,6 +119,18 @@ return baseclass.extend({
 		this.navigationToken = 0;
 		this.onDocumentClick = ev => this.handleDocumentClick(ev);
 		this.onPopState = ev => this.handlePopState(ev);
+
+		/* On a cold load LuCI owns the first placeholder while the initial view
+		 * is being resolved.  Swap that placeholder for the same SPA surface as
+		 * soon as the navigation module arrives, without touching a view that has
+		 * already rendered. */
+		const mount = document.querySelector('#view');
+		const initialSpinner = mount && Array.prototype.find.call(mount.children,
+			node => node.classList && node.classList.contains('spinning'));
+		if (initialSpinner) {
+			mount.setAttribute('aria-busy', 'true');
+			dom.content(mount, loadingScreen());
+		}
 
 		document.addEventListener('click', this.onDocumentClick);
 		window.addEventListener('popstate', this.onPopState);
@@ -259,23 +287,15 @@ return baseclass.extend({
 			previous = loadedView(this.currentRoute.view);
 
 		if (previous) {
-			if (previous.streamFallbackTimer) {
-				clearTimeout(previous.streamFallbackTimer);
-				previous.streamFallbackTimer = null;
-			}
-
-			if (Array.isArray(previous.fallbackPollers)) {
-				previous.fallbackPollers.forEach(fn => poll.remove(fn));
-				previous.fallbackPollers = [];
+			if (Array.isArray(previous.livePollers)) {
+				previous.livePollers.forEach(fn => poll.remove(fn));
+				previous.livePollers = [];
 			}
 
 			if (typeof previous.destroy === 'function') {
 				try { previous.destroy(); } catch (e) {}
 			}
 		}
-
-		if (rpc && typeof rpc.closeStreams === 'function')
-			rpc.closeStreams();
 
 		/* View modules register poll callbacks as singleton-global functions.  A
 		 * full snapshot replacement must remove every callback, including ones
@@ -312,7 +332,7 @@ return baseclass.extend({
 			dom.content(tabmenu, null);
 
 		mount.setAttribute('aria-busy', 'true');
-		dom.content(mount, E('div', { class: 'spinning' }, _('Loading view…')));
+		dom.content(mount, loadingScreen());
 
 		/* L.require() instantiates a class as a side effect.  Temporarily disable
 		 * the base View constructor so loading a second route does not render into

@@ -55,15 +55,31 @@
 		<meta name="darkreader-lock">
 		<link rel="icon" type="image/svg+xml" href="{{ media }}/favicon.svg">
 		<link rel="shortcut icon" href="{{ media }}/favicon.svg">
-		<link rel="stylesheet" href="{{ media }}/cascade.css">
+		<link rel="stylesheet" href="{{ media }}/cascade.css?v={{ pkgs_update_time }}">
 		{% if (node?.css): %}
-		<link rel="stylesheet" href="{{ resource }}/{{ node.css }}">
+		<link rel="stylesheet" href="{{ resource }}/{{ node.css }}?v={{ pkgs_update_time }}">
+		{% endif %}
+		{% if (ctx.request_path[0] == 'admin' && ctx.request_path[1] == 'status' && ctx.request_path[2] == 'dashboard'): %}
+		<!-- LuCI resolves classes by fetching each dependency after luci.js has
+		     evaluated. Warm the dashboard dependency graph while the HTML and
+		     base stylesheet are still loading, otherwise a high-latency link
+		     turns the dependency chain into a visible waterfall. These links are
+		     cache-only hints; L.require remains the source of truth. -->
+		{% for (class_name in [
+			'ui', 'rpc', 'form', 'validation', 'uci', 'fs',
+			'menu-freenetic', 'settings-freenetic', 'freenetic-navigation',
+			'freenetic-rpc', 'freenetic-ui', 'freenetic-network',
+			'freenetic-qrcode', 'freenetic-dashboard-data',
+			'view/status/freenetic-dashboard'
+		]): %}
+		<link rel="preload" as="script" fetchpriority="low" href="{{ resource }}/{{ class_name }}.js?v={{ version.luciversion }}-{{ pkgs_update_time }}">
+		{% endfor %}
 		{% endif %}
 		{% if (css): %}
 		<style title="text/css">{{ css }}</style>
 		{% endif %}
 		<script src="{{ dispatcher.build_url('admin/translations', dispatcher.lang) }}"></script>
-		<script src="{{ resource }}/cbi.js"></script>
+		<script src="{{ resource }}/cbi.js?v={{ pkgs_update_time }}"></script>
 	</head>
 
 	<body class="lang_{{ dispatcher.lang }} {{ entityencode(striptags(node?.title ?? ''), true) }}" data-page="{{ entityencode(join('-', ctx.request_path), true) }}">
@@ -73,10 +89,16 @@
 		     has loaded, but the first paint should not be a wall of navigation. -->
 		<div id="fn-shell" class="fn-sidebar-collapsed">
 			<header id="fn-topbar">
-				<a class="fn-brand" href="/" title="{{ striptags(brand) }}">
-					<span class="fn-brand-name">FREENETIC</span>
-					<span class="fn-brand-model">{{ striptags(model) }}</span>
-				</a>
+				<div class="fn-topbar-left">
+					<button id="fn-mobile-menu-toggle" class="fn-icon-btn" type="button"
+						aria-label="{{ _('Expand menu') }}" aria-controls="fn-sidebar" aria-expanded="false">
+						<svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+					</button>
+					<a class="fn-brand" href="/" title="{{ striptags(brand) }}">
+						<span class="fn-brand-name">FREENETIC</span>
+						<span class="fn-brand-model">{{ striptags(model) }}</span>
+					</a>
+				</div>
 				<div class="fn-topbar-right">
 					<div id="indicators"></div>
 					<div id="fn-settings"></div>
@@ -85,7 +107,7 @@
 
 			<div id="fn-scroll">
 			<div id="fn-body">
-				<nav id="fn-sidebar">
+				<nav id="fn-sidebar" aria-label="{{ _('Main navigation') }}">
 					<ul id="sidebar-menu"></ul>
 					<button id="fn-sidebar-toggle" type="button" aria-label="{{ _('Expand menu') }}">
 						<svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>

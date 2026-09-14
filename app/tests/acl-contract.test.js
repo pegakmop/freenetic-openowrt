@@ -57,5 +57,7 @@ assert.ok(acl.write.uci.includes('luci'), 'theme settings require write access t
 assert.ok(acl.read.ubus.uci.includes('get'), 'raw UCI reads require the legacy ubus method grant');
 assert.ok(acl.write.ubus.uci.includes('set'), 'raw UCI writes require the legacy ubus method grant');
 assert.ok(acl.write.ubus.uci.includes('commit'), 'OpenWrt 24.10 requires an explicit UCI commit grant');
+assert.ok(acl.read.file['/proc/[0-9]*/net/arp'],
+	'new rpcd releases resolve /proc/net through /proc/<pid>/net and require the resolved path grant');
 
 console.log('rpcd ACL contract: ok');

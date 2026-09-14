@@ -38,6 +38,10 @@ const myNetworks = read('view/network/freenetic-mynetworks.js');
 const dashboard = read('view/status/freenetic-dashboard.js');
 const dashboardData = read('freenetic-dashboard-data.js');
 const clients = read('view/status/freenetic-clients.js');
+assert.match(dashboard, /const TRAFFIC_COLORS = \[/,
+	'Traffic Monitor must define its chart palette in the dashboard scope');
+assert.match(dashboard, /const cls = TRAFFIC_COLORS\[e\.other \? 5 : i\]/,
+	'Traffic Monitor must use the locally defined chart palette');
 assert.match(myNetworks, /iface\.disabled === '1' \|\| radio\.disabled === '1'/,
 	'Home Network must show the effective radio and SSID state');
 assert.match(myNetworks, /uci\.set\('wireless', card\.radioName, 'disabled', '0'\)/,

@@ -82,8 +82,8 @@ Bootstrap and it is gone, pick Freenetic back and it returns. Running on real
 hardware right now:
 
 - Dashboard, Traffic Monitor, Wi-Fi Monitor
-- Dashboard and Traffic Monitor live metrics use one authenticated SSE stream
-  (with an automatic polling fallback on older browsers/images)
+- Dashboard and Traffic Monitor live metrics use short, microtask-batched
+  requests to uhttpd's native ubus endpoint, without holding a CGI worker open
 - Internet (multi-WAN)
 - My Networks & Wi-Fi — Home/Guest network with a real backend behind
   it (separate subnet, DHCP, firewall isolation), plus Client List

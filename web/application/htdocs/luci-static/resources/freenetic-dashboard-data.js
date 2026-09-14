@@ -189,18 +189,44 @@ function getPorts() {
 	return ubusCall('luci', 'getBuiltinEthernetPorts').then(r => r.result || []).catch(() => []);
 }
 
-function getWifiRadios(wireless) {
+function getIwinfoDevices() {
+	return ubusCall('iwinfo', 'devices').then(r => r.devices || []).catch(() => []);
+}
+
+function getWifiRadios(wireless, activeDevices, wirelessStatus) {
 	const radios = Object.keys(wireless)
 		.map(k => wireless[k])
 		.filter(s => s['.type'] === 'wifi-device');
+	const statusDevices = {};
+	Object.keys(wirelessStatus || {}).forEach(name => {
+		const iface = (wirelessStatus[name].interfaces || []).find(i => i && i.ifname);
+		if (iface)
+			statusDevices[name] = iface.ifname;
+	});
+	const inferredPhy = name => {
+		const match = String(name || '').match(/^radio(\d+)$/);
+		return match ? 'phy' + match[1] : null;
+	};
 
+	const devices = Array.isArray(activeDevices) ? Promise.resolve(activeDevices) : getIwinfoDevices();
 	return Promise.all([
-		ubusCall('iwinfo', 'devices').then(r => r.devices || []).catch(() => []),
-		Promise.all(radios.map(r =>
-			ubusCall('iwinfo', 'phyname', { section: r['.name'] }).then(p => p.phyname).catch(() => null)))
-	]).then(([activeDevices, phynames]) => radios.map((r, i) => {
+		devices,
+		Promise.all(radios.map(r => {
+			/* network.wireless status already names the live AP interface. Reuse
+			 * it when available instead of making one iwinfo.phyname round-trip per
+			 * radio. Conventional radio0/radio1 sections also map to phy0/phy1,
+			 * so the common path needs no extra request even while a radio is down;
+			 * keep the old lookup for unusual section names. */
+			if (statusDevices[r['.name']] || inferredPhy(r['.name']))
+				return Promise.resolve(inferredPhy(r['.name']));
+
+			return ubusCall('iwinfo', 'phyname', { section: r['.name'] })
+				.then(p => p.phyname).catch(() => null);
+		}))
+	]).then(([liveDevices, phynames]) => radios.map((r, i) => {
+		const hintedDevice = statusDevices[r['.name']];
 		const phy = phynames[i];
-		const dev = phy ? activeDevices.find(d => d.indexOf(phy + '-') === 0) : null;
+		const dev = hintedDevice || (phy ? liveDevices.find(d => d.indexOf(phy + '-') === 0) : null);
 		return { name: r['.name'], band: r.band, disabled: r.disabled === '1', device: dev || null };
 	}));
 }
@@ -337,15 +363,19 @@ function getFreeneticUpdaterStatus() {
 function getFreeneticUpdateState() {
 	return Promise.all([
 		uci.load('freenetic').catch(() => []),
-		getFreeneticInstalledPackages(),
 		getFreeneticUpdaterStatus()
-	]).then(([, packages, updater]) => {
+	]).then(([, updater]) => {
 		const updaterPackages = updater && Array.isArray(updater.packages) ? updater.packages : [];
-		return {
+		const state = packages => ({
 			channel: uci.get('freenetic', 'updates', 'channel') || 'stable',
-			packages: updaterPackages.length ? updaterPackages : packages,
+			packages,
 			updater
-		};
+		});
+
+		/* The status helper already reports the two Freenetic package versions.
+		 * Only invoke the legacy full package-list backend when that data is absent. */
+		return updaterPackages.length ? state(updaterPackages) :
+			getFreeneticInstalledPackages().then(state);
 	});
 }
 
@@ -420,11 +450,12 @@ function getActiveArpMacs() {
    arrays empty or transiently fails on some OpenWrt builds. Discover live AP
    interfaces through iwinfo itself, then use its authoritative association
    data just like the full Client List. */
-function getWifiStations() {
+function getWifiStations(devices) {
 	const stations = {};
 
-	return ubusCall('iwinfo', 'devices').then(result =>
-		Promise.all((result.devices || []).map(device =>
+	const deviceList = Array.isArray(devices) ? Promise.resolve(devices) : getIwinfoDevices();
+	return deviceList.then(result =>
+		Promise.all(result.map(device =>
 			Promise.all([
 				ubusCall('iwinfo', 'info', { device }).catch(() => ({})),
 				ubusCall('iwinfo', 'assoclist', { device }).catch(() => ({ results: [] }))
@@ -525,6 +556,7 @@ return baseclass.extend({
 	connectionInterfaceLabel,
 	getWirelessConfig,
 	getPorts,
+	getIwinfoDevices,
 	getWifiRadios,
 	mhzToChannel,
 	getLanInfo,

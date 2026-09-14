@@ -196,15 +196,16 @@ function passwordField(value) {
 
 return view.extend({
 	load() {
-		return getWirelessConfig().then(wireless =>
-			getWifiRadios(wireless).then(radios =>
-				getRadioAdvanced(radios).then(radioAdv => Promise.all([
-					wireless,
-					getNetworkConfig(),
-					getDhcpConfig(),
-					fs.stat('/etc/config/avahi').then(() => true).catch(() => false),
-					radioAdv
-				]))));
+		const wireless = getWirelessConfig();
+		const radioAdvanced = wireless.then(getWifiRadios).then(getRadioAdvanced);
+
+		return Promise.all([
+			wireless,
+			getNetworkConfig(),
+			getDhcpConfig(),
+			fs.stat('/etc/config/avahi').then(() => true).catch(() => false),
+			radioAdvanced
+		]);
 	},
 
 	render(data) {

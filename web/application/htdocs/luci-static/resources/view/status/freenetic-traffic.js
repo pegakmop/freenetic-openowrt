@@ -226,55 +226,22 @@ return view.extend({
 			this.renderTrafficCard(lan)
 		]);
 
-		this.streamReady = false;
-		this.pollingFallbackStarted = false;
-		this.fallbackPollers = [];
-		const startPollingFallback = () => {
-			if (this.streamReady || this.pollingFallbackStarted)
-				return;
-			this.pollingFallbackStarted = true;
-			const addFallback = (fn, interval) => {
-				const bound = L.bind(fn, this);
-				this.fallbackPollers.push(bound);
-				poll.add(bound, interval);
-			};
-			addFallback(this.pollWan, POLL_INTERVAL);
-			if (lan)
-				addFallback(this.pollTraffic, POLL_INTERVAL);
+		/* Native batched polling keeps every request short-lived. Do not occupy a
+		 * uhttpd CGI worker with a sleeping EventSource connection. */
+		this.livePollers = [];
+		const addLivePoller = (fn, interval) => {
+			const bound = L.bind(fn, this);
+			this.livePollers.push(bound);
+			poll.add(bound, interval);
 		};
-		this.startPollingFallback = startPollingFallback;
-
-		this.liveStream = rpc.stream(L.bind(this.applyLiveSnapshot, this), () => {
-			if (this.streamReady) {
-				this.streamReady = false;
-				this.startPollingFallback();
-			}
-		});
-		if (this.liveStream)
-			this.streamFallbackTimer = setTimeout(startPollingFallback, 6000);
-		else
-			startPollingFallback();
+		addLivePoller(this.pollWan, POLL_INTERVAL);
+		if (lan)
+			addLivePoller(this.pollTraffic, POLL_INTERVAL);
 
 		if (lan)
 			this.pollTraffic();
 
 		return container;
-	},
-
-	applyLiveSnapshot(snapshot) {
-		this.streamReady = true;
-		if (this.streamFallbackTimer) {
-			clearTimeout(this.streamFallbackTimer);
-			this.streamFallbackTimer = null;
-		}
-		if (this.fallbackPollers.length) {
-			this.fallbackPollers.forEach(fn => poll.remove(fn));
-			this.fallbackPollers = [];
-		}
-
-		const devices = snapshot.devices || {};
-		this.applyWanSnapshot(snapshot.interfaces || [], devices);
-		this.applyTrafficSnapshot(snapshot.conntrack || [], snapshot.arp || {});
 	},
 
 	renderConnectionBlock(group, index) {
@@ -324,25 +291,6 @@ return view.extend({
 				E('div', { class: 'fn-info-label' }, label),
 				valueEl
 			])));
-	},
-
-	applyWanSnapshot(interfaces, devices) {
-		const byName = {};
-		interfaces.forEach(iface => { byName[iface.interface] = iface; });
-		const now = Date.now();
-
-		this.connections.forEach(conn => {
-			const ifaces = conn.ifaceNames.map(name => byName[name]).filter(Boolean);
-			if (!ifaces.length)
-				return;
-
-			this.fillConnectionInfo(conn, mergeWanGroup({
-				name: conn.name,
-				device: conn.device,
-				ifaces
-			}));
-			this.updateConnectionStats(conn, devices[conn.device] || {}, now);
-		});
 	},
 
 	updateConnectionStats(conn, dev, now) {
@@ -505,6 +453,13 @@ return view.extend({
 				E('span', { class: 'fn-traffic-value' }, isRate ? fmtBps(e.value) : (Math.round(e.value / 1024) + ' KB'))
 			]));
 		});
+	},
+
+	destroy() {
+		if (Array.isArray(this.livePollers)) {
+			this.livePollers.forEach(fn => poll.remove(fn));
+			this.livePollers = [];
+		}
 	},
 
 	addFooter() { return E([]); }

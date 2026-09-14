@@ -23,29 +23,21 @@ function getDhcpLeases() {
 	return ubusCall('luci-rpc', 'getDHCPLeases').then(r => r.dhcp_leases || []).catch(() => []);
 }
 
-function getArpTable() {
+function getArpState() {
 	return ubusCall('file', 'read', { path: '/proc/net/arp' }).then(r => {
-		const map = {};
+		const table = {};
+		const active = {};
 		(r.data || '').split('\n').slice(1).forEach(line => {
 			const cols = line.trim().split(/\s+/);
-			if (cols.length >= 4 && cols[3] !== '00:00:00:00:00:00')
-				map[cols[0]] = cols[3];
-		});
-		return map;
-	}).catch(() => ({}));
-}
-
-function getActiveArpMacs() {
-	return ubusCall('file', 'read', { path: '/proc/net/arp' }).then(result => {
-		const active = {};
-		(result.data || '').split('\n').slice(1).forEach(line => {
-			const columns = line.trim().split(/\s+/);
-			const mac = columns.length >= 4 ? macKey(columns[3]) : '';
-			if (mac && (parseInt(columns[2], 16) & 0x2))
+			const mac = cols.length >= 4 ? macKey(cols[3]) : '';
+			if (!mac || mac === '00:00:00:00:00:00')
+				return;
+			table[cols[0]] = cols[3];
+			if (parseInt(cols[2], 16) & 0x2)
 				active[mac] = true;
 		});
-		return active;
-	}).catch(() => ({}));
+		return { table, active };
+	}).catch(() => ({ table: {}, active: {} }));
 }
 
 function getDhcpHosts() {
@@ -138,14 +130,15 @@ function macKey(mac) {
 
 return view.extend({
 	load() {
+		const arp = getArpState();
 		return Promise.all([
 			getDhcpLeases(),
-			getArpTable(),
+			arp.then(state => state.table),
 			getWifiStations(),
 			getInterfaceInfo('guest'),
 			getDhcpHosts(),
 			getFirewallBlocks(),
-			getActiveArpMacs()
+			arp.then(state => state.active)
 		]);
 	},
 
@@ -189,8 +182,10 @@ return view.extend({
 	},
 
 	refresh() {
+		const arp = getArpState();
 		return Promise.all([
-			getDhcpLeases(), getArpTable(), getWifiStations(), getDhcpHosts(), getFirewallBlocks(), getActiveArpMacs()
+			getDhcpLeases(), arp.then(state => state.table), getWifiStations(),
+			getDhcpHosts(), getFirewallBlocks(), arp.then(state => state.active)
 		]).then(L.bind(function(res) {
 			this.leases = res[0];
 			this.arp = res[1];

@@ -41,7 +41,6 @@ const EXPECTED_FILES = {
 		'usr/libexec/freenetic-self-update',
 		'usr/share/luci/menu.d/zz-luci-freenetic.json',
 		'usr/share/rpcd/acl.d/luci-app-freenetic.json',
-		'www/cgi-bin/freenetic-events',
 		'www/luci-static/resources/freenetic-diagnostics.js',
 		'www/luci-static/resources/freenetic-network.js',
 		'www/luci-static/resources/freenetic-qrcode.js',

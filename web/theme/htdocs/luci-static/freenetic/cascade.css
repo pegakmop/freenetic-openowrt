@@ -269,6 +269,149 @@ hr { border: none; border-top: 1px solid var(--fn-border); margin: 1em 0; }
 }
 @keyframes fn-spin { to { transform: rotate(360deg); } }
 
+/* The first LuCI paint can still expose its stock direct child spinner before
+ * the Freenetic view module is ready.  Give that fallback the same calm,
+ * full-height treatment as the SPA loading screen below. */
+#view > .spinning {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	min-height: clamp(320px, calc(100vh - var(--fn-topbar-h) - 84px), 760px);
+	margin: 0;
+	padding: 32px 24px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius-lg);
+	background: radial-gradient(circle at 50% 42%, var(--fn-accent-soft), transparent 62%), var(--fn-surface);
+	text-align: center;
+	overflow: hidden;
+	isolation: isolate;
+}
+#view > .spinning::before {
+	position: static;
+	flex: 0 0 auto;
+	width: 54px;
+	height: 54px;
+	margin: 0 0 18px;
+	border-width: 2px;
+	border-color: var(--fn-border-strong);
+	border-top-color: var(--fn-accent-brand);
+	box-shadow: 0 0 0 8px var(--fn-accent-soft), 0 0 28px rgba(0, 151, 220, .18);
+	animation: fn-spin 1s linear infinite;
+}
+/* SPA route changes use a richer loading surface.  It is removed together
+ * with #view's contents as soon as the view promise resolves, so no timer or
+ * cleanup hook can leave a stale overlay above the cards. */
+.fn-loading-screen {
+	position: relative;
+	display: grid;
+	place-items: center;
+	min-height: clamp(320px, calc(100vh - var(--fn-topbar-h) - 84px), 760px);
+	margin: 0;
+	padding: 32px 20px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius-lg);
+	background: radial-gradient(circle at 50% 38%, var(--fn-accent-soft), transparent 64%), var(--fn-surface);
+	text-align: center;
+	overflow: hidden;
+	isolation: isolate;
+}
+.fn-loading-screen::before {
+	content: "";
+	position: absolute;
+	inset: -65% -20%;
+	background: linear-gradient(112deg, transparent 40%, rgba(0, 151, 220, .1) 50%, transparent 60%);
+	transform: translateX(-42%);
+	animation: fn-loading-sheen 2.8s ease-in-out infinite;
+	pointer-events: none;
+}
+.fn-loading-content {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+}
+.fn-loading-orbit {
+	position: relative;
+	width: 72px;
+	height: 72px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: 50%;
+	animation: fn-loading-float 2.2s ease-in-out infinite;
+}
+.fn-loading-orbit::before {
+	content: "";
+	position: absolute;
+	inset: 7px;
+	border: 2px solid transparent;
+	border-top-color: var(--fn-accent-brand);
+	border-left-color: var(--fn-accent);
+	border-radius: 50%;
+	animation: fn-spin .95s linear infinite;
+}
+.fn-loading-orbit::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 50%;
+	width: 7px;
+	height: 7px;
+	margin-left: -3.5px;
+	border-radius: 50%;
+	background: var(--fn-accent-brand);
+	box-shadow: 0 0 12px var(--fn-accent-brand);
+}
+.fn-loading-orbit-core {
+	position: absolute;
+	inset: 26px;
+	border-radius: 50%;
+	background: var(--fn-accent-brand);
+	box-shadow: 0 0 0 7px var(--fn-accent-soft), 0 0 22px rgba(0, 151, 220, .35);
+	animation: fn-loading-pulse 1.7s ease-in-out infinite;
+}
+.fn-loading-label {
+	margin: 0;
+	color: var(--fn-text-secondary);
+	font-size: 1rem;
+}
+.fn-loading-dots {
+	display: flex;
+	gap: 6px;
+	margin-top: 2px;
+}
+.fn-loading-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--fn-accent-brand);
+	animation: fn-loading-dot 1.2s ease-in-out infinite;
+}
+.fn-loading-dot:nth-child(2) { animation-delay: .16s; }
+.fn-loading-dot:nth-child(3) { animation-delay: .32s; }
+@keyframes fn-loading-sheen {
+	0%, 18% { transform: translateX(-42%); }
+	58%, 100% { transform: translateX(42%); }
+}
+@keyframes fn-loading-float {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-4px); }
+}
+@keyframes fn-loading-pulse {
+	0%, 100% { transform: scale(.86); opacity: .72; }
+	50% { transform: scale(1); opacity: 1; }
+}
+@keyframes fn-loading-dot {
+	0%, 100% { transform: translateY(0); opacity: .35; }
+	50% { transform: translateY(-4px); opacity: 1; }
+}
+@keyframes fn-view-reveal {
+	from { opacity: 0; transform: translateY(5px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
 /* ---------- app shell: topbar / sidebar / content ---------- */
 
 /* Themed scrollbar for every scrollable box in the theme (shell, sidebar,
@@ -333,6 +476,13 @@ hr { border: none; border-top: 1px solid var(--fn-border); margin: 1em 0; }
 }
 .fn-brand:hover { text-decoration: none; color: var(--fn-text); }
 
+.fn-topbar-left {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
 .fn-brand-name {
 	font-family: var(--fn-font-display);
 	text-overflow: ellipsis;
@@ -389,6 +539,8 @@ hr { border: none; border-top: 1px solid var(--fn-border); margin: 1em 0; }
 }
 .fn-icon-btn:hover { background: var(--fn-surface-alt); color: var(--fn-text); }
 .fn-icon-btn-active { background: var(--fn-accent-soft); color: var(--fn-accent); }
+
+#fn-mobile-menu-toggle { display: none; }
 
 /* Settings is a persistent third column on desktop, collapsed to 0 width
    until #fn-shell.fn-settings-open. The mobile override below turns it into
@@ -767,14 +919,27 @@ hr { border: none; border-top: 1px solid var(--fn-border); margin: 1em 0; }
 		bottom: 0;
 		height: calc(100vh - var(--fn-topbar-h));
 		z-index: 55;
-		box-shadow: var(--fn-shadow-2);
+		width: min(var(--fn-sidebar-w), calc(100vw - 16px));
+		transform: translate3d(-100%, 0, 0);
+		visibility: hidden;
+		pointer-events: none;
+		transition: transform .2s cubic-bezier(.2, .8, .2, 1),
+			visibility 0s linear .2s;
 	}
+	#fn-shell.fn-sidebar-collapsed #fn-sidebar,
 	#fn-shell:not(.fn-sidebar-collapsed) #fn-sidebar {
 		width: min(var(--fn-sidebar-w), calc(100vw - 16px));
 	}
+	#fn-shell:not(.fn-sidebar-collapsed) #fn-sidebar {
+		transform: translate3d(0, 0, 0);
+		visibility: visible;
+		pointer-events: auto;
+		box-shadow: var(--fn-shadow-2);
+		transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+	}
 	#fn-sidebar-backdrop {
 		position: fixed;
-		inset: var(--fn-topbar-h) 0 0 var(--fn-sidebar-w-collapsed);
+		inset: var(--fn-topbar-h) 0 0 0;
 		z-index: 54;
 		padding: 0;
 		border: none;
@@ -784,7 +949,8 @@ hr { border: none; border-top: 1px solid var(--fn-border); margin: 1em 0; }
 	#fn-shell:not(.fn-sidebar-collapsed) #fn-sidebar-backdrop {
 		display: block;
 	}
-	#fn-main { margin-left: var(--fn-sidebar-w-collapsed); }
+	#fn-main { margin-left: 0; }
+	#fn-mobile-menu-toggle { display: flex; }
 }
 
 /* ---------- alert messages ---------- */
@@ -1877,6 +2043,7 @@ body.modal-overlay-active { overflow: hidden; }
 	grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
 	gap: 20px;
 	align-items: start;
+	animation: fn-view-reveal .24s ease-out both;
 }
 
 .fn-dash-col {
@@ -3936,9 +4103,6 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 }
 
 @media (max-width: 640px) {
-	/* The icon tile plus the rail's horizontal padding needs 60px.  A 56px
-	   rail clips the tile and leaves only a sliver of the active item visible. */
-	:root { --fn-sidebar-w-collapsed: 60px; }
 	#fn-topbar { padding: 0 10px; }
 	.fn-brand-model { display: none; }
 	#maincontent.container { padding: 12px 10px 20px; }

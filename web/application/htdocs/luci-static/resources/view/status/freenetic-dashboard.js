@@ -28,7 +28,8 @@
  */
 const ubusCall = rpc.call;
 
-const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
+const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, getIwinfoDevices, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
+const TRAFFIC_COLORS = [ 'fn-tc-0', 'fn-tc-1', 'fn-tc-2', 'fn-tc-3', 'fn-tc-4', 'fn-tc-other' ];
 function svgIcon(d, size) {
 	size = size || 18;
 	const span = E('span', { class: 'fn-icon' });
@@ -188,26 +189,36 @@ function updateSparkline(el, rxSamples, txSamples) {
 
 return view.extend({
 	load() {
-		return getWirelessConfig().then(wireless =>
-			getWirelessStatus().then(wstatus =>
-				Promise.all([
-					getWanConnections(),
-					wireless,
-					getPorts(),
-					getWifiRadios(wireless),
-					getInterfaceInfo('lan'),
-					wstatus,
-					getIwinfoInfos(wstatus),
-					getNetworkConfig(),
-					getDhcpConfig(),
-					getDhcpLeases(),
-					getInterfaceInfo('guest'),
-					getSystemBoard(),
-					getSysupgradeConfig(),
-					getFreeneticUpdateState(),
-					getWifiStations(),
-					getActiveArpMacs()
-				])));
+		const wireless = getWirelessConfig();
+		const wirelessStatus = getWirelessStatus();
+		const iwinfoDevices = getIwinfoDevices();
+		/* Package/update inspection invokes apk/opkg through cgi-exec and can
+		 * take a full second on a remote router. Start it immediately, but keep
+		 * it out of the first-paint critical path; renderSystemCard() replaces
+		 * the small pending panel when the result arrives. */
+		this.freeneticUpdateStatePromise = getFreeneticUpdateState();
+
+		/* Start every independent source in the first batch. Only radio-name and
+		 * iwinfo-detail lookups wait for the two values they actually consume. */
+		return Promise.all([
+			getWanConnections(),
+			wireless,
+			getPorts(),
+			Promise.all([ wireless, iwinfoDevices, wirelessStatus ]).then(([config, devices, status]) =>
+				getWifiRadios(config, devices, status)),
+			getInterfaceInfo('lan'),
+			wirelessStatus,
+			wirelessStatus.then(getIwinfoInfos),
+			getNetworkConfig(),
+			getDhcpConfig(),
+			getDhcpLeases(),
+			getInterfaceInfo('guest'),
+			getSystemBoard(),
+			getSysupgradeConfig(),
+			Promise.resolve({ pending: true }),
+			iwinfoDevices.then(getWifiStations),
+			getActiveArpMacs()
+		]);
 	},
 
 	render(data) {
@@ -254,42 +265,22 @@ return view.extend({
 			])
 		]);
 
-		/* The live counters now arrive through one authenticated SSE stream.
-		 * Keep the old pollers as a delayed fallback for older router images or
-		 * browsers without EventSource support. */
-		this.streamReady = false;
-		this.pollingFallbackStarted = false;
-		this.fallbackPollers = [];
-		const startPollingFallback = () => {
-			if (this.streamReady || this.pollingFallbackStarted)
-				return;
-			this.pollingFallbackStarted = true;
-			const addFallback = (fn, interval) => {
-				const bound = L.bind(fn, this);
-				this.fallbackPollers.push(bound);
-				poll.add(bound, interval);
-			};
-			addFallback(this.pollWan, POLL_INTERVAL);
-			if (ports.length)
-				addFallback(L.bind(this.pollPorts, this, ports), POLL_INTERVAL);
-			if (lan)
-				addFallback(this.pollTraffic, POLL_INTERVAL);
-			addFallback(this.pollSystem, POLL_INTERVAL);
+		/* Keep live reads short-lived. A persistent CGI/SSE process consumes one
+		 * of uhttpd's scarce script slots for its entire lifetime; the shared RPC
+		 * helper now batches these poll callbacks into native /ubus requests
+		 * without depending on requestAnimationFrame. */
+		this.livePollers = [];
+		const addLivePoller = (fn, interval) => {
+			const bound = L.bind(fn, this);
+			this.livePollers.push(bound);
+			poll.add(bound, interval);
 		};
-		this.startPollingFallback = startPollingFallback;
-
-		this.liveStream = rpc.stream(L.bind(this.applyLiveSnapshot, this), () => {
-			/* If an established stream loses authentication or the network, keep
-			 * the page live while EventSource attempts its reconnect. */
-			if (this.streamReady) {
-				this.streamReady = false;
-				this.startPollingFallback();
-			}
-		});
-		if (this.liveStream)
-			this.streamFallbackTimer = setTimeout(startPollingFallback, 6000);
-		else
-			startPollingFallback();
+		addLivePoller(this.pollWan, POLL_INTERVAL);
+		if (ports.length)
+			addLivePoller(L.bind(this.pollPorts, this, ports), POLL_INTERVAL);
+		if (lan)
+			addLivePoller(this.pollTraffic, POLL_INTERVAL);
+		addLivePoller(this.pollSystem, POLL_INTERVAL);
 
 		if (radios.length) {
 			this.pollSurvey();
@@ -302,24 +293,6 @@ return view.extend({
 		this.pollSystem();
 
 		return container;
-	},
-
-	applyLiveSnapshot(snapshot) {
-		this.streamReady = true;
-		if (this.streamFallbackTimer) {
-			clearTimeout(this.streamFallbackTimer);
-			this.streamFallbackTimer = null;
-		}
-		if (this.fallbackPollers.length) {
-			this.fallbackPollers.forEach(fn => poll.remove(fn));
-			this.fallbackPollers = [];
-		}
-
-		const devices = snapshot.devices || {};
-		this.applyWanSnapshot(snapshot.interfaces || [], devices);
-		this.applyPortsSnapshot(devices);
-		this.applyTrafficSnapshot(snapshot.conntrack || [], snapshot.arp || {});
-		this.applySystemSnapshot(snapshot.system || {}, snapshot.cpu, snapshot.connections || {});
 	},
 
 	renderInternetCard(groups) {
@@ -448,25 +421,6 @@ return view.extend({
 			dom_content(conn.ipv6AddressesEl, v6addrs.length ? v6addrs.join('\n') : '–');
 			dom_content(conn.ipv6DnsEl, v6dns.length ? v6dns.join(', ') : '–');
 		}
-	},
-
-	applyWanSnapshot(interfaces, devices) {
-		const byName = {};
-		interfaces.forEach(iface => { byName[iface.interface] = iface; });
-		const now = Date.now();
-
-		this.connections.forEach(conn => {
-			const ifaces = conn.ifaceNames.map(name => byName[name]).filter(Boolean);
-			if (!ifaces.length)
-				return;
-
-			this.fillConnectionInfo(conn, mergeWanGroup({
-				name: conn.name,
-				device: conn.device,
-				ifaces
-			}));
-			this.updateConnectionStats(conn, devices[conn.device] || {}, now);
-		});
 	},
 
 	updateConnectionStats(conn, dev, now) {
@@ -906,10 +860,6 @@ return view.extend({
 
 	destroy() {
 		this.hideQrDialog(false);
-		if (this.streamFallbackTimer) {
-			clearTimeout(this.streamFallbackTimer);
-			this.streamFallbackTimer = null;
-		}
 		if (this.qrKeydownHandler) {
 			document.removeEventListener('keydown', this.qrKeydownHandler);
 			this.qrKeydownHandler = null;
@@ -919,9 +869,9 @@ return view.extend({
 			this.qrOverlay = null;
 			this.qrDialog = null;
 		}
-		if (Array.isArray(this.fallbackPollers)) {
-			this.fallbackPollers.forEach(fn => poll.remove(fn));
-			this.fallbackPollers = [];
+		if (Array.isArray(this.livePollers)) {
+			this.livePollers.forEach(fn => poll.remove(fn));
+			this.livePollers = [];
 		}
 	},
 
@@ -1233,6 +1183,7 @@ return view.extend({
 
 	renderFreeneticUpdates(state, row, groupTitle) {
 		state = state || {};
+		const pending = state.pending === true;
 		const updater = state.updater || {};
 		const updaterReady = updater.can_update === true;
 		const channel = state.channel === 'beta' ? 'beta' : 'stable';
@@ -1248,12 +1199,14 @@ return view.extend({
 			role: 'status',
 			'aria-live': 'polite'
 		},
-			updaterReady ? _('Not checked yet.') : _('Updates are unavailable on this router.'));
+			pending ? _('Loading view…') : (updaterReady ? _('Not checked yet.') : _('Updates are unavailable on this router.')));
 		const checkButton = E('button', {
 			type: 'button',
 			class: 'fn-settings-btn'
 		}, _('Check for updates'));
 		checkButton.disabled = !updaterReady;
+		if (pending)
+			checkButton.disabled = true;
 		const installButton = E('button', {
 			type: 'button',
 			class: 'fn-settings-btn cbi-button-positive',
@@ -1501,6 +1454,10 @@ return view.extend({
 			? (sysupgradeCfg.auto_search === '1' ? _('Enabled') : _('Disabled'))
 			: '–';
 
+		const updateHost = E('div', { class: 'fn-freenetic-updates-host' });
+		this.freeneticUpdatesHost = updateHost;
+		updateHost.append(...this.renderFreeneticUpdates(freeneticUpdateState, row, groupTitle));
+
 		const body = E('div', { class: 'fn-card-body fn-info-list' }, [
 			groupTitle(_('System'), 'system'),
 			meterRow(_('CPU'), cpuFill, cpuValue),
@@ -1513,17 +1470,33 @@ return view.extend({
 			row(_('OS version'), E('div', { class: 'fn-info-value' }, release.description || '–')),
 			row(_('Update channel'), E('div', { class: 'fn-info-value' }, [ channelLink ])),
 			row(_('Auto-update'), E('div', { class: 'fn-info-value' }, autoUpdateText)),
-			...this.renderFreeneticUpdates(freeneticUpdateState, row, groupTitle),
+			updateHost,
 
 			groupTitle(_('Device'), 'device'),
 			row(_('Model'), E('div', { class: 'fn-info-value' }, board.model || board.board_name || '–')),
 			row(_('Kernel version'), E('div', { class: 'fn-info-value' }, board.kernel || '–'))
 		]);
 
-		return E('div', { class: 'fn-card fn-system-card' }, [
+		const card = E('div', { class: 'fn-card fn-system-card' }, [
 			cardHead('M9 3h6v4H9zM4 9h16v10H4zM9 21v-2h6v2', _('About System'), [ 'admin', 'system', 'system' ]),
 			body
 		]);
+
+		/* Do not make the whole dashboard wait for package-manager inspection.
+		 * The promise is started in load() alongside the critical reads and only
+		 * this small section is rebuilt when it completes. */
+		if (this.freeneticUpdateStatePromise) {
+			this.freeneticUpdateStatePromise.then(state => {
+				if (!this.freeneticUpdatesHost)
+					return;
+
+				const parts = this.renderFreeneticUpdates(state, row, groupTitle);
+				dom_empty(this.freeneticUpdatesHost);
+				this.freeneticUpdatesHost.append(...parts);
+			}).catch(() => {});
+		}
+
+		return card;
 	},
 
 	pollSystem() {
@@ -1540,8 +1513,8 @@ return view.extend({
 			if (stat) {
 				const now = Date.now();
 				const elapsed = this.cpuLastSampleAt ? now - this.cpuLastSampleAt : 0;
-				/* The initial dashboard poll and the first SSE snapshot can arrive
-				 * almost together.  A delta over a few milliseconds has a tiny
+				/* The initial dashboard poll and the next live poll can arrive close
+				 * together. A delta over a few milliseconds has a tiny
 				 * denominator and turns page startup work into a misleading 80%+
 				 * reading, so keep it only as the baseline for the next sample. */
 				if (this.cpuLastSample && elapsed >= MIN_CPU_SAMPLE_INTERVAL) {

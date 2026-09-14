@@ -6,7 +6,27 @@ which they became user-visible.
 
 ## [Unreleased]
 
-No changes yet.
+### Improved
+
+- Mobile navigation now opens as an off-canvas drawer instead of reserving a
+  collapsed icon rail and squeezing page content on narrow screens; opening it
+  also restores the active section when an old rail scroll offset is present
+  and anchors the drawer below the rendered top bar on mobile browsers.
+- Browser ubus reads now prefer uhttpd's native endpoint and coalesce calls
+  issued in the same microtask without relying on `requestAnimationFrame`;
+  the first batch goes straight to the native endpoint without a duplicate
+  probe round-trip and falls back to the dispatcher only on transport failure.
+- Dashboard dependency classes are preloaded in parallel on the dashboard
+  route, and the package-manager update check is rendered after the first
+  dashboard paint instead of blocking it.
+- Dashboard Wi-Fi radio discovery reuses `network.wireless` interface names
+  (and conventional `radioN`/`phyN` mapping) before falling back to
+  `iwinfo.phyname`.
+- Dashboard and Traffic Monitor use short batched polling requests instead of
+  long-running CGI/SSE processes which occupied uhttpd script slots.
+- Initial and SPA view loads now show the same full-height CSS loading surface
+  with an animated orbit and reduced-motion fallback; it is replaced atomically
+  by the rendered cards when the view is ready.
 
 ## [0.2.4] — 2026-09-13
 

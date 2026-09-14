@@ -70,8 +70,8 @@ function stationCountFor(wstatus, sectionName) {
 
 return view.extend({
 	load() {
-		return getWirelessConfig().then(wireless =>
-			Promise.all([ wireless, getWifiRadios(wireless), getWirelessStatus() ]));
+		const wireless = getWirelessConfig();
+		return Promise.all([ wireless, wireless.then(getWifiRadios), getWirelessStatus() ]);
 	},
 
 	render(data) {

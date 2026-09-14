@@ -349,21 +349,23 @@ function collectClients(leases, stations) {
 
 return view.extend({
 	load() {
+		const wirelessStatus = getWirelessStatus();
 		return Promise.all([
 			getWirelessConfig(),
 			getDhcpLeases(),
-			getWirelessStatus(),
+			wirelessStatus,
 			getUciConfig('network'),
 			getUciConfig('firewall'),
-			getUciConfig('pbr')
-		]).then(data => getWifiStations(data[2]).then(stations => ({
+			getUciConfig('pbr'),
+			wirelessStatus.then(getWifiStations)
+		]).then(data => ({
 			wireless: data[0],
 			leases: data[1],
-			stations,
+			stations: data[6],
 			network: data[3],
 			firewall: data[4],
 			pbr: data[5]
-		})));
+		}));
 	},
 
 	render(data) {
