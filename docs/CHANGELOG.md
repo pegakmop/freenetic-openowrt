@@ -17,6 +17,8 @@ which they became user-visible.
 - Installed-package detection now uses Freenetic's structured status helper
   and accepts OpenWrt 24.10 `install user installed` records, so Applications
   and Other Connections retain the correct state after navigation.
+- The password visibility button is vertically centered within the login
+  password input rather than against the combined label-and-input field.
 
 ### Improved
 

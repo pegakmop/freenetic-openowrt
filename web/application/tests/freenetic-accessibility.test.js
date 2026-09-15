@@ -60,10 +60,14 @@ assert.match(settings, /rel: 'noopener noreferrer'/, 'terminal window must not r
 assert.match(login, /function trapDialogFocus\(/, 'login dialogs must trap Tab navigation');
 assert.match(login, /fn-interface-scope-note/, 'login interface switch must disclose its global scope');
 assert.match(login, /tabindex="-1"/, 'login dialogs need a focus fallback');
+assert.match(login, /fn-login-password-control[\s\S]*fn-eye-toggle/,
+	'login password toggle must be positioned inside the input-only wrapper');
 
 const css = read(root, 'web', 'theme', 'htdocs', 'luci-static', 'freenetic', 'cascade.css');
 assert.match(css, /--fn-accent-action:\s*#0074a8/, 'action color must use the reviewed contrast token');
 assert.match(css, /body\s*\{[\s\S]*?font-size:\s*1rem/, 'default body text must be readable');
+assert.match(css, /\.fn-login-password-control\s*\{\s*position:\s*relative;\s*\}/,
+	'login password toggle must center against the input instead of the label and field');
 assert.match(css, /#fn-settings-panel\s*\{[\s\S]*?visibility:\s*hidden;[\s\S]*?pointer-events:\s*none/,
 	'hidden desktop settings panel must not receive pointer interaction');
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?animation-duration:\s*\.01ms\s*!important/,

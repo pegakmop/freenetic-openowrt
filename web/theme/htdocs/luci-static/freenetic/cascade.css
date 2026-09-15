@@ -1681,6 +1681,7 @@ body.modal-overlay-active { overflow: hidden; }
 .fn-field input:focus { border-color: var(--fn-accent); }
 .fn-field input::placeholder { font-size: 1.3rem; }
 
+.fn-login-password-control { position: relative; }
 .fn-field-password input { padding-right: 40px; }
 .fn-eye-toggle {
 	position: absolute;
