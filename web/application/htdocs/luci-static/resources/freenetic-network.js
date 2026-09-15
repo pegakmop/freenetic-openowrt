@@ -140,8 +140,32 @@ function ipv4NetworkCidr(address, prefix) {
 	return [ network >>> 24, (network >>> 16) & 255, (network >>> 8) & 255, network & 255 ].join('.') + '/' + prefix;
 }
 
+function validIPv4(address) {
+	const octets = String(address || '').split('.');
+	return octets.length === 4 && octets.every(octet =>
+		/^\d{1,3}$/.test(octet) && Number(octet) >= 0 && Number(octet) <= 255);
+}
+
+function validIPv4Netmask(mask) {
+	if (!validIPv4(mask))
+		return false;
+	const bits = String(mask).split('.').map(octet =>
+		Number(octet).toString(2).padStart(8, '0')).join('');
+	return /^1+0*$/.test(bits);
+}
+
 function parseIpv6Words(address) {
 	address = String(address || '').split('%')[0].toLowerCase();
+	if (address.indexOf('.') !== -1) {
+		const split = address.lastIndexOf(':');
+		const tail = split === -1 ? '' : address.slice(split + 1);
+		if (!validIPv4(tail))
+			return null;
+		const octets = tail.split('.').map(Number);
+		address = address.slice(0, split + 1) +
+			((octets[0] << 8) | octets[1]).toString(16) + ':' +
+			((octets[2] << 8) | octets[3]).toString(16);
+	}
 	if (!address || (address.match(/::/g) || []).length > 1 || /[^0-9a-f:]/.test(address))
 		return null;
 
@@ -163,6 +187,56 @@ function parseIpv6Words(address) {
 	if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1))
 		return null;
 	return left.concat(Array(missing).fill(0), right);
+}
+
+function splitIpv6(value, prefixMode) {
+	value = String(value || '').trim();
+	const slash = value.indexOf('/');
+	let prefix = null;
+	if (slash !== -1) {
+		if (value.indexOf('/', slash + 1) !== -1)
+			return null;
+		prefix = value.slice(slash + 1);
+		value = value.slice(0, slash);
+	}
+	if (prefixMode === true && prefix == null || prefixMode === false && prefix != null)
+		return null;
+	if (prefix != null && (!/^\d+$/.test(prefix) || Number(prefix) > 128))
+		return null;
+
+	const percent = value.indexOf('%');
+	if (percent !== -1) {
+		const zone = value.slice(percent + 1);
+		if (!zone || !/^[A-Za-z0-9_.-]+$/.test(zone))
+			return null;
+		value = value.slice(0, percent);
+	}
+	return parseIpv6Words(value) ? { address: value, prefix: prefix } : null;
+}
+
+function validIPv6(value, prefixMode) {
+	return splitIpv6(value, prefixMode) != null;
+}
+
+function validAddress(value, family, allowPrefix) {
+	value = String(value || '').trim();
+	if (family === 'ipv4') {
+		const parts = value.split('/');
+		return parts.length === 1 ? validIPv4(parts[0])
+			: allowPrefix && parts.length === 2 && validIPv4(parts[0]) &&
+				/^\d+$/.test(parts[1]) && Number(parts[1]) <= 32;
+	}
+	return validIPv6(value, allowPrefix ? undefined : false);
+}
+
+function validPort(value, allowRange) {
+	value = String(value || '').trim();
+	const match = /^(\d+)(?:-(\d+))?$/.exec(value);
+	if (!match || match[2] && !allowRange)
+		return false;
+	const start = Number(match[1]);
+	const end = match[2] == null ? start : Number(match[2]);
+	return start >= 1 && start <= 65535 && end >= start && end <= 65535;
 }
 
 function formatIpv6Words(words) {
@@ -215,6 +289,11 @@ function connectedRouteTarget(address) {
 
 return baseclass.extend({
 	connectedRouteTarget,
+	validIPv4,
+	validIPv4Netmask,
+	validIPv6,
+	validAddress,
+	validPort,
 	isManaged,
 	adoptLegacyGuest,
 	ensureGuestWifi,

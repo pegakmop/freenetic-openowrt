@@ -23,6 +23,7 @@ const ROUTES = {
 	'admin/network/ddns':            { view: 'network/freenetic-ddns', title: 'Dynamic DNS' },
 	'admin/network/home_network':   { view: 'network/freenetic-mynetworks', title: 'Home Network' },
 	'admin/network/guest_network':  { view: 'network/freenetic-mynetworks', title: 'Guest Network' },
+	'admin/network/ethernet_ports': { view: 'network/freenetic-ports', title: 'Ethernet Ports' },
 	'admin/network/wifi_acl':       { view: 'network/freenetic-wifi-acl', title: 'Access & Routing Policy' },
 	'admin/network/port_forwarding': { view: 'network/freenetic-portforward', title: 'Port Forwarding' },
 	'admin/network/firewall':       { view: 'network/freenetic-firewall', title: 'Firewall' },

@@ -37,6 +37,10 @@ assert.match(workflow, /node app\/release-codenames\.js "\$RELEASE_TAG"/,
 	'release publication must derive its human title from the codename registry');
 assert.match(workflow, /--title "\$release_title"/,
 	'release publication must use the codename-bearing human title');
+assert.match(workflow, /\*-\*\) release_flags\+=\(--prerelease\)/,
+	'pre-release tags must create GitHub prereleases rather than stable releases');
+assert.match(workflow, /"\$\{release_flags\[@\]\}"/,
+	'release publication must pass its pre-release classification to GitHub CLI');
 assert.match(workflow, /cp -f "\$RELEASE_DIR\/install\.sh" "\$GITHUB_WORKSPACE\/install\.sh"/,
 	'release publication must copy the generated installer into the tagged source');
 assert.match(workflow, /git config user\.name/,

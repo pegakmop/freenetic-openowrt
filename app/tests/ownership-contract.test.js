@@ -48,7 +48,7 @@ assert.match(wan, /if \(targetMatchesBase && !targetInfo\.managed\)/,
 	'foreign WAN VLAN devices must be reusable without being claimed');
 
 const deleteGuest = myNetworks.slice(myNetworks.indexOf('\tdeleteGuestSegment('));
-assert.match(deleteGuest, /if \(networkHelper\.isManaged\(s\)\)\s+uci\.remove\('wireless', s\['\.name'\]\)/,
+assert.match(deleteGuest, /if \(networkHelper\.isManaged\(s\) && s\.network === 'guest'\)\s+uci\.remove\('wireless', s\['\.name'\]\)/,
 	'guest Wi-Fi deletion must require the ownership marker');
 assert.doesNotMatch(deleteGuest, /indexOf\('guest_'\)/,
 	'guest Wi-Fi deletion must not infer ownership from the section name');

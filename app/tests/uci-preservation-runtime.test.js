@@ -140,9 +140,14 @@ function evaluateView(relative, uci, options = {}) {
 		notifyLong() {},
 		applyChanges() { return Promise.resolve(); }
 	};
-	const networkHelper = {
-		isManaged(section) { return !!section && section.freenetic_managed === '1'; }
-	};
+		const networkHelper = {
+			isManaged(section) { return !!section && section.freenetic_managed === '1'; },
+			validIPv4(value) { return /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value || ''); },
+			validIPv4Netmask() { return true; },
+			validIPv6(value) { return String(value || '').includes(':'); },
+			validAddress() { return true; },
+			validPort() { return true; }
+		};
 	const guard = {
 		isForeignTheme() { return Promise.resolve(false); }
 	};
@@ -156,8 +161,8 @@ function evaluateView(relative, uci, options = {}) {
 	const location = { reload() {} };
 	const L = { url(value) { return value; }, bind(fn, context) { return fn.bind(context); } };
 	const E = () => makeElement();
-	const ConnectionCore = new Function('baseclass', 'fs', 'uci', 'rpc', '_', connectionCoreSource)(
-		baseclass, fsModule, uci, rpc, translate);
+		const ConnectionCore = new Function('baseclass', 'fs', 'uci', 'networkHelper', 'rpc', '_', connectionCoreSource)(
+			baseclass, fsModule, uci, networkHelper, rpc, translate);
 	const connectionCore = new ConnectionCore();
 	const moduleArgs = [ 'baseclass', 'ui', 'uci', 'fs', 'uiHelper', 'networkHelper', 'E', '_', 'L',
 		'window', 'document', 'URL', 'Blob', 'FileReader', 'connectionCore' ];
@@ -343,6 +348,49 @@ async function testWanPreservation() {
 	assert.equal(managedUci.get('network', 'managed_vlan', 'unknown_foo'), 'keep');
 }
 
+async function testUnsupportedWanPreservation() {
+	const uci = new FakeUci({ network: {
+		wan: {
+			'.name': 'wan', '.type': 'interface', proto: 'qmi', device: 'wwan0',
+			apn: 'internet', auth: 'pap', unknown_foo: 'keep'
+		},
+		wan6: { '.name': 'wan6', '.type': 'interface', proto: 'dhcpv6', device: 'wwan0' }
+	} });
+	const view = evaluateView('network/freenetic-wan.js', uci);
+	view.fillStatus = () => {};
+	view.fillStatus6 = () => {};
+	await call(view, 'save', {
+		enabled: true, proto: 'qmi', username: '', password: '', ipaddr: '',
+		netmask: '', gateway: '', vlan: '', dns1: '', dns2: ''
+	}, button());
+	assert.equal(uci.get('network', 'wan', 'proto'), 'qmi');
+	assert.equal(uci.get('network', 'wan', 'device'), 'wwan0');
+	assert.equal(uci.get('network', 'wan', 'apn'), 'internet');
+	assert.equal(uci.get('network', 'wan', 'auth'), 'pap');
+	assert.equal(uci.get('network', 'wan', 'unknown_foo'), 'keep');
+}
+
+async function testGuestClientBlockZone() {
+	const uci = new FakeUci({ firewall: {} });
+	const view = evaluateView('status/freenetic-clients.js', uci);
+	view.refresh = () => Promise.resolve();
+	await call(view, 'blockClient', 'AA:BB:CC:DD:EE:FF', 'guest');
+	const rule = uci.sections('firewall', 'rule')[0];
+	assert.equal(rule.src, 'guest');
+	assert.equal(rule.dest, 'wan');
+	assert.equal(rule.freenetic_managed, '1');
+}
+
+async function testLastDnsRouteDeletion() {
+	const uci = new FakeUci({ network: {}, dhcp: {
+		dns: { '.name': 'dns', '.type': 'dnsmasq', server: [ '/example.test/192.0.2.53' ] }
+	} });
+	const view = evaluateView('network/freenetic-routing.js', uci);
+	view.refresh = () => Promise.resolve();
+	await call(view, 'deleteDnsRoute', 0);
+	assert.equal(uci.get('dhcp', 'dns', 'server'), undefined);
+}
+
 function wireguardFields(section, protocol, peerSection) {
 	const key = 'A'.repeat(43) + '=';
 	return {
@@ -421,6 +469,9 @@ async function testIpsecOwnership() {
 	await testDdnsPreservation();
 	await testDhcpHostPreservation();
 	await testWanPreservation();
+	await testUnsupportedWanPreservation();
+	await testGuestClientBlockZone();
+	await testLastDnsRouteDeletion();
 	await testWireguardPreservation('wireguard');
 	await testWireguardPreservation('amneziawg');
 	await testIpsecOwnership();

@@ -309,6 +309,10 @@ jobs:
         run: |
           set -eu
           release_title="$(node app/release-codenames.js "$RELEASE_TAG")"
+          release_flags=()
+          case "$RELEASE_TAG" in
+            *-*) release_flags+=(--prerelease) ;;
+          esac
           # Keep the generated installer at the tag as well as in the release.
           # Older routers fetch raw/.../<tag>/install.sh and do not know about
           # release assets yet; this commit keeps that URL checksum-correct.
@@ -326,4 +330,5 @@ jobs:
             --verify-tag \
             --title "$release_title" \
             --notes-file "$RELEASE_NOTES" \
+            "${release_flags[@]}" \
             "$RELEASE_DIR"/*

@@ -2,6 +2,7 @@
 'require view';
 'require ui';
 'require uci';
+'require freenetic-network as networkHelper';
 'require freenetic-rpc as rpc';
 'require freenetic-ui as uiHelper';
 
@@ -289,11 +290,13 @@ return view.extend({
 		const portError = errorNode();
 		const rangeStartError = errorNode();
 		const rangeEndError = errorNode();
+		const intPortError = errorNode();
 		const outputField = legendField(_('Output'), E('div', { class: 'fn-pf-output-control' }, [ outputSelect, customOutputWrap ]), outputError);
 		const singlePortField = legendField(_('Open the port'), extPortInput, portError);
 		const rangeStartField = legendField(_('Open the ports'), rangeStartInput, rangeStartError);
 		const rangeEndField = legendField('', extPortEndInput, rangeEndError);
-		const singlePortWrap = E('div', { class: 'fn-pf-single-port' }, [ singlePortField, legendField(_('Redirect to port'), intPortInput, errorNode()) ]);
+		const intPortField = legendField(_('Redirect to port'), intPortInput, intPortError);
+		const singlePortWrap = E('div', { class: 'fn-pf-single-port' }, [ singlePortField, intPortField ]);
 		const rangePortWrap = E('div', { class: 'fn-pf-range-port', hidden: !isRange }, [ rangeStartField, E('span', { class: 'fn-pf-range-dash' }, '–'), rangeEndField ]);
 		const singleRadio = E('input', { type: 'radio', name: 'fn-pf-rule-type', value: 'single' });
 		const rangeRadio = E('input', { type: 'radio', name: 'fn-pf-rule-type', value: 'range' });
@@ -320,13 +323,14 @@ return view.extend({
 			node.hidden = true;
 		};
 		const getOutputAddress = () => outputSelect.value === '__custom__' ? customOutputInput.value.trim() : outputSelect.value;
-		const validAddress = value => isV6 ? /^[0-9A-Fa-f:]+$/.test(value) && value.indexOf(':') !== -1 : /^\d{1,3}(\.\d{1,3}){3}$/.test(value);
-		const validPort = value => /^\d+$/.test(value) && parseInt(value, 10) >= 1 && parseInt(value, 10) <= 65535;
+		const validAddress = value => networkHelper.validAddress(value, isV6 ? 'ipv6' : 'ipv4', false);
+		const validPort = value => networkHelper.validPort(value, false);
 		const validate = () => {
 			clearError(outputField, outputError);
 			clearError(singlePortField, portError);
 			clearError(rangeStartField, rangeStartError);
 			clearError(rangeEndField, rangeEndError);
+			clearError(intPortField, intPortError);
 			let valid = true;
 			const outputAddress = getOutputAddress();
 			if (!outputAddress || !validAddress(outputAddress)) {
@@ -337,6 +341,10 @@ return view.extend({
 				showError(singlePortField, portError, _('Fill in this field'));
 				valid = false;
 			}
+			if (singleRadio.checked && intPortInput.value.trim() && !validPort(intPortInput.value.trim())) {
+				showError(intPortField, intPortError, _('Enter a port from 1 to 65535'));
+				valid = false;
+			}
 			if (rangeRadio.checked) {
 				if (!validPort(rangeStartInput.value.trim())) {
 					showError(rangeStartField, rangeStartError, _('Fill in this field'));
@@ -344,6 +352,11 @@ return view.extend({
 				}
 				if (!validPort(extPortEndInput.value.trim())) {
 					showError(rangeEndField, rangeEndError, _('Fill in this field'));
+					valid = false;
+				}
+				if (validPort(rangeStartInput.value.trim()) && validPort(extPortEndInput.value.trim()) &&
+				    Number(rangeStartInput.value) > Number(extPortEndInput.value)) {
+					showError(rangeEndField, rangeEndError, _('The end port must not be lower than the start port'));
 					valid = false;
 				}
 			}
@@ -411,13 +424,15 @@ return view.extend({
 			notify(_('Please enter an external port.'), 'warning');
 			return;
 		}
-		if (!/^\d+(-\d+)?$/.test(fields.extPort)) {
+		if (!networkHelper.validPort(fields.extPort, true)) {
 			notify(_('External port must be a number or a range (e.g. 8080-8090).'), 'warning');
 			return;
 		}
-		const validIp = fields.family === 'ipv6'
-			? /^[0-9A-Fa-f:]+$/.test(fields.ip) && fields.ip.indexOf(':') !== -1
-			: /^\d{1,3}(\.\d{1,3}){3}$/.test(fields.ip);
+		if (fields.intPort && !networkHelper.validPort(fields.intPort, false)) {
+			notify(_('Internal port must be a number from 1 to 65535.'), 'warning');
+			return;
+		}
+		const validIp = networkHelper.validAddress(fields.ip, fields.family, false);
 		if (!validIp) {
 			notify(fields.family === 'ipv6' ? _('Please enter a valid internal IPv6 address.') : _('Please enter a valid internal IPv4 address.'), 'warning');
 			return;

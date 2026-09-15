@@ -54,6 +54,18 @@ assert.ok(openvpn.includes('[ "$#" -eq 2 ]'), 'OpenVPN helper must require actio
 assert.ok(openvpn.includes("''|*[!A-Za-z0-9_-]*"),
 	'OpenVPN names must use a conservative allowlist');
 
+const portProbe = read(applicationHelpers, 'freenetic-port-probe');
+assert.ok(portProbe.includes("''|-*|*[!A-Za-z0-9_-]*"),
+	'Ethernet probe port names must use a conservative allowlist');
+assert.match(portProbe, /jsonfilter -i \/etc\/board\.json/,
+	'Ethernet probing must be restricted to ports declared by the board');
+assert.match(portProbe, /\/sys\/class\/net\/\$port\/master/,
+	'Ethernet probing must reject ports attached to a bridge');
+assert.match(portProbe, /udhcpc[\s\S]*-s "\$0"/,
+	'DHCP discovery must use the non-configuring probe event handler');
+assert.match(portProbe, /pppoe-discovery/,
+	'adaptive ports must support non-session PPPoE discovery');
+
 const update = read(applicationHelpers, 'freenetic-self-update');
 assert.ok(update.includes('[ "$#" -eq 1 ] || { reply_error "Usage: $0 status"; exit 0; }'),
 	'self-update status must reject extra arguments');
@@ -94,5 +106,8 @@ assert.match(packageInjection.stdout, /"ok":false/, 'package status must report 
 const openvpnInjection = run(applicationHelpers, 'freenetic-openvpn-profile', [ 'install', 'bad;touch' ]);
 assert.equal(openvpnInjection.status, 0, 'OpenVPN helper must return a JSON error for invalid names');
 assert.match(openvpnInjection.stdout, /"ok":false/, 'OpenVPN helper must report invalid names');
+const portProbeInjection = run(applicationHelpers, 'freenetic-port-probe', [ 'bad;touch' ]);
+assert.equal(portProbeInjection.status, 0, 'Ethernet probe must return a JSON error for invalid names');
+assert.match(portProbeInjection.stdout, /"ok":false/, 'Ethernet probe must report invalid names');
 
 console.log('helper security contracts: ok');

@@ -71,6 +71,12 @@ function getServicesStatus() {
 	return ubusCall('luci.ddns', 'get_services_status', {}).catch(() => ({}));
 }
 
+function requireSuccessfulCommand(result, fallback) {
+	if (!result || result.code !== 0)
+		throw new Error(result && (result.stderr || result.stdout) || fallback);
+	return result;
+}
+
 function providerName(entry) {
 	const name = typeof entry === 'string' ? entry : entry && entry.name;
 	return String(name || '').replace(/\.json$/, '');
@@ -438,7 +444,8 @@ return view.extend({
 			return;
 		button.disabled = true;
 		dom_content(button, _('Updating…'));
-		return fs.exec(DDNS_HELPER, [ '-S', section, '--', 'start' ]).then(() => {
+		return fs.exec(DDNS_HELPER, [ '-S', section, '--', 'start' ]).then(result => {
+			requireSuccessfulCommand(result, _('The DDNS helper failed.'));
 			notify(_('DDNS update started for %s.').format(section), 'info');
 			return this.refresh();
 		}).catch(error => {
@@ -477,7 +484,8 @@ return view.extend({
 	restartDdns() {
 		if (!this.isReady())
 			return Promise.resolve();
-		return fs.exec(DDNS_HELPER, [ 'restart' ]);
+		return fs.exec(DDNS_HELPER, [ 'restart' ]).then(result =>
+			requireSuccessfulCommand(result, _('The DDNS service could not be restarted.')));
 	},
 
 	refresh() {

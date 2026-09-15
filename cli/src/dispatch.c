@@ -1,4 +1,6 @@
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cmd_config.h"
@@ -37,12 +39,24 @@ static int dispatch_show(struct ubus_context *ctx, int argc, char **argv)
 }
 
 /* ip route <net>/<n> <gw> [metric <N>] */
+static int valid_metric(const char *value)
+{
+	char *end = NULL;
+	unsigned long long number;
+
+	if (!value || !*value || *value == '-')
+		return 0;
+	errno = 0;
+	number = strtoull(value, &end, 10);
+	return errno == 0 && end && *end == '\0' && number <= 4294967295ULL;
+}
+
 static int dispatch_ip(struct ubus_context *ctx, int argc, char **argv)
 {
 	if (argc >= 4 && strcmp(argv[1], "route") == 0) {
 		const char *metric = NULL;
 
-		if (argc == 6 && strcmp(argv[4], "metric") == 0)
+		if (argc == 6 && strcmp(argv[4], "metric") == 0 && valid_metric(argv[5]))
 			metric = argv[5];
 		else if (argc != 4)
 			goto bad;

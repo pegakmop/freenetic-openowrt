@@ -31,8 +31,8 @@ function notification(message, type, errorTimeout) {
 	return msg;
 }
 
-function applyChanges() {
-	return uci.apply().catch(err => {
+function applyChanges(timeout) {
+	return uci.apply(timeout).catch(err => {
 		if (err && /code 5/.test(err.message))
 			return;
 		throw err;

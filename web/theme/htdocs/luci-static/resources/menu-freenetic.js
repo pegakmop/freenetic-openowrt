@@ -27,7 +27,8 @@ var SIDEBAR_GROUPS = [
 		'network/internet', 'network/other_connections', 'network/ddns'
 	] },
 	{ title: 'My Networks & Wi-Fi', icon: 'wireless', paths: [
-		'status/clients', 'network/home_network', 'network/guest_network', 'network/wifi_acl'
+		'status/clients', 'network/home_network', 'network/guest_network',
+		'network/ethernet_ports', 'network/wifi_acl'
 	] },
 	{ title: 'Network Rules', icon: 'netrules', paths: [
 		'network/port_forwarding', 'network/firewall', 'network/routes'

@@ -6,6 +6,46 @@ which they became user-visible.
 
 ## [Unreleased]
 
+## [0.3.0-alpha.1] — 2026-09-15
+
+### Added
+
+- Added an interactive Wi-Fi airspace map for 2.4 and 5 GHz with signal-aware
+  channel recommendations, overlap visualization, current-radio footprint and
+  collision-safe SSID labels.
+- Added physical Ethernet port assignment for WAN, Home, Guest, unassigned and
+  independent routed segments. Independent segments include DHCP, firewall and
+  direct, VPN or blocked Internet policies.
+- Added safe DHCP and PPPoE discovery for connected unassigned Ethernet ports.
+  Detection remains advisory until the user explicitly confirms and applies a
+  new WAN assignment.
+
+### Improved
+
+- WAN ports now have a distinct visual role while link state remains a separate
+  status indicator. Port changes use active-link confirmation and an extended
+  rollback window.
+- Wi-Fi channel width is configured independently per radio, with driver and
+  hardware-specific channel, mode, country, power and security values preserved.
+- Network forms now share stricter IPv4, IPv6, netmask, route and port-range
+  validation without overwriting unsupported existing protocols or actions.
+- Client discovery now maps devices to DHCP-backed local segments and excludes
+  upstream WAN neighbours such as the provider gateway.
+- Application removal preserves packages still required by another installed
+  feature, and mDNS reflection is managed through a constrained helper.
+
+### Fixed
+
+- Corrected DDNS command failure reporting, sysupgrade reconnect handling,
+  legacy VLAN preservation, empty UCI list cleanup and CLI bounds checks.
+- Refined responsive navigation, top-bar separation, client groups, loading
+  feedback and Russian interface text.
+
+### Verification
+
+- Static, runtime, ownership, preservation and security contracts pass.
+- The CLI cross-build passes for `aarch64_cortex-a53` and `mipsel_24kc`.
+
 ## [0.2.7] — 2026-09-15
 
 ### Fixed

@@ -79,6 +79,9 @@
 	--fn-bg: #f2f4f5;
 	--fn-surface: #ffffff;
 	--fn-surface-alt: #f5fafc;
+	--fn-client-section-bg: #f8fafb;
+	--fn-wan-soft: #edf7fc;
+	--fn-airspace-highlight-bg: #f5f8fa;
 	--fn-border: #ebebeb;
 	--fn-border-strong: #dbe9f2;
 
@@ -138,6 +141,9 @@
 	--fn-bg: #1b2434;
 	--fn-surface: #1b2434;
 	--fn-surface-alt: #2e3d57;
+	--fn-client-section-bg: #222d3f;
+	--fn-wan-soft: #1d3042;
+	--fn-airspace-highlight-bg: #242f40;
 	--fn-border: #4d545f;
 	--fn-border-strong: #2c4661;
 
@@ -456,6 +462,7 @@ hr { border: none; border-top: 1px solid var(--fn-border); margin: 1em 0; }
 	flex: 0 0 auto;
 	height: var(--fn-topbar-h);
 	background: var(--fn-surface);
+	border-bottom: 1px solid var(--fn-border-strong);
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -2222,7 +2229,7 @@ body.modal-overlay-active { overflow: hidden; }
 	border: 1px solid var(--fn-border);
 	border-left: 3px solid var(--fn-border-strong);
 	border-radius: var(--fn-radius);
-	background: var(--fn-surface-alt);
+	background: var(--fn-client-section-bg);
 	padding: 16px 18px;
 	margin-bottom: 20px;
 }
@@ -3244,6 +3251,348 @@ body.modal-overlay-active { overflow: hidden; }
 .fn-survey-high { background: var(--fn-danger); }
 .fn-survey-bar-label { font-size: 0.875rem; color: var(--fn-text-secondary); }
 
+/* Wi-Fi monitor modes: the lightweight survey remains the default overview;
+   the air map performs an explicit neighbouring-network scan only when opened. */
+.fn-wifi-monitor-modes {
+	display: inline-flex;
+	flex: 0 0 auto;
+	gap: 3px;
+	padding: 3px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface-alt);
+}
+.fn-wifi-mode-tab {
+	min-height: 30px;
+	padding: 5px 12px;
+	border: 0;
+	border-radius: var(--fn-radius-sm);
+	background: transparent;
+	color: var(--fn-text-secondary);
+	font: 500 .8125rem/1.2 var(--fn-font);
+	cursor: pointer;
+	transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.fn-wifi-mode-tab:hover { color: var(--fn-text); }
+.fn-wifi-mode-tab.fn-active {
+	background: var(--fn-surface);
+	color: var(--fn-accent);
+	box-shadow: var(--fn-shadow-1);
+}
+.fn-wifi-mode-tab:disabled, .fn-wifi-monitor-body > .fn-survey-tabs .fn-survey-tab:disabled {
+	cursor: wait;
+	opacity: .62;
+}
+.fn-wifi-mode-tab:focus-visible { outline: 2px solid var(--fn-accent); outline-offset: 1px; }
+.fn-wifi-overview[hidden], .fn-airspace[hidden] { display: none; }
+.fn-wifi-overview .fn-info-grid { margin-bottom: 4px; }
+.fn-wifi-monitor-body > .fn-survey-tabs {
+	width: max-content;
+	padding: 3px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface-alt);
+}
+.fn-wifi-monitor-body > .fn-survey-tabs .fn-survey-tab {
+	min-width: 72px;
+	border-color: transparent;
+	background: transparent;
+	transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.fn-wifi-monitor-body > .fn-survey-tabs .fn-survey-tab:hover { color: var(--fn-text); }
+.fn-wifi-monitor-body > .fn-survey-tabs .fn-survey-tab.fn-active {
+	border-color: transparent;
+	background: var(--fn-surface);
+	box-shadow: var(--fn-shadow-1);
+}
+.fn-wifi-band-loading[hidden] { display: none; }
+.fn-wifi-band-loading {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 18px;
+	min-height: 320px;
+	color: var(--fn-text-secondary);
+}
+.fn-wifi-band-loader {
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	gap: 5px;
+	width: 58px;
+	height: 48px;
+	padding: 9px 10px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius-lg);
+	background: var(--fn-surface-alt);
+	box-shadow: var(--fn-shadow-1);
+}
+.fn-wifi-band-loader span {
+	display: block;
+	width: 5px;
+	height: 28px;
+	border-radius: 3px 3px 1px 1px;
+	background: var(--fn-accent-brand);
+	transform-origin: center bottom;
+	animation: fn-wifi-band-wave .8s ease-in-out infinite;
+}
+.fn-wifi-band-loader span:nth-child(2) { animation-delay: .1s; }
+.fn-wifi-band-loader span:nth-child(3) { animation-delay: .2s; }
+.fn-wifi-band-loader span:nth-child(4) { animation-delay: .3s; }
+.fn-wifi-band-loading-text {
+	font: 500 .9375rem/1.4 var(--fn-font-text);
+	letter-spacing: .01em;
+}
+@keyframes fn-wifi-band-wave {
+	0%, 100% { opacity: .35; transform: scaleY(.34); }
+	50% { opacity: 1; transform: scaleY(1); }
+}
+.fn-wifi-overview:not([hidden]),
+.fn-airspace:not([hidden]) { animation: fn-view-reveal .22s ease both; }
+
+.fn-airspace-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 34px;
+	margin-bottom: 12px;
+}
+.fn-airspace-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	color: var(--fn-text-secondary);
+	font-size: .875rem;
+}
+.fn-airspace-status:not(:empty)::before {
+	content: "";
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--fn-status-ok);
+	box-shadow: 0 0 0 3px var(--fn-status-ok-soft);
+}
+.fn-airspace-refresh {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	width: auto;
+	min-width: 104px;
+	padding: 6px 12px;
+	border-color: var(--fn-border-strong);
+	color: var(--fn-accent);
+	font-size: .875rem;
+}
+.fn-airspace-refresh::before {
+	content: "↻";
+	display: inline-block;
+	font-size: 1rem;
+	line-height: 1;
+	transition: transform .2s ease;
+}
+.fn-airspace-refresh:hover::before { transform: rotate(35deg); }
+.fn-airspace-summary {
+	display: grid;
+	grid-template-columns: minmax(240px, 1.2fr) repeat(2, minmax(160px, .8fr));
+	gap: 10px;
+	margin-bottom: 14px;
+}
+.fn-airspace-metric {
+	position: relative;
+	overflow: hidden;
+	min-height: 112px;
+	padding: 13px 15px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface-alt);
+	box-shadow: inset 0 1px 0 var(--fn-surface);
+}
+.fn-airspace-metric::before {
+	content: "";
+	position: absolute;
+	inset: 0 0 auto;
+	height: 2px;
+	background: var(--fn-border-strong);
+}
+.fn-airspace-metric-primary {
+	padding-right: 132px;
+	border-color: var(--fn-border-strong);
+	background: var(--fn-airspace-highlight-bg);
+}
+.fn-airspace-metric-primary::before { background: var(--fn-accent-brand); }
+.fn-airspace-metric-label {
+	margin-bottom: 3px;
+	color: var(--fn-text-secondary);
+	font-size: .8125rem;
+}
+.fn-airspace-metric-value {
+	color: var(--fn-text);
+	font-size: 1.75rem;
+	font-weight: 600;
+	line-height: 1.15;
+}
+.fn-airspace-metric-primary .fn-airspace-metric-value { color: var(--fn-accent); }
+.fn-airspace-metric-warning::before { background: var(--fn-warning); }
+.fn-airspace-metric-warning .fn-airspace-metric-value { color: var(--fn-warning); font-size: 1.25rem; }
+.fn-airspace-metric-note {
+	margin-top: 7px;
+	color: var(--fn-text-secondary);
+	font: .8125rem/1.35 var(--fn-font-text);
+}
+.fn-airspace-apply {
+	position: absolute;
+	top: 50%;
+	right: 14px;
+	width: auto;
+	min-width: 104px;
+	padding: 7px 12px;
+	font-size: .875rem;
+	transform: translateY(-50%);
+}
+
+.fn-airspace-chart {
+	min-height: 310px;
+	overflow-x: auto;
+	overflow-y: hidden;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+	box-shadow: inset 0 1px 2px rgba(20, 24, 26, .05);
+}
+.fn-airspace-svg { display: block; width: 100%; min-width: 700px; height: 310px; }
+.fn-airspace-svg-5g { min-width: 920px; }
+.fn-airspace-plot-bg { fill: var(--fn-surface-alt); }
+.fn-air-grid-line { stroke: var(--fn-border); stroke-width: 1; }
+.fn-air-channel-line { stroke: var(--fn-border-strong); stroke-width: 1; stroke-opacity: .62; }
+.fn-air-channel-restricted { stroke-dasharray: 3 4; stroke-opacity: .35; }
+.fn-air-axis-label, .fn-air-axis-title {
+	fill: var(--fn-text-secondary);
+	font: 11px var(--fn-font);
+}
+.fn-air-axis-restricted { opacity: .48; }
+.fn-air-axis-title { font-weight: 500; }
+.fn-air-recommended-band {
+	fill: var(--fn-status-ok);
+	fill-opacity: .09;
+	stroke: var(--fn-status-ok);
+	stroke-width: 1;
+	stroke-dasharray: 5 4;
+	stroke-opacity: .68;
+}
+.fn-air-own-band {
+	fill: var(--fn-accent-brand);
+	fill-opacity: .13;
+	stroke: var(--fn-accent-brand);
+	stroke-width: 2;
+	stroke-opacity: .86;
+}
+.fn-air-own-label {
+	fill: var(--fn-accent);
+	font: 600 12px var(--fn-font);
+}
+.fn-air-network {
+	stroke-width: 1.5;
+	fill-opacity: .16;
+	stroke-opacity: .82;
+}
+.fn-air-network-0 { fill: var(--fn-tc-0); stroke: var(--fn-tc-0); }
+.fn-air-network-1 { fill: var(--fn-tc-1); stroke: var(--fn-tc-1); }
+.fn-air-network-2 { fill: var(--fn-tc-2); stroke: var(--fn-tc-2); }
+.fn-air-network-3 { fill: var(--fn-tc-3); stroke: var(--fn-tc-3); }
+.fn-air-network-4 { fill: var(--fn-tc-4); stroke: var(--fn-tc-4); }
+.fn-air-network-label {
+	fill: var(--fn-text);
+	paint-order: stroke;
+	stroke: var(--fn-surface);
+	stroke-width: 3px;
+	stroke-linejoin: round;
+	font: 500 11px var(--fn-font);
+}
+.fn-airspace-legend {
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	margin: 9px 2px 20px;
+	color: var(--fn-text-secondary);
+	font-size: .8125rem;
+}
+.fn-airspace-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fn-airspace-legend i, .fn-air-signal-dot {
+	display: inline-block;
+	width: 9px;
+	height: 9px;
+	border-radius: 2px;
+}
+.fn-air-legend-own { background: var(--fn-accent-brand); }
+.fn-air-legend-neighbor { background: var(--fn-tc-2); }
+.fn-air-legend-recommended { border: 1px dashed var(--fn-status-ok); background: var(--fn-status-ok-soft); }
+
+.fn-airspace-list {
+	overflow: hidden;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+}
+.fn-airspace-list h4 {
+	margin: 0;
+	padding: 13px 12px 10px;
+	font-size: 1rem;
+}
+.fn-airspace-network-row {
+	display: grid;
+	grid-template-columns: minmax(180px, 1fr) 90px 90px minmax(180px, .65fr);
+	gap: 14px;
+	align-items: center;
+	min-height: 40px;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--fn-border);
+	font-size: .875rem;
+	transition: background-color .12s ease;
+}
+.fn-airspace-network-row:last-child { border-bottom: 0; }
+.fn-airspace-network-row:not(.fn-airspace-network-head):hover { background: var(--fn-accent-soft); }
+.fn-airspace-network-head {
+	min-height: 32px;
+	background: var(--fn-surface-alt);
+	color: var(--fn-text-secondary);
+	font-size: .75rem;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+.fn-airspace-network-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.fn-air-signal-dot { margin-right: 7px; border-radius: 50%; background: var(--fn-text-disabled); }
+.fn-air-signal-medium { background: var(--fn-warning); }
+.fn-air-signal-strong { background: var(--fn-status-ok); }
+
+@media (max-width: 800px) {
+	.fn-airspace-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.fn-airspace-metric-primary { grid-column: 1 / -1; }
+	.fn-airspace-list { overflow-x: auto; }
+	.fn-airspace-network-row { min-width: 640px; }
+}
+
+@media (max-width: 640px) {
+	.fn-wifi-monitor-body { padding-top: 12px; }
+	.fn-wifi-monitor-head { flex-wrap: wrap; }
+	.fn-wifi-monitor-head h3 { min-width: 0; }
+	.fn-wifi-monitor-modes { flex: 1 1 100%; width: 100%; order: 3; margin-top: 3px; }
+	.fn-wifi-mode-tab { flex: 1 1 50%; }
+	.fn-airspace-toolbar { align-items: flex-start; }
+	.fn-airspace-summary { grid-template-columns: minmax(0, 1fr); }
+	.fn-airspace-metric-primary { grid-column: auto; padding-right: 15px; }
+	.fn-airspace-apply { position: static; width: 100%; margin-top: 11px; transform: none; }
+	.fn-airspace-legend { flex-wrap: wrap; gap: 7px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.fn-wifi-overview:not([hidden]), .fn-airspace:not([hidden]) { animation: none; }
+	.fn-wifi-band-loader span { animation: none; opacity: .8; transform: scaleY(.72); }
+	.fn-airspace-refresh::before, .fn-airspace-network-row { transition: none; }
+}
+
 /* Traffic Monitor: donut chart of per-client bandwidth share */
 .fn-traffic-body { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
 .fn-donut-wrap { position: relative; width: 120px; height: 120px; flex: 0 0 auto; }
@@ -3877,6 +4226,264 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 	background: var(--fn-warning-soft);
 	color: var(--fn-warning);
 	font: .85rem/1.35 var(--fn-font-text);
+}
+
+/* Ethernet port assignment */
+.fn-port-warning { margin-bottom: 16px; }
+.fn-port-map {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+	gap: 8px;
+	margin-top: 18px;
+	padding: 10px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius-lg);
+	background: var(--fn-surface-alt);
+	box-shadow: inset 0 1px 0 var(--fn-surface);
+}
+.fn-port-selector {
+	display: grid;
+	grid-template-columns: 42px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+	padding: 11px 12px;
+	border: 1px solid transparent;
+	border-radius: var(--fn-radius);
+	background: transparent;
+	color: var(--fn-text);
+	font-family: var(--fn-font-text);
+	text-align: left;
+	cursor: pointer;
+	transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.fn-port-selector:hover { border-color: var(--fn-border-strong); background: var(--fn-surface); }
+.fn-port-selector.fn-active {
+	border-color: var(--fn-accent);
+	background: var(--fn-surface);
+	box-shadow: 0 0 0 2px var(--fn-accent-soft), var(--fn-shadow-1);
+}
+.fn-port-selector:focus-visible { outline: 2px solid var(--fn-accent); outline-offset: 2px; }
+.fn-port-map-jack {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 2px;
+	width: 42px;
+	height: 34px;
+	box-sizing: border-box;
+	padding-top: 7px;
+	border: 2px solid var(--fn-border-strong);
+	border-radius: 4px 4px 7px 7px;
+	background: var(--fn-surface-alt);
+}
+.fn-port-map-jack::after {
+	content: "";
+	position: absolute;
+	bottom: 4px;
+	width: 20px;
+	height: 7px;
+	border: 1px solid currentColor;
+	border-bottom: 0;
+}
+.fn-port-map-jack i { width: 2px; height: 8px; border-radius: 1px; background: currentColor; opacity: .7; }
+.fn-port-selector.fn-connected .fn-port-map-jack { border-color: var(--fn-status-ok); color: var(--fn-status-ok); }
+.fn-port-selector.fn-port-wan:not(.fn-active) {
+	border-color: var(--fn-border-strong);
+	background: var(--fn-wan-soft);
+}
+.fn-port-selector.fn-port-wan .fn-port-map-jack {
+	border-color: var(--fn-accent);
+	color: var(--fn-accent);
+}
+.fn-port-map-copy { display: flex; flex-direction: column; min-width: 0; }
+.fn-port-map-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.fn-port-map-copy strong { overflow: hidden; font-size: .85rem; white-space: nowrap; text-overflow: ellipsis; }
+.fn-port-map-role { overflow: hidden; margin-top: 2px; color: var(--fn-text-secondary); font-size: .72rem; white-space: nowrap; text-overflow: ellipsis; }
+.fn-port-map-link {
+	padding: 2px 7px;
+	border-radius: 999px;
+	background: var(--fn-surface);
+	color: var(--fn-text-disabled);
+	font-size: .72rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.fn-port-selector.fn-connected .fn-port-map-link { background: var(--fn-status-ok-soft); color: var(--fn-status-ok); }
+.fn-port-editors {
+	max-width: 860px;
+	margin: 14px auto 0;
+}
+.fn-port-card { min-width: 0; }
+.fn-port-card[hidden] { display: none; }
+.fn-port-card:hover { transform: none; }
+.fn-port-card::before {
+	content: "";
+	display: block;
+	height: 2px;
+	background: var(--fn-border-strong);
+}
+.fn-port-card.fn-port-connected::before { background: var(--fn-status-ok); }
+.fn-port-card.fn-port-wan::before { background: var(--fn-accent); }
+.fn-port-card.fn-port-wan { border-color: var(--fn-border-strong); }
+.fn-port-card-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+.fn-port-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fn-port-title h3 { margin: 0; font-size: 1rem; white-space: nowrap; }
+.fn-port-title span:not(.fn-port-jack) { color: var(--fn-text-secondary); font-size: .78rem; }
+.fn-port-card-head .fn-status-pill { flex: 0 0 auto; font-size: .8rem; white-space: nowrap; }
+.fn-port-card-status { display: flex; align-items: center; gap: 8px; }
+.fn-port-wan-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 19px;
+	padding: 1px 7px;
+	border: 1px solid var(--fn-accent);
+	border-radius: 999px;
+	background: var(--fn-wan-soft);
+	color: var(--fn-accent);
+	font-size: .68rem;
+	font-weight: 700;
+	letter-spacing: .04em;
+	line-height: 1;
+}
+.fn-port-wan-badge[hidden] { display: none; }
+.fn-port-jack {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius-sm);
+	background: var(--fn-surface-alt);
+	color: var(--fn-text-secondary);
+	font-size: 1.15rem;
+}
+.fn-port-connected .fn-port-jack { border-color: var(--fn-status-ok); color: var(--fn-status-ok); }
+.fn-port-card > .fn-card-body {
+	display: grid;
+	grid-template-columns: minmax(240px, .8fr) minmax(280px, 1.2fr);
+	align-items: start;
+	gap: 10px 24px;
+}
+.fn-port-card > .fn-card-body > .fn-settings-field { margin: 0; }
+.fn-port-role-hint {
+	margin: 25px 0 0;
+	color: var(--fn-text-secondary);
+	font-size: .84rem;
+	line-height: 1.35;
+}
+.fn-port-dedicated {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+	margin-top: 4px;
+	padding-top: 14px;
+	border-top: 1px solid var(--fn-border);
+}
+.fn-port-dedicated[hidden] { display: none; }
+.fn-port-actions { display: flex; justify-content: flex-end; max-width: 860px; margin: 14px auto 0; }
+.fn-port-save { width: auto; min-width: 190px; }
+
+.fn-port-adaptive {
+	display: grid;
+	grid-template-columns: 38px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 12px;
+	margin: 14px 0 0;
+	padding: 13px 15px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius-lg);
+	background: var(--fn-client-section-bg);
+}
+.fn-port-adaptive-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: 50%;
+	background: var(--fn-wan-soft);
+	color: var(--fn-accent);
+	font-size: 1.2rem;
+	font-weight: 700;
+}
+.fn-port-adaptive-scanning .fn-port-adaptive-icon { animation: fn-port-probe 1s ease-in-out infinite; }
+@keyframes fn-port-probe {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(0, 151, 220, 0); }
+	50% { box-shadow: 0 0 0 5px rgba(0, 151, 220, .15); }
+}
+.fn-port-adaptive-copy { min-width: 0; }
+.fn-port-adaptive-heading { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.fn-port-adaptive-heading h2 { margin: 0; color: var(--fn-text); font-size: .95rem; }
+.fn-port-adaptive-safety {
+	padding: 2px 7px;
+	border-radius: 999px;
+	background: var(--fn-status-ok-soft);
+	color: var(--fn-status-ok);
+	font-size: .68rem;
+	font-weight: 600;
+}
+.fn-port-adaptive-copy > p {
+	margin: 3px 0 8px;
+	color: var(--fn-text-secondary);
+	font: .8rem/1.4 var(--fn-font-text);
+}
+.fn-port-adaptive-results { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+.fn-port-adaptive-current,
+.fn-port-adaptive-result {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	min-height: 28px;
+	color: var(--fn-text-secondary);
+	font-size: .78rem;
+}
+.fn-port-adaptive-current strong,
+.fn-port-adaptive-result strong { color: var(--fn-text); }
+.fn-port-adaptive-empty { color: var(--fn-text-disabled); font-size: .78rem; }
+.fn-port-adaptive-result {
+	padding-left: 12px;
+	border-left: 1px solid var(--fn-border);
+}
+.fn-port-adaptive-result-dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--fn-text-disabled);
+}
+.fn-port-adaptive-found .fn-port-adaptive-result-dot {
+	background: var(--fn-status-ok);
+	box-shadow: 0 0 0 3px var(--fn-status-ok-soft);
+}
+.fn-port-adaptive-result .fn-settings-btn { min-height: 28px; padding: 3px 9px; font-size: .75rem; }
+.fn-port-adaptive-scan { min-width: 150px; white-space: nowrap; }
+
+@media (max-width: 760px) {
+	.fn-port-adaptive { grid-template-columns: 36px minmax(0, 1fr); align-items: start; }
+	.fn-port-adaptive-scan { grid-column: 1 / -1; width: 100%; }
+	.fn-port-adaptive-result { width: 100%; padding: 7px 0 0; border-top: 1px solid var(--fn-border); border-left: 0; }
+	.fn-port-map { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.fn-port-selector { grid-template-columns: 38px minmax(0, 1fr); padding: 9px; }
+	.fn-port-map-jack { width: 38px; }
+	.fn-port-map-link { grid-column: 2; justify-self: start; margin-top: -5px; }
+	.fn-port-card-head { align-items: flex-start; }
+	.fn-port-card > .fn-card-body { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+	.fn-port-role-hint { margin: 0 0 6px; }
+	.fn-port-dedicated { grid-template-columns: minmax(0, 1fr); }
+	.fn-port-actions, .fn-port-save { width: 100%; }
+}
+@media (max-width: 420px) {
+	.fn-port-map { grid-template-columns: minmax(0, 1fr); }
 }
 .fn-wifi-policy-actions { margin-top: 14px; }
 .fn-wifi-policy-actions .fn-settings-btn { min-width: 100px; }

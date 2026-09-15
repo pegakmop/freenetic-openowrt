@@ -80,10 +80,46 @@ async function failedUpdateCase() {
 	assert.equal(application.packageIndexRefresh, null, 'a failed refresh must be retryable');
 }
 
+async function sharedRemovalCase() {
+	const calls = [];
+	const notifications = [];
+	const application = evaluate((helper, args) => {
+		calls.push(args.slice());
+		return Promise.resolve({ code: 0 });
+	}, notifications);
+	initialize(application);
+	application.installedNames = {
+		xl2tpd: true,
+		'ppp-mod-pppol2tp': true,
+		'kmod-l2tp': true,
+		'kmod-pppol2tp': true,
+		'strongswan-default': true,
+		'luci-proto-ppp': true,
+		'strongswan-mod-eap-identity': true,
+		'strongswan-mod-eap-mschapv2': true,
+		xfrm: true,
+		'kmod-xfrm-interface': true,
+		'luci-proto-xfrm': true
+	};
+	const item = {
+		id: 'l2tp_ipsec', name: 'L2TP/IPsec',
+		packages: [ 'xl2tpd', 'ppp-mod-pppol2tp', 'kmod-l2tp', 'kmod-pppol2tp', 'strongswan-default', 'luci-proto-ppp' ]
+	};
+	const button = { disabled: false, textContent: '', className: '' };
+	const pill = { textContent: '', className: '' };
+	await application.toggleItem(item, true, button, pill, {});
+
+	assert.deepEqual(calls, [ [ 'remove', 'xl2tpd', 'kmod-l2tp', 'kmod-pppol2tp', 'luci-proto-ppp' ] ]);
+	assert.equal(application.installedNames['ppp-mod-pppol2tp'], true);
+	assert.equal(application.installedNames['strongswan-default'], true);
+	assert.equal(application.installedNames.xl2tpd, undefined);
+}
+
 String.prototype.format = format;
 Promise.resolve()
 	.then(successCase)
 	.then(failedUpdateCase)
+	.then(sharedRemovalCase)
 	.then(() => console.log('Applications package install runtime: ok'))
 	.finally(() => {
 		if (originalFormat)

@@ -1,0 +1,92 @@
+#!/bin/sh
+# Safely probe an unassigned built-in Ethernet port for an upstream DHCP or
+# PPPoE service. The DHCP event branch deliberately records the offer without
+# configuring an address, route, or DNS server on the router.
+
+set -u
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+reply_error() {
+	printf '{"ok":false,"error":"%s"}\n' "$(json_escape "$1")"
+	exit 0
+}
+
+# BusyBox udhcpc invokes this same executable with an event name. Do not run
+# its default script: even a successful probe must leave the port untouched.
+case "${1:-}" in
+	deconfig)
+		exit 0
+		;;
+	bound|renew)
+		[ -n "${FREENETIC_PROBE_RESULT:-}" ] || exit 0
+		printf '%s\n' "${ip:-}" > "$FREENETIC_PROBE_RESULT"
+		exit 0
+		;;
+esac
+
+[ "$#" -eq 1 ] || reply_error "Exactly one Ethernet port is required."
+port=$1
+
+case "$port" in
+	''|-*|*[!A-Za-z0-9_-]*) reply_error "Invalid Ethernet port name." ;;
+esac
+
+[ "$(id -u)" -eq 0 ] || reply_error "Ethernet probing requires root privileges."
+[ -d "/sys/class/net/$port" ] || reply_error "Ethernet port was not found."
+
+# Restrict the helper to ports exported by the board description. This keeps
+# the browser-facing command away from tunnels, bridges and arbitrary netdevs.
+builtin_ports=$(
+	jsonfilter -i /etc/board.json -e '@.network.lan.ports[*]' 2>/dev/null || true
+	jsonfilter -i /etc/board.json -e '@.network.wan.device' 2>/dev/null || true
+)
+printf '%s\n' "$builtin_ports" | grep -Fxq -- "$port" || reply_error "Only built-in Ethernet ports can be probed."
+
+# Probing a configured port could leak a DHCP request into a local segment or
+# disturb the active uplink. Both the UI and this helper therefore accept only
+# ports that are currently unassigned.
+[ ! -L "/sys/class/net/$port/master" ] || reply_error "Assign the port as unused before probing it."
+if uci -q show network 2>/dev/null | grep -Fq -- "'$port'"; then
+	reply_error "Assign the port as unused before probing it."
+fi
+
+was_up=false
+ip link show dev "$port" 2>/dev/null | grep -q '<[^>]*UP[^>]*>' && was_up=true
+probe_result="/tmp/freenetic-port-probe.$$.dhcp"
+probe_pppoe="/tmp/freenetic-port-probe.$$.pppoe"
+cleanup() {
+	rm -f "$probe_result" "$probe_pppoe"
+	[ "$was_up" = true ] || ip link set dev "$port" down >/dev/null 2>&1 || true
+}
+trap cleanup EXIT HUP INT TERM
+
+ip link set dev "$port" up >/dev/null 2>&1 || reply_error "The Ethernet port could not be enabled for probing."
+
+carrier=$(cat "/sys/class/net/$port/carrier" 2>/dev/null || printf '0')
+if [ "$carrier" != '1' ]; then
+	printf '{"ok":true,"link":false,"protocol":"none"}\n'
+	exit 0
+fi
+
+FREENETIC_PROBE_RESULT="$probe_result" \
+	timeout 5 udhcpc -f -n -q -t 1 -T 2 -A 1 -i "$port" -s "$0" >/dev/null 2>&1 || true
+if [ -s "$probe_result" ]; then
+	address=$(sed -n '1p' "$probe_result")
+	printf '{"ok":true,"link":true,"protocol":"dhcp","address":"%s"}\n' "$(json_escape "$address")"
+	exit 0
+fi
+
+if command -v pppoe-discovery >/dev/null 2>&1; then
+	timeout 5 pppoe-discovery -I "$port" -U -t 2 -a 1 > "$probe_pppoe" 2>&1 || true
+	if grep -q '^Access-Concentrator:' "$probe_pppoe"; then
+		concentrator=$(sed -n 's/^Access-Concentrator:[[:space:]]*//p' "$probe_pppoe" | sed -n '1p')
+		printf '{"ok":true,"link":true,"protocol":"pppoe","access_concentrator":"%s"}\n' \
+			"$(json_escape "$concentrator")"
+		exit 0
+	fi
+fi
+
+printf '{"ok":true,"link":true,"protocol":"none"}\n'

@@ -289,12 +289,22 @@ return view.extend({
 								ui.showModal(_('Flashing…'), [
 									E('p', { class: 'spinning' }, _('The firmware is being flashed. Do not power off the device.'))
 								]);
-								return fs.exec('/sbin/sysupgrade', [ '/tmp/firmware.bin' ]).then(() => {
-									ui.showModal(_('Rebooting…'), [
-										E('p', { class: 'spinning' }, _('The system is rebooting now.'))
-									]);
-									awaitReconnectToDashboard(window.location.host, '192.168.1.1', 'openwrt.lan');
+								/* A successful sysupgrade replaces the running system before
+								 * rpcd can answer, so this promise normally never settles. Start
+								 * reconnect polling immediately, exactly like stock LuCI. */
+								fs.exec('/sbin/sysupgrade', [ '/tmp/firmware.bin' ]).then(result => {
+									if (result && result.code !== 0)
+										ui.addNotification(null, E('p', {}, (result.stderr || result.stdout || _('Firmware flashing failed.')).trim()), 'danger');
+								}).catch(error => {
+									/* Connection loss is expected once flashing succeeds. */
+									if (error && !/network|connection|request/i.test(error.message || ''))
+										ui.addNotification(null, E('p', {}, error.message || String(error)), 'danger');
 								});
+								ui.showModal(_('Rebooting…'), [
+									E('p', { class: 'spinning' }, _('The system is rebooting now.'))
+								]);
+								awaitReconnectToDashboard(window.location.host, '192.168.1.1', 'openwrt.lan');
+								return Promise.resolve();
 							})
 						}, _('Flash'))
 					])

@@ -143,6 +143,22 @@
 			}
 		}
 	},
+	"admin/network/ethernet_ports": {
+		"title": "Ethernet Ports",
+		"order": 6.1,
+		"action": {
+			"type": "view",
+			"path": "network/freenetic-ports"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-freenetic"
+			],
+			"uci": {
+				"luci": { "main": { "mediaurlbase": "/luci-static/freenetic" } }
+			}
+		}
+	},
 	"admin/network/wifi_acl": {
 		"title": "Access & Routing Policy",
 		"order": 6.2,

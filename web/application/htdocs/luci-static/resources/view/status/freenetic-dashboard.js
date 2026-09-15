@@ -718,7 +718,9 @@ return view.extend({
 			}
 
 			return uci.save();
-		}).then(() => applyChanges()).then(() => fs.exec('/sbin/ifup', [ 'guest' ])).then(() => {
+		}).then(() => applyChanges()).then(() => fs.exec('/sbin/ifup', [ 'guest' ])).then(result => {
+			if (!result || result.code !== 0)
+				throw new Error(result && (result.stderr || result.stdout) || _('Guest interface could not be started.'));
 			notify(_('Guest network enabled.'), 'info');
 			return this.refreshNetworks();
 		}).catch(err => {
@@ -908,7 +910,7 @@ return view.extend({
 		});
 
 		return E('div', { class: 'fn-card' }, [
-			cardHead('M4 9h16v10H4zM8 9V6a4 4 0 0 1 8 0v3', _('Network Ports'), [ 'admin', 'network', 'home_network' ]),
+			cardHead('M4 9h16v10H4zM8 9V6a4 4 0 0 1 8 0v3', _('Network Ports'), [ 'admin', 'network', 'ethernet_ports' ]),
 			E('div', { class: 'fn-card-body' }, [ row ])
 		]);
 	},
