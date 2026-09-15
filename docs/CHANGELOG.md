@@ -6,6 +6,13 @@ which they became user-visible.
 
 ## [Unreleased]
 
+### Added
+
+- Added release-line codenames beside stable build numbers on the dashboard:
+  Onyx uses Cherry Bomb One for `v0.2.x`, while Noxium uses Anta for `v0.3.x`.
+  Both display fonts are self-hosted, with no external requests; prerelease and
+  development builds continue to omit the codename.
+
 ## [0.3.0] — 2026-09-15
 
 ### Introducing Noxium
