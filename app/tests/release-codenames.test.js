@@ -18,6 +18,7 @@ assert.equal(releases.releaseTitle('v0.2.7'), 'Freenetic 0.2.7 — Onyx Hotfix')
 assert.equal(releases.releaseTitle('v0.2.0-alpha.3'), 'Freenetic 0.2.0-alpha.3 — Onyx');
 assert.equal(releases.releaseTitle('v0.3.0-alpha.1'), 'Freenetic 0.3.0a-1');
 assert.equal(releases.releaseTitle('v0.3.0-alpha.2'), 'Freenetic 0.3.0a-2');
+assert.equal(releases.releaseTitle('v0.3.0-alpha.3'), 'Freenetic 0.3.0a-3');
 assert.throws(() => releases.releaseTitle('0.2.6'), /invalid release tag/);
 assert.throws(() => releases.releaseTitle('v0.3.0'), /no codename configured/);
 
