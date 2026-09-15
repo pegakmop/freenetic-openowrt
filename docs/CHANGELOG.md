@@ -6,6 +6,37 @@ which they became user-visible.
 
 ## [Unreleased]
 
+## [0.3.0-beta.1] — 2026-09-15
+
+### Release status
+
+- The `0.3.0` feature set is frozen after alpha.4. Beta, RC and stable builds
+  accept fixes, tests, compatibility work and restrained interface polish only.
+- Release tooling now gives beta and RC builds concealed prerelease titles;
+  the `0.3.0` codename remains hidden until the final release.
+- The release checklist now covers the Ethernet, routed-segment, firewall,
+  PBR and Wi-Fi airspace behavior introduced in `0.3.0`.
+
+### Verification
+
+- The complete static/runtime suite and CLI cross-build passed for
+  `aarch64_cortex-a53` and `mipsel_24kc`; the APK package build and content
+  validation also passed.
+- A Globitel BT-RB300 running an APK-based OpenWrt snapshot passed hardware
+  preflight, LuCI/static-asset checks, helper boundary checks, isolated-segment
+  network/firewall runtime validation and a reboot-persistence check.
+- The isolated-segment smoke test was automatically rolled back and confirmed
+  `network`, `firewall` and `dhcp` were restored byte-for-byte. A configuration
+  backup was captured before testing.
+
+### Remaining before stable
+
+- Repeat the candidate install as both a clean install and an upgrade from
+  `0.2.7`.
+- Exercise physical WAN↔LAN reassignment, browser confirmation and automatic
+  rollback with cables available on the test router.
+- Exercise VPN policy activation with PBR installed on real hardware.
+
 ## [0.3.0-alpha.4] — 2026-09-15
 
 ### Security

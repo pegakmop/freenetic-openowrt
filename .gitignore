@@ -12,6 +12,7 @@ __pycache__/
 
 # scratch/generated, not meant to be tracked
 *.zip
+.local/
 graphify-out/
 cli/graphify-out/
 app/graphify-out/

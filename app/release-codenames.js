@@ -31,13 +31,21 @@ function concealedAlphaTitle(version) {
 	return match ? `Freenetic ${match[1]}a-${match[2]}` : null;
 }
 
+function concealedPrereleaseTitle(version) {
+	const match = /^(\d+\.\d+\.\d+)-(alpha|beta|rc)\.(\d+)$/.exec(version);
+	if (!match)
+		return null;
+	const stage = match[2] === 'alpha' ? 'a' : (match[2] === 'beta' ? 'b' : 'rc');
+	return `Freenetic ${match[1]}${stage}-${match[3]}`;
+}
+
 function releaseTitle(tag) {
 	const { line, version } = releaseVersion(tag);
 	const codename = RELEASE_CODENAMES[line];
 	if (!codename) {
-		const alphaTitle = concealedAlphaTitle(version);
-		if (alphaTitle)
-			return alphaTitle;
+		const prereleaseTitle = concealedPrereleaseTitle(version);
+		if (prereleaseTitle)
+			return prereleaseTitle;
 		throw new Error(`no codename configured for Freenetic ${line}.x`);
 	}
 	const qualifier = RELEASE_QUALIFIERS[version];
@@ -54,4 +62,4 @@ if (require.main === module) {
 	}
 }
 
-module.exports = { RELEASE_CODENAMES, RELEASE_QUALIFIERS, concealedAlphaTitle, codenameForTag, releaseTitle, releaseVersion };
+module.exports = { RELEASE_CODENAMES, RELEASE_QUALIFIERS, concealedAlphaTitle, concealedPrereleaseTitle, codenameForTag, releaseTitle, releaseVersion };

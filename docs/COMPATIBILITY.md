@@ -13,7 +13,7 @@ every device in that target family being tested.
 - **Expected compatible** — the release preflight and package/ABI rules allow
   the profile, but a real-device test is still wanted.
 - **Known issues** — current limitations or areas intentionally outside the
-  0.2.x promise.
+  `0.3.x` promise.
 
 ## Developer tested
 
@@ -31,6 +31,7 @@ every device in that target family being tested.
 | Device | OpenWrt profile | Tested path |
 |---|---|---|
 | Globitel BT-RB300 | 24.10.8, `mediatek/filogic`, aarch64 | initramfs boot, package deployment, Freenetic UI smoke test, Wi-Fi toggle in both directions, configuration restored afterward |
+| Globitel BT-RB300 | SNAPSHOT `r0+36055-4d9e2a8a08`, `mediatek/filogic`, aarch64, APK | `0.3.0-alpha.4` preflight, LuCI/assets, helper boundaries, isolated Ethernet segment and fw4 runtime, no-op network reload, reboot persistence and byte-identical configuration restore |
 
 The real-device list should grow only from reproducible reports. Add the
 OpenWrt version, target/subtarget, device, RAM and the Freenetic features
@@ -43,15 +44,14 @@ device in that family.
   `opkg`, a supported ABI and the package preflight resource minimums.
 - OpenWrt 25.12.x on published APK target profiles, with the matching `fnc`
   ABI artifact and the package preflight resource minimums.
-- Other OpenWrt targets are not part of the 0.2.x release promise, even if
+- Other OpenWrt targets are not part of the `0.3.x` release promise, even if
   their LuCI JavaScript happens to render.
 
 Check the concrete release assets and the router preflight before installing.
 
 ## Known issues and boundaries
 
-- The 0.2.x line does not contain MWS/mesh orchestration. MWS begins in a
-  separate 0.3 alpha design.
+- The `0.3.x` line does not contain MWS/mesh orchestration or Multi-WAN.
 - `fnc` still uses the private SONAME compatibility shim where the two
   supported OpenWrt lines expose different library dates. The shim does not
   replace or alter system libraries; broader ABI coverage remains future work.

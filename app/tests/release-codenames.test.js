@@ -20,6 +20,9 @@ assert.equal(releases.releaseTitle('v0.3.0-alpha.1'), 'Freenetic 0.3.0a-1');
 assert.equal(releases.releaseTitle('v0.3.0-alpha.2'), 'Freenetic 0.3.0a-2');
 assert.equal(releases.releaseTitle('v0.3.0-alpha.3'), 'Freenetic 0.3.0a-3');
 assert.equal(releases.releaseTitle('v0.3.0-alpha.4'), 'Freenetic 0.3.0a-4');
+assert.equal(releases.releaseTitle('v0.3.0-beta.1'), 'Freenetic 0.3.0b-1');
+assert.equal(releases.releaseTitle('v0.3.0-rc.1'), 'Freenetic 0.3.0rc-1');
+assert.equal(releases.concealedAlphaTitle('0.3.0-beta.1'), null);
 assert.throws(() => releases.releaseTitle('0.2.6'), /invalid release tag/);
 assert.throws(() => releases.releaseTitle('v0.3.0'), /no codename configured/);
 
