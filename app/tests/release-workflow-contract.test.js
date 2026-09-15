@@ -51,6 +51,8 @@ assert.match(workflow, /"\$\{release_flags\[@\]\}"/,
 	'release publication must pass its pre-release classification to GitHub CLI');
 assert.match(workflow, /Verify immutable annotated release tag/,
 	'release publication must require an annotated tag pointing at the tested checkout');
+assert.match(workflow, /git fetch --no-tags origin "refs\/tags\/\$RELEASE_TAG"[\s\S]*git cat-file -t FETCH_HEAD[\s\S]*git rev-list -n 1 FETCH_HEAD/,
+	'release publication must verify the remote annotated tag object even when checkout peels its local ref');
 assert.doesNotMatch(workflow, /git tag [^\n]*-f|git push [^\n]*--force/,
 	'release publication must never rewrite an existing release tag');
 assert.match(workflow, /uses: actions\/attest@v4/,

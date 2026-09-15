@@ -249,8 +249,13 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -eu
-          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
-          test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$(git rev-parse HEAD)"
+          # actions/checkout resolves an annotated tag to its commit and then
+          # replaces the local tag ref with that commit. Fetch the remote tag
+          # object into FETCH_HEAD so its type and target can still be checked
+          # without rewriting the published ref.
+          git fetch --no-tags origin "refs/tags/$RELEASE_TAG"
+          test "$(git cat-file -t FETCH_HEAD)" = tag
+          test "$(git rev-list -n 1 FETCH_HEAD)" = "$(git rev-parse HEAD)"
 
       - name: Download 24.10 mediatek IPK build
         uses: actions/download-artifact@v4
