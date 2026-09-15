@@ -141,7 +141,7 @@ jobs:
             # allow-untrusted applies only while replacing the SDK signature;
             # the immediately following verification is deliberately strict.
             find "$SDK_DIR/bin" -type f -name '*freenetic*.apk' -print0 | \
-              xargs -0 -r "$SDK_DIR/staging_dir/host/bin/apk" \
+              xargs -0 -r -n1 "$SDK_DIR/staging_dir/host/bin/apk" \
                 --allow-untrusted adbsign \
                 --reset-signatures --sign-key "$SDK_DIR/private-key.pem"
             find "$SDK_DIR/bin" -type f -name '*freenetic*.apk' -print0 | \

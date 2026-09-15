@@ -34,7 +34,7 @@ assert.match(workflow, /\$GITHUB_WORKSPACE\/docs\/CHANGELOG\.md/,
 assert.match(workflow, /asset_count.*-eq 21/, 'the release must contain packages, binaries, APK key, installer and manifest');
 assert.match(workflow, /freenetic-apk-release-key-\$asset_version\.pem/,
 	'the APK package signing key must be published beside the signed packages');
-assert.match(workflow, /apk"[\s\\]*\n[\s\\]*--allow-untrusted adbsign[\s\\]*\n[\s\\]*--reset-signatures --sign-key "\$SDK_DIR\/private-key\.pem"/,
+assert.match(workflow, /xargs -0 -r -n1 "\$SDK_DIR\/staging_dir\/host\/bin\/apk"[\s\\]*\n[\s\\]*--allow-untrusted adbsign[\s\\]*\n[\s\\]*--reset-signatures --sign-key "\$SDK_DIR\/private-key\.pem"/,
 	'the final APK payloads must be explicitly signed by the exported release key');
 assert.match(workflow, /--keys-dir "\$key_dir" verify/,
 	'the package matrix must verify APK signatures before publishing artifacts');
