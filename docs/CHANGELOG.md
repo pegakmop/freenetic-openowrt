@@ -6,13 +6,63 @@ which they became user-visible.
 
 ## [Unreleased]
 
-### Fixed
+## [0.3.0] — 2026-09-15
 
-- Completing a theme install or self-update now clears LuCI's server cache,
-  invalidates the previous authenticated session and returns the browser to
-  the login page. Browser CacheStorage is cleared by the update view, while a
-  one-time `Clear-Site-Data: "cache"` response also covers installs launched
-  from SSH without erasing saved Freenetic preferences.
+### Introducing Noxium
+
+- Freenetic 0.3.0 turns the interface layer into a network-control platform:
+  physical port roles, isolated routed segments, per-network and per-device
+  traffic policy, and Wi-Fi airspace analysis now share one guarded OpenWrt
+  configuration model.
+
+### Added
+
+- Added an interactive 2.4/5 GHz airspace map with channel overlap, current
+  radio footprint, collision-safe SSID labels and signal-aware channel advice.
+- Added physical Ethernet role assignment for WAN, Home, Guest, unused and
+  independent routed segments, plus advisory DHCP/PPPoE port discovery.
+- Added isolated segment provisioning with DHCP/DNS access, router-service
+  isolation, firewall ownership and Direct, Blocked or VPN routing policy.
+- Added zone-aware client blocking and port forwarding, including Guest and
+  dedicated Ethernet segments.
+- Added a guided uninstaller with configuration-preserving and explicitly
+  confirmed managed-state cleanup modes.
+
+### Security and correctness
+
+- Freenetic-created UCI objects carry ownership markers; reconciliation and
+  full removal preserve foreign sections, custom bridges, WAN6 devices and
+  shared DDNS/PBR state.
+- Dedicated segments reject access to router services by default, while
+  client blocks are ordered ahead of broad ACCEPT rules and target the actual
+  source zone.
+- VPN policy changes report success only after Policy-Based Routing confirms
+  activation. Network, address, route and port-range inputs use shared strict
+  validation.
+- Root helpers use constrained command boundaries and unpredictable temporary
+  paths. Package, native CLI and UCI mutations have rollback-aware failure
+  handling.
+
+### Interface and operations
+
+- Refined the responsive navigation, top bar, login screen, WAN and diagnostics
+  pages, client groups, VPN/DDNS layouts and the stock OpenWrt package manager.
+- Wi-Fi settings now preserve driver-specific values and configure channel
+  width, country, power and security independently per radio.
+- Installation and self-update clear LuCI and browser caches, invalidate the
+  previous session and return to login so the new theme loads cleanly.
+- Release APKs use a pinned signing key; every one of the 21 release assets is
+  covered by SHA-256 and GitHub/Sigstore build provenance. Annotated release
+  tags are immutable and are tested before publication.
+
+### Verification
+
+- Static, runtime, ownership, preservation and security contracts pass, with
+  CLI cross-builds for `aarch64_cortex-a53` and `mipsel_24kc` and package
+  builds for OpenWrt 24.10 IPK and 25.12 APK targets.
+- A Globitel BT-RB300 completed fresh installation, package verification,
+  Ethernet-segment/firewall tests, safe and managed-state removal, exact
+  configuration restoration, browser-cache/session reset and repeated install.
 
 ## [0.3.0-beta.2] — 2026-09-15
 

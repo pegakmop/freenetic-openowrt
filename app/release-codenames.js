@@ -2,7 +2,8 @@
 
 const RELEASE_CODENAMES = Object.freeze({
 	'0.1': 'Misery',
-	'0.2': 'Onyx'
+	'0.2': 'Onyx',
+	'0.3': 'Noxium'
 });
 const RELEASE_QUALIFIERS = Object.freeze({
 	'0.2.7': 'Hotfix'
@@ -41,6 +42,13 @@ function concealedPrereleaseTitle(version) {
 
 function releaseTitle(tag) {
 	const { line, version } = releaseVersion(tag);
+	/* 0.3.x introduced concealed prerelease names. Keep the alpha/beta/RC
+	 * history anonymous even after the stable codename becomes public. */
+	if (line === '0.3') {
+		const prereleaseTitle = concealedPrereleaseTitle(version);
+		if (prereleaseTitle)
+			return prereleaseTitle;
+	}
 	const codename = RELEASE_CODENAMES[line];
 	if (!codename) {
 		const prereleaseTitle = concealedPrereleaseTitle(version);
@@ -49,6 +57,8 @@ function releaseTitle(tag) {
 		throw new Error(`no codename configured for Freenetic ${line}.x`);
 	}
 	const qualifier = RELEASE_QUALIFIERS[version];
+	if (version === '0.3.0')
+		return `Introducing Freenetic ${version} ${codename}`;
 	return `Freenetic ${version} — ${codename}${qualifier ? ` ${qualifier}` : ''}`;
 }
 

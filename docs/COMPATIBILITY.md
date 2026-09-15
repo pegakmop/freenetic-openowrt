@@ -31,7 +31,7 @@ every device in that target family being tested.
 | Device | OpenWrt profile | Tested path |
 |---|---|---|
 | Globitel BT-RB300 | 24.10.8, `mediatek/filogic`, aarch64 | initramfs boot, package deployment, Freenetic UI smoke test, Wi-Fi toggle in both directions, configuration restored afterward |
-| Globitel BT-RB300 | SNAPSHOT `r0+36055-4d9e2a8a08`, `mediatek/filogic`, aarch64, APK | `0.3.0-alpha.4` preflight, LuCI/assets, helper boundaries, isolated Ethernet segment and fw4 runtime, no-op network reload, reboot persistence and byte-identical configuration restore |
+| Globitel BT-RB300 | SNAPSHOT `r0+36055-4d9e2a8a08`, `mediatek/filogic`, aarch64, APK | `0.3.0` GA candidate: signed-package install, LuCI/assets, helper boundaries, isolated Ethernet segment and fw4 runtime, safe/full uninstall ownership, cache/session reset, repeat install, reboot persistence and byte-identical configuration restore |
 
 The real-device list should grow only from reproducible reports. Add the
 OpenWrt version, target/subtarget, device, RAM and the Freenetic features
