@@ -31,15 +31,11 @@ function sectionName(section) {
 }
 
 function ipv4(value) {
-	const parts = String(value || '').split('.');
-	return parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && +part >= 0 && +part <= 255);
+	return networkHelper.validIPv4(value);
 }
 
 function ipv4Netmask(value) {
-	if (!ipv4(value))
-		return false;
-	const bits = String(value).split('.').map(part => (+part).toString(2).padStart(8, '0')).join('');
-	return /^1*0*$/.test(bits);
+	return value === '0.0.0.0' || networkHelper.validIPv4Netmask(value);
 }
 
 function netmaskToPrefix(value) {
@@ -60,20 +56,7 @@ function prefixToNetmask(value) {
 }
 
 function ipv6(value) {
-	value = String(value || '').trim();
-	if (!value || value.indexOf(':') === -1 || /[^0-9a-f:]/i.test(value))
-		return false;
-
-	/* A compact validation is enough for a form guard; the kernel remains the
-	 * final authority when netifd applies the configuration.  Reject malformed
-	 * multiple-compression addresses while accepting normal `::` forms. */
-	if ((value.match(/::/g) || []).length > 1)
-		return false;
-	const halves = value.split('::');
-	const count = part => part ? part.split(':').filter(Boolean).length : 0;
-	if (halves.length === 1)
-		return count(halves[0]) === 8;
-	return count(halves[0]) + count(halves[1]) < 8;
+	return networkHelper.validIPv6(value, false);
 }
 
 function metric(value) {
@@ -537,8 +520,12 @@ return view.extend({
 				if (index >= 0 && index < dns.servers.length)
 					dns.servers.splice(index, 1);
 			});
-			if (dns.section)
-				uci.set('dhcp', dns.section, 'server', dns.servers);
+			if (dns.section) {
+				if (dns.servers.length)
+					uci.set('dhcp', dns.section, 'server', dns.servers);
+				else
+					uci.unset('dhcp', dns.section, 'server');
+			}
 		}
 		else {
 			selected.forEach(key => uci.remove('network', key.slice((this.activeFamily + ':').length)));
@@ -591,7 +578,7 @@ return view.extend({
 			metric: section.metric || '',
 			table: section.table || '',
 			description: section.freenetic_description || section.description || section.comment || '',
-			automatic: section.freenetic_auto !== '0',
+			automatic: section.disabled !== '1',
 			raw: section
 		}));
 	},
@@ -1299,7 +1286,11 @@ return view.extend({
 			uci.set('network', section, 'freenetic_description', fields.description);
 		else
 			uci.unset('network', section, 'freenetic_description');
-		uci.set('network', section, 'freenetic_auto', fields.automatic ? '1' : '0');
+		uci.unset('network', section, 'freenetic_auto');
+		if (fields.automatic)
+			uci.unset('network', section, 'disabled');
+		else
+			uci.set('network', section, 'disabled', '1');
 
 		return uci.save().then(() => applyChanges()).then(() => {
 			notify(this.editingSection ? _('Route saved.') : _('Route added.'), 'info');
@@ -1368,8 +1359,12 @@ return view.extend({
 		if (index < 0 || index >= dns.servers.length)
 			return;
 		dns.servers.splice(index, 1);
-		if (dns.section)
-			uci.set('dhcp', dns.section, 'server', dns.servers);
+		if (dns.section) {
+			if (dns.servers.length)
+				uci.set('dhcp', dns.section, 'server', dns.servers);
+			else
+				uci.unset('dhcp', dns.section, 'server');
+		}
 		return uci.save().then(() => applyChanges()).then(() => {
 			notify(_('DNS route deleted.'), 'info');
 			return this.refresh();

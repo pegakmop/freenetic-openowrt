@@ -29,6 +29,7 @@ function svgIcon(d, size) {
 const ICON_DOWNLOAD = 'M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2';
 const ICON_SWAP = 'M17 3 21 7l-4 4M3 7h18M7 21 3 17l4-4M21 17H3';
 const ICON_FILE = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6ZM14 2v6h6';
+const ICON_TRASH = 'M3 6h18M8 6V4h8v2m-9 0 1 15h8l1-15M10 10v7m4-7v7';
 
 /* /proc/mtd's numbering isn't guaranteed stable across devices/reflashes —
    look partitions up by name rather than hardcoding "mtd4" etc. Returns
@@ -140,8 +141,138 @@ return view.extend({
 						this.renderMtdRow('FIP')
 					])
 				])
+			]),
+			this.renderUninstallCard()
+		]);
+	},
+
+	renderUninstallCard() {
+		return E('div', { class: 'fn-card fn-uninstall-card', style: 'grid-column: 1 / -1' }, [
+			E('div', { class: 'fn-card-head' }, [
+				svgIcon(ICON_TRASH, 19),
+				E('h3', {}, _('Remove Freenetic'))
+			]),
+			E('div', { class: 'fn-card-body' }, [
+				E('p', { class: 'fn-uninstall-intro' }, _('Return to the standard LuCI interface. OpenWrt and third-party packages remain installed.')),
+				E('div', { class: 'fn-uninstall-options' }, [
+					E('div', { class: 'fn-uninstall-option' }, [
+						E('div', { class: 'fn-apps-info' }, [
+							E('div', { class: 'fn-apps-name' }, _('Keep router settings')),
+							E('div', { class: 'fn-apps-desc' }, _('Remove the Freenetic interface and command-line files, while preserving all network, Wi-Fi, firewall and VPN settings.'))
+						]),
+						E('button', {
+							type: 'button',
+							class: 'fn-settings-btn fn-settings-btn-danger',
+							click: ui.createHandlerFn(this, () => this.confirmUninstall(false))
+						}, _('Remove'))
+					]),
+					E('div', { class: 'fn-uninstall-option fn-uninstall-option-purge' }, [
+						E('div', { class: 'fn-apps-info' }, [
+							E('div', { class: 'fn-apps-name' }, _('Full cleanup')),
+							E('div', { class: 'fn-apps-desc' }, _('Also remove only the network objects explicitly created and marked as managed by Freenetic. Other OpenWrt settings are preserved.'))
+						]),
+						E('button', {
+							type: 'button',
+							class: 'fn-settings-btn fn-settings-btn-danger fn-uninstall-purge-btn',
+							click: ui.createHandlerFn(this, () => this.confirmUninstall(true))
+						}, _('Remove completely'))
+					])
+				])
 			])
 		]);
+	},
+
+	confirmUninstall(purge) {
+		if (!purge) {
+			ui.showModal(_('Remove Freenetic?'), [
+				E('p', {}, _('The standard LuCI interface will be restored. Your current router configuration and installed third-party packages will remain in place.')),
+				E('p', {}, _('Download the startup configuration above first if you want an additional recovery copy.')),
+				E('div', { class: 'button-row' }, [
+					E('button', { class: 'btn', click: ui.hideModal }, _('Cancel')),
+					E('button', {
+						class: 'btn cbi-button-negative',
+						click: ui.createHandlerFn(this, () => this.runUninstall('keep-config'))
+					}, _('Remove Freenetic'))
+				])
+			]);
+			return;
+		}
+
+		const confirmation = E('input', {
+			type: 'text',
+			class: 'cbi-input-text fn-uninstall-confirm',
+			placeholder: 'FREENETIC',
+			autocomplete: 'off',
+			spellcheck: 'false'
+		});
+		const removeButton = E('button', {
+			class: 'btn cbi-button-negative',
+			disabled: true,
+			click: ui.createHandlerFn(this, () => this.runUninstall('purge-managed'))
+		}, _('Remove completely'));
+		confirmation.addEventListener('input', () => {
+			removeButton.disabled = confirmation.value.trim() !== 'FREENETIC';
+		});
+		ui.showModal(_('Remove Freenetic and its managed settings?'), [
+			E('p', {}, _('Freenetic-managed guest networks, dedicated Ethernet segments, policies, routes and connections will be deleted. This can interrupt network access.')),
+			E('p', {}, _('Type FREENETIC to confirm the full cleanup.')),
+			confirmation,
+			E('div', { class: 'button-row' }, [
+				E('button', { class: 'btn', click: ui.hideModal }, _('Cancel')),
+				removeButton
+			])
+		]);
+	},
+
+	runUninstall(mode) {
+		ui.showModal(_('Removing Freenetic…'), [
+			E('p', { class: 'spinning' }, _('The standard LuCI interface is being restored. Do not close this page.'))
+		]);
+		return fs.exec_direct('/usr/libexec/freenetic-uninstall', [ mode ], 'json').then(result => {
+			if (!result || result.ok !== true)
+				throw new Error(result && result.error || _('Freenetic could not be removed.'));
+			const details = mode === 'purge-managed'
+				? _('The Freenetic interface and %d managed configuration sections were removed. Restart the router to activate every configuration change.').format(Number(result.purged_sections) || 0)
+				: _('The Freenetic interface was removed. Your router settings were preserved.');
+			ui.showModal(_('Freenetic removed'), [
+				E('p', {}, details),
+				E('p', {}, _('The browser cache is being cleared. You will be signed out and returned to the standard LuCI login page.')),
+				E('div', { class: 'button-row' }, [
+					E('button', {
+						class: 'btn cbi-button-positive',
+						click: () => this.clearBrowserStateAndLogout()
+					}, _('Log in to standard LuCI'))
+				])
+			]);
+			window.setTimeout(() => this.clearBrowserStateAndLogout(), 1200);
+		}).catch(error => {
+			ui.showModal(_('Removal failed'), [
+				E('p', {}, error.message || String(error)),
+				E('div', { class: 'button-row' }, [
+					E('button', { class: 'btn', click: ui.hideModal }, _('Close'))
+				])
+			]);
+		});
+	},
+
+	clearBrowserStateAndLogout() {
+		const clearFreeneticStorage = storage => {
+			try {
+				for (let index = storage.length - 1; index >= 0; index--) {
+					const key = storage.key(index);
+					if (key && key.indexOf('freenetic-') === 0)
+						storage.removeItem(key);
+				}
+			} catch (_error) {}
+		};
+		clearFreeneticStorage(window.localStorage);
+		clearFreeneticStorage(window.sessionStorage);
+		const cacheCleanup = window.caches && typeof window.caches.keys === 'function'
+			? window.caches.keys().then(keys => Promise.all(keys.map(key => window.caches.delete(key)))).catch(() => null)
+			: Promise.resolve();
+		return cacheCleanup.finally(() => {
+			window.location.replace('/cgi-bin/luci/admin/logout?_=' + Date.now());
+		});
 	},
 
 	renderFirmwareRow(board, release) {
@@ -257,6 +388,50 @@ return view.extend({
 		]);
 	},
 
+	flashUploadedFirmware() {
+		ui.showModal(_('Flashing…'), [
+			E('p', { class: 'spinning' }, _('The firmware is being flashed. Do not power off the device.'))
+		]);
+		let reconnectStarted = false;
+		const startReconnect = () => {
+			if (reconnectStarted)
+				return;
+			reconnectStarted = true;
+			ui.showModal(_('Rebooting…'), [
+				E('p', { class: 'spinning' }, _('The system is rebooting now.'))
+			]);
+			awaitReconnectToDashboard(window.location.host, '192.168.1.1', 'openwrt.lan');
+		};
+		const showFailure = message => {
+			ui.showModal(_('Firmware flashing failed'), [
+				E('p', {}, String(message || _('Unknown error')).trim()),
+				E('div', { class: 'button-row' }, [
+					E('button', { class: 'btn', click: ui.hideModal }, _('Close'))
+				])
+			]);
+		};
+		/* A successful sysupgrade normally drops rpcd before the promise
+		 * settles. Give immediate local failures a chance to surface in
+		 * the modal, then begin reconnect polling if the call is still in
+		 * flight or the connection disappears. */
+		const reconnectTimer = window.setTimeout(startReconnect, 1500);
+		return fs.exec('/sbin/sysupgrade', [ '/tmp/firmware.bin' ]).then(result => {
+			if (result && result.code !== 0) {
+				window.clearTimeout(reconnectTimer);
+				showFailure(result.stderr || result.stdout || _('Firmware flashing failed.'));
+				return;
+			}
+			startReconnect();
+		}).catch(error => {
+			if (error && /network|connection|request/i.test(error.message || '')) {
+				startReconnect();
+				return;
+			}
+			window.clearTimeout(reconnectTimer);
+			showFailure(error && (error.message || String(error)));
+		});
+	},
+
 	handleSysupgrade() {
 		/* ui.uploadFile() renders its own complete modal (Browse… button,
 		   file input, progress bar) — it's not a helper you feed an
@@ -285,17 +460,7 @@ return view.extend({
 						E('button', { class: 'btn', click: ui.hideModal }, _('Cancel')),
 						E('button', {
 							class: 'btn cbi-button-positive',
-							click: ui.createHandlerFn(this, () => {
-								ui.showModal(_('Flashing…'), [
-									E('p', { class: 'spinning' }, _('The firmware is being flashed. Do not power off the device.'))
-								]);
-								return fs.exec('/sbin/sysupgrade', [ '/tmp/firmware.bin' ]).then(() => {
-									ui.showModal(_('Rebooting…'), [
-										E('p', { class: 'spinning' }, _('The system is rebooting now.'))
-									]);
-									awaitReconnectToDashboard(window.location.host, '192.168.1.1', 'openwrt.lan');
-								});
-							})
+							click: ui.createHandlerFn(this, () => this.flashUploadedFirmware())
 						}, _('Flash'))
 					])
 				]);

@@ -1,0 +1,229 @@
+#!/bin/sh
+# Remove the Freenetic UI and native CLI without treating shared OpenWrt
+# packages or foreign UCI sections as Freenetic-owned state.
+
+JSHN=/usr/share/libubox/jshn.sh
+
+reply_fallback_error() {
+	message="$1"
+	escaped="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '{"ok":false,"error":"%s"}\n' "$escaped"
+}
+
+if [ ! -r "$JSHN" ]; then
+	reply_fallback_error "JSON support is unavailable"
+	exit 0
+fi
+# shellcheck disable=SC1090
+. "$JSHN"
+
+snapshot_dir=""
+mutation_started=0
+removal_committed=0
+
+cleanup() {
+	if [ "$mutation_started" = 1 ] && [ "$removal_committed" != 1 ] && [ -n "$snapshot_dir" ]; then
+		for config in luci network wireless dhcp firewall ddns pbr ipsec; do
+			uci -q revert "$config" >/dev/null 2>&1 || true
+			rm -f "/etc/config/$config"
+			[ ! -e "$snapshot_dir/$config" ] || cp -a "$snapshot_dir/$config" "/etc/config/$config" 2>/dev/null || true
+			uci -q revert "$config" >/dev/null 2>&1 || true
+		done
+	fi
+	[ -z "$snapshot_dir" ] || rm -rf "$snapshot_dir"
+}
+
+trap cleanup EXIT INT TERM
+
+reply_error() {
+	json_init
+	json_add_boolean ok 0
+	json_add_string error "$*"
+	json_dump
+	exit 0
+}
+
+[ "$#" -eq 1 ] || reply_error "Usage: $0 keep-config|purge-managed"
+mode="$1"
+case "$mode" in
+	keep-config|purge-managed) ;;
+	*) reply_error "Unknown uninstall mode" ;;
+esac
+
+[ "$(id -u)" = 0 ] || reply_error "Uninstalling Freenetic requires root privileges"
+command -v uci >/dev/null 2>&1 || reply_error "UCI is unavailable"
+
+snapshot_dir="$(mktemp -d /tmp/freenetic-uninstall.XXXXXX 2>/dev/null)" ||
+	reply_error "Cannot create a secure uninstall snapshot"
+chmod 0700 "$snapshot_dir" || reply_error "Cannot protect the uninstall snapshot"
+for config in luci network wireless dhcp firewall ddns pbr ipsec; do
+	[ ! -e "/etc/config/$config" ] || cp -a "/etc/config/$config" "$snapshot_dir/$config" ||
+		reply_error "Cannot snapshot the router configuration"
+done
+
+# LuCI would otherwise retain a media URL owned by the package being removed.
+# Prefer Bootstrap, then any installed non-Freenetic theme. Refuse removal if
+# no fallback exists, since that would knowingly leave the web UI unusable.
+fallback_theme="$(uci -q get luci.themes.Bootstrap 2>/dev/null || true)"
+if [ -z "$fallback_theme" ]; then
+	fallback_theme="$(uci -q show luci 2>/dev/null |
+		sed -n "s/^luci\.themes\.[^=]*='\([^']*\)'$/\1/p" |
+		grep -v '/luci-static/freenetic$' | head -n 1 || true)"
+fi
+[ -n "$fallback_theme" ] || reply_error "No fallback LuCI theme is installed"
+mutation_started=1
+uci -q set "luci.main.mediaurlbase=$fallback_theme" || reply_error "Cannot select the fallback LuCI theme"
+uci -q commit luci || reply_error "Cannot save the fallback LuCI theme"
+
+purged_sections=0
+
+first_managed_section() {
+	config="$1"
+	managed_refs="$(uci -q show "$config" 2>/dev/null |
+		sed -n "s/^\($config\.[^.]*\)\.freenetic_managed='1'$/\1/p")"
+	for managed_ref in $managed_refs; do
+		section_type="$(uci -q get "$managed_ref" 2>/dev/null || true)"
+		case "$config:$section_type" in
+			ddns:ddns|pbr:pbr) continue ;;
+		esac
+		printf '%s\n' "$managed_ref"
+		return 0
+	done
+	return 0
+}
+
+clear_shared_markers() {
+	config="$1"
+	shared_type="$2"
+	managed_refs="$(uci -q show "$config" 2>/dev/null |
+		sed -n "s/^\($config\.[^.]*\)\.freenetic_managed='1'$/\1/p")"
+	for managed_ref in $managed_refs; do
+		[ "$(uci -q get "$managed_ref" 2>/dev/null || true)" != "$shared_type" ] ||
+			uci -q delete "$managed_ref.freenetic_managed" >/dev/null 2>&1 || true
+	done
+}
+
+purge_config() {
+	config="$1"
+	iterations=0
+	while section_ref="$(first_managed_section "$config")" && [ -n "$section_ref" ]; do
+		# Re-read after each deletion. Anonymous @type[index] references are
+		# renumbered by UCI, so deleting a stale precomputed list is unsafe.
+		uci -q delete "$section_ref" || return 1
+		purged_sections=$((purged_sections + 1))
+		iterations=$((iterations + 1))
+		[ "$iterations" -le 512 ] || return 1
+	done
+	return 0
+}
+
+if [ "$mode" = purge-managed ]; then
+	for config in network wireless dhcp firewall ddns pbr ipsec; do
+		purge_config "$config" || reply_error "Cannot remove Freenetic-managed $config sections"
+	done
+
+	# These are shared global sections. Freenetic may have enabled or created
+	# them, but profiles subsequently added outside Freenetic can depend on
+	# them, so never delete or disable the section during an uninstall.
+	clear_shared_markers ddns ddns
+	clear_shared_markers pbr pbr
+	for config in network wireless dhcp firewall ddns pbr ipsec; do
+		[ ! -e "/etc/config/$config" ] ||
+			uci -q commit "$config" >/dev/null 2>&1 ||
+			reply_error "Cannot save cleaned $config configuration"
+	done
+fi
+
+packages=""
+for package_name in luci-i18n-freenetic-ru luci-i18n-theme-freenetic-ru \
+	luci-app-freenetic luci-theme-freenetic; do
+	if command -v apk >/dev/null 2>&1; then
+		apk info -e "$package_name" >/dev/null 2>&1 && packages="$packages $package_name"
+	elif command -v opkg >/dev/null 2>&1; then
+		opkg status "$package_name" 2>/dev/null |
+			grep -Eq '^Status:[[:space:]]+install[[:space:]]+(ok|user|hold)[[:space:]]+installed$' &&
+			packages="$packages $package_name"
+	else
+		reply_error "Neither apk nor opkg is installed"
+	fi
+done
+
+if [ -n "$packages" ]; then
+	package_log="$snapshot_dir/package-remove.log"
+	if command -v apk >/dev/null 2>&1; then
+		# shellcheck disable=SC2086
+		apk --wait 30 del $packages >"$package_log" 2>&1 || {
+			package_error="$(tail -n 8 "$package_log" 2>/dev/null || true)"
+			reply_error "The Freenetic packages could not be removed: ${package_error:-unknown apk error}"
+		}
+	else
+		# shellcheck disable=SC2086
+		opkg remove $packages >"$package_log" 2>&1 || {
+			package_error="$(tail -n 8 "$package_log" 2>/dev/null || true)"
+			reply_error "The Freenetic packages could not be removed: ${package_error:-unknown opkg error}"
+		}
+	fi
+fi
+removal_committed=1
+
+# fnc is release payload rather than an OpenWrt package file. The state file
+# is removed in both modes because it describes the installed Freenetic
+# release, not the user's router configuration.
+rm -f /usr/bin/fnc
+rm -rf /usr/lib/freenetic
+rm -f /etc/config/freenetic /etc/config/freenetic.apk-new /etc/config/freenetic.apk-old \
+	/etc/config/freenetic.opkg /etc/config/freenetic.opkg-dist /etc/config/freenetic.opkg-old
+
+# Package managers remove files known to the installed package revision. Also
+# clear namespaced leftovers from development deploys and older revisions.
+rm -rf /www/luci-static/freenetic /usr/share/ucode/luci/template/themes/freenetic \
+	/usr/share/freenetic
+rm -f /www/luci-static/resources/freenetic-*.js \
+	/www/luci-static/resources/menu-freenetic.js \
+	/www/luci-static/resources/settings-freenetic.js \
+	/www/luci-static/resources/view/network/freenetic-*.js \
+	/www/luci-static/resources/view/status/freenetic-*.js \
+	/www/luci-static/resources/view/system/freenetic-*.js \
+	/usr/share/luci/menu.d/zz-luci-freenetic.json \
+	/usr/share/rpcd/acl.d/luci-app-freenetic.json \
+	/usr/share/rpcd/acl.d/luci-theme-freenetic.json \
+	/usr/lib/lua/luci/i18n/freenetic.ru.lmo \
+	/usr/lib/lua/luci/i18n/freenetic-theme.ru.lmo \
+	/usr/libexec/freenetic-*
+
+if [ -f /etc/sysupgrade.conf ]; then
+	# Remove only paths owned by this project. Never use a broad
+	# "contains freenetic" filter against a user-maintained keep list.
+	sed -i \
+		-e '\|^/www/luci-static/freenetic\(/.*\)\?$|d' \
+		-e '\|^/www/luci-static/resources/\(freenetic-.*\|menu-freenetic\.js\|settings-freenetic\.js\)$|d' \
+		-e '\|^/www/luci-static/resources/view/[^/]*/freenetic-.*\.js$|d' \
+		-e '\|^/usr/share/ucode/luci/template/themes/freenetic\(/.*\)\?$|d' \
+		-e '\|^/usr/share/luci/menu\.d/zz-luci-freenetic\.json$|d' \
+		-e '\|^/usr/share/rpcd/acl\.d/luci-\(app\|theme\)-freenetic\.json$|d' \
+		-e '\|^/usr/share/freenetic\(/.*\)\?$|d' \
+		-e '\|^/usr/libexec/freenetic-.*$|d' \
+		-e '\|^/usr/lib/lua/luci/i18n/freenetic\(-theme\)\?\.ru\.lmo$|d' \
+		-e '\|^/usr/lib/freenetic\(/.*\)\?$|d' \
+		-e '\|^/usr/bin/fnc$|d' \
+		-e '\|^/etc/config/freenetic$|d' \
+		/etc/sysupgrade.conf
+fi
+
+rm -f /tmp/luci-indexcache* 2>/dev/null || true
+rm -rf /tmp/luci-modulecache 2>/dev/null || true
+
+# Finish the RPC response before reloading rpcd; otherwise the browser can
+# lose the success result together with the ACL and helper being removed.
+json_init
+json_add_boolean ok 1
+json_add_string mode "$mode"
+json_add_int purged_sections "$purged_sections"
+json_add_string fallback_theme "$fallback_theme"
+json_add_boolean reboot_recommended "$([ "$mode" = purge-managed ] && echo 1 || echo 0)"
+json_dump
+
+if [ -x /etc/init.d/rpcd ]; then
+	( sleep 5; /etc/init.d/rpcd reload ) </dev/null >/dev/null 2>&1 &
+fi
+exit 0

@@ -11,6 +11,18 @@
 	const themes = uci.get_all('luci', 'themes') || {};
 	const currentinterface = uci.get('luci', 'main', 'mediaurlbase') ?? '/luci-static/freenetic';
 	const wantinterface = http.formvalue('_interface');
+	let clear_browser_cache = false;
+
+	/* install.sh invalidates the active rpcd session after changing the theme.
+	   Clear the actual HTTP cache on the first login response as well, including
+	   installs launched outside the browser where CacheStorage cannot be reached
+	   from JavaScript. The unpredictable root-created marker is single-use. */
+	for (let path in glob('/tmp/freenetic-clear-site-data.*')) {
+		clear_browser_cache = true;
+		unlink(path);
+	}
+	if (clear_browser_cache)
+		http.header('Clear-Site-Data', '"cache"');
 
 	/* The login page is rendered before an authenticated LuCI session exists,
 	   so apply the interface switch here instead of relying on the post-login

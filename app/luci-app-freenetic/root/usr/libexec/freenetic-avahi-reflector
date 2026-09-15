@@ -1,0 +1,95 @@
+#!/bin/sh
+
+CONF=/etc/avahi/avahi-daemon.conf
+ACTION=${1-}
+
+reply_error() {
+	printf '{"ok":false,"error":"%s"}\n' "$1"
+}
+
+enabled() {
+	grep -Eq '^[[:space:]]*enable-reflector[[:space:]]*=[[:space:]]*yes[[:space:]]*$' "$CONF"
+}
+
+[ "$#" -eq 1 ] || { reply_error "Usage: $0 status|enable|disable"; exit 0; }
+[ -f "$CONF" ] || { reply_error "Avahi configuration is not installed"; exit 0; }
+
+case "$ACTION" in
+	status)
+		if enabled; then
+			printf '{"ok":true,"enabled":true}\n'
+		else
+			printf '{"ok":true,"enabled":false}\n'
+		fi
+		exit 0
+		;;
+	enable) desired=yes ;;
+	disable) desired=no ;;
+	*) reply_error "Unknown action"; exit 0 ;;
+esac
+
+tmp=''
+backup=''
+cleanup() {
+	[ -z "$tmp" ] || rm -f "$tmp"
+	[ -z "$backup" ] || rm -f "$backup"
+}
+trap cleanup EXIT HUP INT TERM
+tmp=$(mktemp /tmp/freenetic-avahi-reflector.XXXXXX 2>/dev/null) || {
+	reply_error "Could not create a secure temporary file"
+	exit 0
+}
+backup=$(mktemp /tmp/freenetic-avahi-reflector-backup.XXXXXX 2>/dev/null) || {
+	reply_error "Could not create a secure backup file"
+	exit 0
+}
+
+cp -p "$CONF" "$backup" || { reply_error "Could not back up Avahi configuration"; exit 0; }
+awk -v desired="$desired" '
+	function finish_reflector() {
+		if (in_reflector && !written) {
+			print "enable-reflector=" desired
+			written = 1
+		}
+	}
+	/^\[[^]]+\][[:space:]]*$/ {
+		finish_reflector()
+		in_reflector = ($0 == "[reflector]")
+		if (in_reflector) {
+			seen = 1
+			written = 0
+		}
+		print
+		next
+	}
+	in_reflector && /^[[:space:]]*[#;]?[[:space:]]*enable-reflector[[:space:]]*=/ {
+		if (!written)
+			print "enable-reflector=" desired
+		written = 1
+		next
+	}
+	{ print }
+	END {
+		finish_reflector()
+		if (!seen) {
+			print ""
+			print "[reflector]"
+			print "enable-reflector=" desired
+		}
+	}
+' "$CONF" >"$tmp" || { reply_error "Could not update Avahi configuration"; exit 0; }
+
+chmod 0644 "$tmp" && mv "$tmp" "$CONF" || {
+	reply_error "Could not install Avahi configuration"
+	exit 0
+}
+
+if [ -x /etc/init.d/avahi-daemon ] && ! /etc/init.d/avahi-daemon restart >/dev/null 2>&1; then
+	mv "$backup" "$CONF"
+	/etc/init.d/avahi-daemon restart >/dev/null 2>&1 || true
+	reply_error "Avahi could not be restarted; the previous configuration was restored"
+	exit 0
+fi
+
+rm -f "$backup"
+printf '{"ok":true,"enabled":%s}\n' "$(enabled && printf true || printf false)"

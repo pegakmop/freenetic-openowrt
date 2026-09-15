@@ -27,6 +27,12 @@ assert.match(network, /function isManaged\(section\)/,
 	'network helpers must expose one marker-based ownership predicate');
 assert.match(network, /function adoptLegacyGuest\(\)/,
 	'legacy guest migration must be explicit and centralized');
+assert.match(network, /function assertGuestFirewallOwnership\(\)/,
+	'guest saves must have a pre-mutation ownership gate');
+assert.match(myNetworks, /assertGuestFirewallOwnership\(\);\s+networkHelper\.adoptLegacyGuest\(\)/,
+	'My Networks must reject a foreign guest zone before legacy adoption mutates UCI');
+assert.match(dashboard, /assertGuestFirewallOwnership\(\);\s+networkHelper\.adoptLegacyGuest\(\)/,
+	'Dashboard must reject a foreign guest zone before legacy adoption mutates UCI');
 assert.match(network, /function ensureGuestWifi\(sectionName, radioName, networkName\)/,
 	'guest Wi-Fi creation must have one marker-aware helper');
 assert.match(network, /existing\['\.type'\] !== 'wifi-iface' \|\| !isManaged\(existing\)/,
@@ -42,13 +48,15 @@ assert.match(wan, /uci\.set\('network', sectionName, 'type', '8021q'\)/,
 	'new WAN VLAN devices must be written as native 8021q device sections');
 assert.match(wan, /uci\.set\('network', sectionName, 'freenetic_managed', '1'\)/,
 	'new WAN VLAN devices must be marked as Freenetic-managed');
-assert.match(wan, /if \(managed && managed\.freenetic_managed === '1'\)\s+uci\.remove\('network', this\.vlanSectionName\)/,
-	'WAN VLAN removal must be guarded by the ownership marker');
+assert.match(wan, /releaseManagedVlan\(sectionName\)/,
+	'WAN VLAN removal must go through the ownership-aware release helper');
+assert.match(wan, /hasForeignDeviceReferences\(section\.name, sectionName\)/,
+	'WAN VLAN release must preserve devices referenced by foreign interfaces or bridges');
 assert.match(wan, /if \(targetMatchesBase && !targetInfo\.managed\)/,
 	'foreign WAN VLAN devices must be reusable without being claimed');
 
 const deleteGuest = myNetworks.slice(myNetworks.indexOf('\tdeleteGuestSegment('));
-assert.match(deleteGuest, /if \(networkHelper\.isManaged\(s\)\)\s+uci\.remove\('wireless', s\['\.name'\]\)/,
+assert.match(deleteGuest, /if \(networkHelper\.isManaged\(s\) && s\.network === 'guest'\)\s+uci\.remove\('wireless', s\['\.name'\]\)/,
 	'guest Wi-Fi deletion must require the ownership marker');
 assert.doesNotMatch(deleteGuest, /indexOf\('guest_'\)/,
 	'guest Wi-Fi deletion must not infer ownership from the section name');

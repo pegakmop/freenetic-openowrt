@@ -6,6 +6,254 @@ which they became user-visible.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-15
+
+### Introducing Noxium
+
+- Freenetic 0.3.0 turns the interface layer into a network-control platform:
+  physical port roles, isolated routed segments, per-network and per-device
+  traffic policy, and Wi-Fi airspace analysis now share one guarded OpenWrt
+  configuration model.
+
+### Added
+
+- Added an interactive 2.4/5 GHz airspace map with channel overlap, current
+  radio footprint, collision-safe SSID labels and signal-aware channel advice.
+- Added physical Ethernet role assignment for WAN, Home, Guest, unused and
+  independent routed segments, plus advisory DHCP/PPPoE port discovery.
+- Added isolated segment provisioning with DHCP/DNS access, router-service
+  isolation, firewall ownership and Direct, Blocked or VPN routing policy.
+- Added zone-aware client blocking and port forwarding, including Guest and
+  dedicated Ethernet segments.
+- Added a guided uninstaller with configuration-preserving and explicitly
+  confirmed managed-state cleanup modes.
+
+### Security and correctness
+
+- Freenetic-created UCI objects carry ownership markers; reconciliation and
+  full removal preserve foreign sections, custom bridges, WAN6 devices and
+  shared DDNS/PBR state.
+- Dedicated segments reject access to router services by default, while
+  client blocks are ordered ahead of broad ACCEPT rules and target the actual
+  source zone.
+- VPN policy changes report success only after Policy-Based Routing confirms
+  activation. Network, address, route and port-range inputs use shared strict
+  validation.
+- Root helpers use constrained command boundaries and unpredictable temporary
+  paths. Package, native CLI and UCI mutations have rollback-aware failure
+  handling.
+
+### Interface and operations
+
+- Refined the responsive navigation, top bar, login screen, WAN and diagnostics
+  pages, client groups, VPN/DDNS layouts and the stock OpenWrt package manager.
+- Wi-Fi settings now preserve driver-specific values and configure channel
+  width, country, power and security independently per radio.
+- Installation and self-update clear LuCI and browser caches, invalidate the
+  previous session and return to login so the new theme loads cleanly.
+- Release APKs use a pinned signing key; every one of the 21 release assets is
+  covered by SHA-256 and GitHub/Sigstore build provenance. Annotated release
+  tags are immutable and are tested before publication.
+
+### Verification
+
+- Static, runtime, ownership, preservation and security contracts pass, with
+  CLI cross-builds for `aarch64_cortex-a53` and `mipsel_24kc` and package
+  builds for OpenWrt 24.10 IPK and 25.12 APK targets.
+- A Globitel BT-RB300 completed fresh installation, package verification,
+  Ethernet-segment/firewall tests, safe and managed-state removal, exact
+  configuration restoration, browser-cache/session reset and repeated install.
+
+## [0.3.0-beta.2] — 2026-09-15
+
+### Added
+
+- Added a guided Freenetic uninstaller under Management → System. The default
+  path removes the interface and native CLI while preserving router settings;
+  an explicitly confirmed full cleanup removes only UCI sections carrying the
+  `freenetic_managed=1` ownership marker.
+- The removal flow selects a stock LuCI theme before package removal, clears
+  LuCI and Freenetic browser caches, ends the current session and returns to
+  the standard LuCI login page.
+
+### Fixed
+
+- A true fresh install no longer fails while recording its release state when
+  `/etc/config/freenetic` does not exist yet. The installer creates the private
+  state file before its first UCI write and retains the existing rollback
+  behavior on any later failure.
+- APK removal now waits for a short-lived package-manager lock and returns the
+  relevant package-manager diagnostics instead of a generic failure.
+- The post-removal redirect now uses the actual `/cgi-bin/luci/` entry point
+  rather than constructing a non-existent `/cgi-bin/admin/` URL.
+
+### Verification
+
+- The safe uninstall path was exercised through rpcd on a Globitel BT-RB300.
+  All four Freenetic packages, the native CLI and stale namespaced files were
+  removed; Bootstrap, shared OpenWrt dependencies and third-party VPN/PBR
+  packages remained installed.
+- Network, wireless, DHCP and firewall files remained byte-for-byte identical
+  across the safe uninstall. A failed package transaction also restored its
+  configuration snapshot and active theme.
+
+## [0.3.0-beta.1] — 2026-09-15
+
+### Release status
+
+- The `0.3.0` feature set is frozen after alpha.4. Beta, RC and stable builds
+  accept fixes, tests, compatibility work and restrained interface polish only.
+- Release tooling now gives beta and RC builds concealed prerelease titles;
+  the `0.3.0` codename remains hidden until the final release.
+- The release checklist now covers the Ethernet, routed-segment, firewall,
+  PBR and Wi-Fi airspace behavior introduced in `0.3.0`.
+
+### Verification
+
+- The complete static/runtime suite and CLI cross-build passed for
+  `aarch64_cortex-a53` and `mipsel_24kc`; the APK package build and content
+  validation also passed.
+- A Globitel BT-RB300 running an APK-based OpenWrt snapshot passed hardware
+  preflight, LuCI/static-asset checks, helper boundary checks, isolated-segment
+  network/firewall runtime validation and a reboot-persistence check.
+- The isolated-segment smoke test was automatically rolled back and confirmed
+  `network`, `firewall` and `dhcp` were restored byte-for-byte. A configuration
+  backup was captured before testing.
+
+### Remaining before stable
+
+- Repeat the candidate install as both a clean install and an upgrade from
+  `0.2.7`.
+- Exercise physical WAN↔LAN reassignment, browser confirmation and automatic
+  rollback with cables available on the test router.
+- Exercise VPN policy activation with PBR installed on real hardware.
+
+## [0.3.0-alpha.4] — 2026-09-15
+
+### Security
+
+- Client blocking now targets the client's actual firewall zone, including
+  dedicated Ethernet segments, instead of silently falling back to the Home
+  network zone.
+- VPN policy application now fails visibly when Policy-Based Routing cannot be
+  restarted; the interface no longer reports a policy as active after a
+  structured backend failure.
+- Dedicated Ethernet segments deny access to router services by default while
+  retaining narrow DHCP and DNS input exceptions.
+- Root helpers and the release installer now use unpredictable private
+  temporary paths instead of PID-derived filenames.
+- APK packages are verified with a release public key pinned by the generated
+  installer. Every published asset receives GitHub/Sigstore build provenance.
+- The optional AmneziaWG repository key is bundled with the signed Freenetic
+  application package and pinned by digest; it is no longer downloaded from
+  the same origin as the repository it authenticates.
+- Network and per-device Internet blocks are placed before pre-existing
+  firewall rules, preventing an earlier broad ACCEPT from bypassing the UI's
+  reported policy.
+- Guest firewall hardening refuses to adopt or rewrite an operator-owned or
+  shared zone. Freenetic also changes global PBR state only when it previously
+  enabled that state itself.
+
+### Fixed
+
+- Selecting Automatic transmit power now removes a previous explicit wireless
+  power limit.
+- Adaptive Ethernet probing recognizes both `device` and `ports` board layouts
+  used by LuCI and translates structured helper errors instead of exposing raw
+  backend messages.
+- Release publication no longer moves the version tag after CI. Static checks
+  and package builds now validate the same immutable source object that the tag
+  continues to reference.
+- Every final APK artifact is re-signed independently with the exported
+  release key and strictly verified before publication. This avoids retaining
+  a transient SDK signature on all but the first package.
+- Release publication verifies the remote annotated tag object directly,
+  avoiding a false rejection after `actions/checkout` peels its local tag ref
+  to the tested commit.
+- Release installer generation is idempotent when its template already points
+  at a GitHub Release asset.
+- WAN VLAN changes preserve Freenetic-created devices referenced by foreign
+  interfaces or bridges, and explicit dotted device names are no longer
+  mistaken for implicit VLAN notation.
+- Per-device Direct policies remain represented by a MAC-scoped firewall rule
+  when the optional PBR package is absent.
+- The installer snapshots native CLI files and Freenetic update state before
+  mutation, rolls them back on pre-commit failure, and treats post-install
+  LuCI cache invalidation as best effort.
+- The application ACL now grants the exact package-index update and guest
+  interface activation commands used by the UI.
+
+### Improved
+
+- Added behavioral tests for dedicated-segment firewall state, per-zone client
+  blocking and Policy-Based Routing failure propagation.
+- Added ordered firewall/PBR, guest ownership, shared WAN-device, implicit VLAN
+  and installer transaction regression coverage from the independent Strix
+  security/correctness audit.
+- Improved model-name contrast on the login banner without changing the
+  Freenetic wordmark.
+- Refined the WAN, VPN, DDNS, diagnostics and access-policy layouts, and gave
+  the stock OpenWrt package manager a compact responsive package grid.
+
+## [0.3.0-alpha.3] — 2026-09-15
+
+### Release status
+
+- Static checks and all four OpenWrt package jobs passed, including strict APK
+  signature verification. Publication then stopped because the checkout action
+  had locally replaced the annotated tag ref with its peeled commit before the
+  publisher inspected it. No installer or package assets were published for
+  this tag; the corrected build is 0.3.0-alpha.4.
+
+## [0.3.0-alpha.2] — 2026-09-15
+
+### Release status
+
+- The immutable source tag is retained for traceability, but release
+  publication stopped when CI rejected APK artifacts carrying the SDK's
+  transient signature. No installer or package assets were published for this
+  tag; the corrected build is 0.3.0-alpha.4.
+
+## [0.3.0-alpha.1] — 2026-09-15
+
+### Added
+
+- Added an interactive Wi-Fi airspace map for 2.4 and 5 GHz with signal-aware
+  channel recommendations, overlap visualization, current-radio footprint and
+  collision-safe SSID labels.
+- Added physical Ethernet port assignment for WAN, Home, Guest, unassigned and
+  independent routed segments. Independent segments include DHCP, firewall and
+  direct, VPN or blocked Internet policies.
+- Added safe DHCP and PPPoE discovery for connected unassigned Ethernet ports.
+  Detection remains advisory until the user explicitly confirms and applies a
+  new WAN assignment.
+
+### Improved
+
+- WAN ports now have a distinct visual role while link state remains a separate
+  status indicator. Port changes use active-link confirmation and an extended
+  rollback window.
+- Wi-Fi channel width is configured independently per radio, with driver and
+  hardware-specific channel, mode, country, power and security values preserved.
+- Network forms now share stricter IPv4, IPv6, netmask, route and port-range
+  validation without overwriting unsupported existing protocols or actions.
+- Client discovery now maps devices to DHCP-backed local segments and excludes
+  upstream WAN neighbours such as the provider gateway.
+- Application removal preserves packages still required by another installed
+  feature, and mDNS reflection is managed through a constrained helper.
+
+### Fixed
+
+- Corrected DDNS command failure reporting, sysupgrade reconnect handling,
+  legacy VLAN preservation, empty UCI list cleanup and CLI bounds checks.
+- Refined responsive navigation, top-bar separation, client groups, loading
+  feedback and Russian interface text.
+
+### Verification
+
+- Static, runtime, ownership, preservation and security contracts pass.
+- The CLI cross-build passes for `aarch64_cortex-a53` and `mipsel_24kc`.
+
 ## [0.2.7] — 2026-09-15
 
 ### Fixed

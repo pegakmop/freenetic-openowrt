@@ -15,6 +15,22 @@ const ubusCall = rpc.call;
 const dom_empty = uiHelper.empty;
 const notify = uiHelper.notify;
 const applyChanges = uiHelper.applyChanges;
+const AVAHI_REFLECTOR_HELPER = '/usr/libexec/freenetic-avahi-reflector';
+
+function getMdnsReflector() {
+	return fs.exec_direct(AVAHI_REFLECTOR_HELPER, [ 'status' ], 'json')
+		.then(result => ({ available: !!(result && result.ok), enabled: !!(result && result.ok && result.enabled) }))
+		.catch(() => ({ available: false, enabled: false }));
+}
+
+function setMdnsReflector(enabled) {
+	return fs.exec_direct(AVAHI_REFLECTOR_HELPER, [ enabled ? 'enable' : 'disable' ], 'json')
+		.then(result => {
+			if (!result || result.ok !== true)
+				throw new Error(result && result.error || _('Could not update the mDNS reflector.'));
+			return result;
+		});
+}
 
 function getWirelessConfig() {
 	return ubusCall('uci', 'get', { config: 'wireless' }).then(r => r.values || {});
@@ -57,6 +73,17 @@ function getRadioAdvanced(radios) {
 		list.forEach(x => { map[x.name] = x; });
 		return map;
 	});
+}
+
+/* OpenWrt may leave htmode unset and let the driver fall back to 20 MHz.
+   Give each band its own sensible, hardware-backed initial value instead:
+   2.4 GHz stays conservative at 20 MHz, while 5 GHz uses 80 MHz when the
+   radio supports it. The selected default is written on the next Save. */
+function defaultHtmodeForBand(band, htmodes) {
+	const preferred = band === '5g'
+		? [ 'HE80', 'VHT80', 'HE40', 'VHT40', 'HT40', 'HE20', 'VHT20', 'HT20' ]
+		: [ 'HE20', 'HT20', 'HE40', 'HT40' ];
+	return preferred.find(mode => htmodes.includes(mode)) || htmodes[0] || '';
 }
 
 function getNetworkConfig() {
@@ -102,9 +129,16 @@ function poolStartToAddress(ipaddr, netmask, start) {
 }
 function addressToPoolStart(ipaddr, netmask, addr) {
 	const base = ip2int(ipaddr), m = ip2int(netmask), a = ip2int(addr);
-	if (base == null || m == null || a == null) return 100;
+	if (base == null || m == null || a == null) return null;
 	const net = (base & m) >>> 0;
-	return Math.max(0, (a - net) >>> 0);
+	return a >= net ? a - net : null;
+}
+
+function utf8Length(value) {
+	value = String(value || '');
+	if (typeof TextEncoder !== 'undefined')
+		return new TextEncoder().encode(value).length;
+	return unescape(encodeURIComponent(value)).length;
 }
 
 /* dnsmasq's dhcp-leasetime takes a bare integer as seconds, or a number with
@@ -161,8 +195,9 @@ function eyeIcon() {
 	return span;
 }
 
-/* Resolves a wifi card's effective SSID/security/key, following the "same
-   as 2.4 GHz" link on the 5 GHz card when it's checked. */
+/* Resolves a wifi card's effective SSID/security/key, following the link
+   to the 2.4 GHz credentials when it's checked. Radio-wide settings such
+   as channel and width are deliberately never linked. */
 function effectiveWifi(card) {
 	if (card.linkInput && card.linkInput.checked && card.linkedFrom) {
 		const src = card.linkedFrom;
@@ -203,7 +238,7 @@ return view.extend({
 			wireless,
 			getNetworkConfig(),
 			getDhcpConfig(),
-			fs.stat('/etc/config/avahi').then(() => true).catch(() => false),
+			getMdnsReflector(),
 			radioAdvanced
 		]);
 	},
@@ -214,8 +249,10 @@ return view.extend({
 		window.__freeneticActiveView = this;
 
 		const wireless = data[0], network = data[1], dhcp = data[2];
-		this.hasAvahi = data[3];
+		this.hasAvahi = data[3].available;
+		this.mdnsEnabled = data[3].enabled;
 		this.radioAdv = data[4];
+		this.mdnsInputs = [];
 
 		const initialTab = L.env.requestpath[2] === 'guest_network' ? 'guest' : 'home';
 
@@ -306,12 +343,19 @@ return view.extend({
 			E('option', { value: m[0], selected: netmask === m[0] ? true : null }, m[0] + ' (' + m[1] + ')')));
 
 		const mdnsInput = E('input', { type: 'checkbox', disabled: this.hasAvahi ? null : true });
+		mdnsInput.checked = this.hasAvahi && this.mdnsEnabled;
+		this.mdnsInputs.push(mdnsInput);
+		mdnsInput.addEventListener('change', () => this.mdnsInputs.forEach(input => {
+			if (input !== mdnsInput)
+				input.checked = mdnsInput.checked;
+		}));
 		const mdnsRow = E('label', { class: 'fn-mn-checkbox-row', title: this.hasAvahi ? '' : _('Requires the avahi-daemon package (not installed).') }, [
 			mdnsInput, ' ', _('Relay mDNS'),
 			E('div', { class: 'fn-mn-hint' }, _('Passes mDNS and DNS-SD announcements between all network segments.'))
 		]);
 
-		const ipv4Input = E('input', { type: 'checkbox', checked: true });
+		const ipv4Input = E('input', { type: 'checkbox' });
+		ipv4Input.checked = !net['.type'] || (net.proto !== 'none' && ip2int(rawIpaddr) != null);
 		const ipv4Body = E('div', {});
 
 		const dhcpOn = dhcpSec['ignore'] !== '1';
@@ -357,13 +401,14 @@ return view.extend({
 		const saveBtn = E('button', { type: 'button', class: 'fn-settings-btn fn-settings-btn-primary fn-mn-save' }, _('Save'));
 		saveBtn.addEventListener('click', () => this.saveSegment(kind, ifaceName, {
 			label: nameInput.value.trim(),
+			mdnsEnabled: mdnsInput.checked,
 			ipv4Enabled: ipv4Input.checked,
 			ipaddr: ipaddrInput.value.trim(),
 			netmask: maskSelect.value,
 			dhcpOn: dhcpOnRadio.checked,
 			start: addressToPoolStart(ipaddrInput.value.trim(), maskSelect.value, startInput.value.trim()),
 			limit: limitInput.value.trim(),
-			leaseSeconds: parseInt(leaseInput.value, 10) || 43200,
+			leaseSeconds: leaseInput.value.trim(),
 			gateway: gatewayInput.value.trim(),
 			dns: [ dns1Input.value.trim(), dns2Input.value.trim() ],
 			existingDhcpOptions: dnsOpts.list,
@@ -405,7 +450,10 @@ return view.extend({
 			E('option', { value: 'sae' }, 'WPA3-PSK'),
 			E('option', { value: 'sae-mixed' }, 'WPA2/WPA3-PSK')
 		]);
-		secSelect.value = (iface && iface.encryption) || 'psk2';
+		const originalEncryption = (iface && iface.encryption) || 'psk2';
+		if (![ 'none', 'psk2', 'sae', 'sae-mixed' ].includes(originalEncryption))
+			secSelect.appendChild(E('option', { value: originalEncryption }, _('Existing security: %s (preserved)').format(originalEncryption)));
+		secSelect.value = originalEncryption;
 
 		const pw = passwordField(iface && iface.key);
 		const togglePw = () => { pw.wrap.hidden = secSelect.value === 'none'; };
@@ -437,7 +485,7 @@ return view.extend({
 			adv.body
 		]);
 
-		return { el, band, radioName: radio['.name'], enableToggle, ssidInput, secSelect, pwInput: pw.input, body, fieldsWrap, adv };
+		return { el, band, radioName: radio['.name'], sectionName: iface && iface['.name'], originalEncryption, enableToggle, ssidInput, secSelect, pwInput: pw.input, body, fieldsWrap, adv };
 	},
 
 	/* Collapsible "Advanced settings" block: channel, channel width,
@@ -455,32 +503,45 @@ return view.extend({
 		const freqlist = radioAdv.freqlist || [];
 		const countrylist = radioAdv.countrylist || [];
 
-		const channelSelect = E('select', { class: 'fn-input' }, [
+		const currentChannel = radio.channel && radio.channel !== 'auto' ? String(radio.channel) : 'auto';
+		const channelOptions = [
 			E('option', { value: 'auto' }, _('Auto')),
 			...freqlist.map(f => E('option', { value: String(f.channel) }, _('Channel %d (%d MHz)').format(f.channel, f.mhz)))
-		]);
-		const currentChannel = radio.channel && radio.channel !== 'auto' ? String(radio.channel) : 'auto';
-		if (currentChannel === 'auto' || freqlist.some(f => String(f.channel) === currentChannel))
-			channelSelect.value = currentChannel;
+		];
+		if (currentChannel !== 'auto' && !freqlist.some(f => String(f.channel) === currentChannel))
+			channelOptions.push(E('option', { value: currentChannel }, _('Current channel %s (preserved)').format(currentChannel)));
+		const channelSelect = E('select', { class: 'fn-input' }, channelOptions);
+		channelSelect.value = currentChannel;
 
 		const htmodeLabel = (m) => {
 			const width = (m.match(/\d+/) || ['?'])[0];
 			const tech = m.indexOf('HE') === 0 ? '802.11ax' : m.indexOf('VHT') === 0 ? '802.11ac' : '802.11n';
 			return width + ' ' + _('MHz') + ' (' + tech + ')';
 		};
-		const htmodeSelect = E('select', { class: 'fn-input' }, htmodes.map(m => E('option', { value: m }, htmodeLabel(m))));
-		if (htmodes.indexOf(radio.htmode) !== -1)
-			htmodeSelect.value = radio.htmode;
+		const configuredHtmode = radio.htmode || '';
+		const currentHtmode = configuredHtmode || defaultHtmodeForBand(radio.band, htmodes);
+		const htmodeOptions = htmodes.map(m => E('option', { value: m }, htmodeLabel(m)));
+		if (currentHtmode && htmodes.indexOf(currentHtmode) === -1)
+			htmodeOptions.push(E('option', { value: currentHtmode }, _('Current mode %s (preserved)').format(currentHtmode)));
+		if (!htmodeOptions.length)
+			htmodeOptions.push(E('option', { value: '' }, _('Not available')));
+		const htmodeSelect = E('select', { class: 'fn-input' }, htmodeOptions);
+		htmodeSelect.value = currentHtmode;
 
-		const txpowerSelect = E('select', { class: 'fn-input' },
-			txpowerlist.length
-				? txpowerlist.map(p => E('option', { value: String(p.dbm) }, p.dbm + ' dBm (' + p.mw + ' mW)'))
-				: [ E('option', { value: '' }, _('Not available')) ]);
-		const currentTxpower = radio.txpower != null ? String(radio.txpower) : (info.txpower != null ? String(info.txpower) : '');
+		const txpowerSelect = E('select', { class: 'fn-input' }, [
+			E('option', { value: '' }, txpowerlist.length ? _('Automatic') : _('Not available')),
+			...txpowerlist.map(p => E('option', { value: String(p.dbm) }, p.dbm + ' dBm (' + p.mw + ' mW)'))
+		]);
+		/* The live iwinfo power is an observed value, not an explicit UCI
+		 * override. Keep an unset txpower represented by the Automatic option
+		 * so selecting it can reliably remove an existing limit. */
+		const currentTxpower = radio.txpower != null ? String(radio.txpower) : '';
 		if (txpowerlist.some(p => String(p.dbm) === currentTxpower))
 			txpowerSelect.value = currentTxpower;
-		else if (txpowerlist.length)
-			txpowerSelect.value = String(txpowerlist[txpowerlist.length - 1].dbm);
+		else if (currentTxpower) {
+			txpowerSelect.appendChild(E('option', { value: currentTxpower }, _('Current power %s dBm (preserved)').format(currentTxpower)));
+			txpowerSelect.value = currentTxpower;
+		}
 
 		/* Regulatory domain (wireless-regdb country code) — governs which
 		   channels/power the two selects above are even allowed to offer.
@@ -488,14 +549,15 @@ return view.extend({
 		   falling back to the entry iwinfo marks 'active'), and is only
 		   ever changed if the user picks something else here — saveSegment()
 		   just writes back whatever this select holds. */
-		const countrySelect = E('select', { class: 'fn-input' },
-			countrylist.length
-				? countrylist.map(c => E('option', { value: c.code }, c.code + ' — ' + c.country))
-				: [ E('option', { value: '00' }, _('Not available')) ]);
+		const countrySelect = E('select', { class: 'fn-input' }, [
+			E('option', { value: '00' }, countrylist.length ? _('Driver default') : _('Not available')),
+			...countrylist.map(c => E('option', { value: c.code }, c.code + ' — ' + c.country))
+		]);
 		const activeEntry = countrylist.find(c => c.active);
 		const currentCountry = radio.country || (activeEntry && activeEntry.code) || '00';
-		if (countrylist.some(c => c.code === currentCountry))
-			countrySelect.value = currentCountry;
+		if (!countrylist.some(c => c.code === currentCountry) && currentCountry !== '00')
+			countrySelect.appendChild(E('option', { value: currentCountry }, _('Current region %s (preserved)').format(currentCountry)));
+		countrySelect.value = currentCountry;
 
 		const body = E('div', { class: 'fn-mn-advanced-body fn-collapsed' }, [
 			E('div', { class: 'fn-settings-field' }, [ E('label', {}, _('Channel')), channelSelect ]),
@@ -511,15 +573,18 @@ return view.extend({
 			toggle.appendChild(document.createTextNode(open ? _('Hide advanced settings') : _('Advanced settings')));
 		});
 
-		return { toggle, body, channelSelect, htmodeSelect, txpowerSelect, countrySelect };
+		return {
+			toggle, body, channelSelect, htmodeSelect, txpowerSelect, countrySelect,
+			original: { channel: currentChannel, htmode: configuredHtmode, txpower: currentTxpower, country: currentCountry }
+		};
 	},
 
-	/* Optional "same as 2.4 GHz" toggle on the 5 GHz card — when checked, its
-	   own SSID/security/password fields are hidden and saveSegment() copies
-	   the 2.4 GHz card's values onto the 5 GHz radio instead. */
+	/* Optional credentials link on the 5 GHz card — when checked, its own
+	   SSID/security/password fields are hidden and saveSegment() copies the
+	   2.4 GHz card's values. Channel, width, power and region stay separate. */
 	linkWifiCard(secondary, primary) {
 		const linkInput = E('input', { type: 'checkbox' });
-		const note = E('div', { class: 'fn-mn-hint fn-mn-linked-note' }, _('Network settings are identical to the 2.4 GHz network.'));
+		const note = E('div', { class: 'fn-mn-hint fn-mn-linked-note' }, _('SSID and security match the 2.4 GHz network. Channel settings remain independent.'));
 		note.hidden = true;
 
 		const sync = () => {
@@ -530,7 +595,7 @@ return view.extend({
 
 		secondary.body.insertBefore(note, secondary.fieldsWrap);
 		secondary.body.insertBefore(
-			E('label', { class: 'fn-mn-checkbox-row fn-mn-link-row' }, [ linkInput, ' ', _('Same as 2.4 GHz network') ]),
+			E('label', { class: 'fn-mn-checkbox-row fn-mn-link-row' }, [ linkInput, ' ', _('Use the same Wi-Fi name and password as 2.4 GHz') ]),
 			secondary.fieldsWrap
 		);
 
@@ -553,8 +618,18 @@ return view.extend({
 		}
 	},
 
+	writeOptionalRadioSetting(radioName, option, value, originalValue) {
+		if (value === originalValue)
+			return;
+		if (value === '')
+			uci.unset('wireless', radioName, option);
+		else
+			uci.set('wireless', radioName, option, value);
+	},
+
 	saveSegment(kind, ifaceName, opts, btn) {
 		const isGuest = kind === 'guest';
+		const supportedSecurity = [ 'none', 'psk2', 'sae', 'sae-mixed' ];
 
 		for (const card of opts.wifiCards) {
 			if (!card.enableToggle.checked)
@@ -564,17 +639,58 @@ return view.extend({
 				notify(_('Please enter a network name (SSID).'), 'warning');
 				return;
 			}
-			if (v.enc !== 'none' && v.key.length < 8) {
-				notify(_('Please enter a password of at least 8 characters.'), 'warning');
+			if (utf8Length(v.ssid) > 32) {
+				notify(_('A Wi-Fi network name must not exceed 32 bytes.'), 'warning');
+				return;
+			}
+			if (supportedSecurity.includes(v.enc) && v.enc !== 'none' &&
+			    !((v.key.length >= 8 && v.key.length <= 63) || /^[0-9A-Fa-f]{64}$/.test(v.key))) {
+				notify(_('A Wi-Fi password must contain 8–63 characters, or exactly 64 hexadecimal characters.'), 'warning');
 				return;
 			}
 		}
 
+		if (opts.ipv4Enabled) {
+			if (!networkHelper.validIPv4(opts.ipaddr) || !networkHelper.validIPv4Netmask(opts.netmask)) {
+				notify(_('Enter a valid IPv4 address and subnet mask.'), 'warning');
+				return;
+			}
+			if ((opts.gateway && !networkHelper.validIPv4(opts.gateway)) ||
+			    opts.dns.some(value => value && !networkHelper.validIPv4(value))) {
+				notify(_('Gateway and DNS servers must be valid IPv4 addresses.'), 'warning');
+				return;
+			}
+			{
+				const address = ip2int(opts.ipaddr);
+				const mask = ip2int(opts.netmask);
+				const validStart = opts.start != null && Number.isInteger(Number(opts.start));
+				const start = Number(opts.start);
+				const limit = Number(opts.limit);
+				const network = (address & mask) >>> 0;
+				const broadcast = (network | (~mask >>> 0)) >>> 0;
+				const first = !validStart ? null : network + start;
+				const last = first == null || !/^\d+$/.test(opts.limit) || !Number.isInteger(limit) ? null : first + limit - 1;
+				if (first == null || limit < 1 || first <= network || last >= broadcast ||
+				    address >= first && address <= last) {
+					notify(_('The DHCP pool must stay inside the subnet, exclude the router address, and contain at least one address.'), 'warning');
+					return;
+				}
+				if (!/^\d+$/.test(opts.leaseSeconds) || Number(opts.leaseSeconds) < 60 || Number(opts.leaseSeconds) > 2147483647) {
+					notify(_('Lease time must be between 60 and 2147483647 seconds.'), 'warning');
+					return;
+				}
+			}
+		}
+		if (!isGuest && !opts.ipv4Enabled && !window.confirm(_('Disabling IPv4 on the home network can make this web interface unreachable. Continue?')))
+			return;
+
 		btn.disabled = true;
 
 		return uci.load([ 'wireless', 'network', 'dhcp', 'firewall' ]).then(() => {
-			if (isGuest)
+			if (isGuest) {
+				networkHelper.assertGuestFirewallOwnership();
 				networkHelper.adoptLegacyGuest();
+			}
 
 			if (uci.get('network', ifaceName, 'proto') != null)
 				uci.set('network', ifaceName, 'label', opts.label);
@@ -596,14 +712,21 @@ return view.extend({
 				}
 				if (anyEnabled && uci.get('network', 'guest', 'proto') == null) {
 					uci.add('network', 'interface', 'guest');
-					uci.set('network', 'guest', 'proto', 'static');
+					uci.set('network', 'guest', 'proto', opts.ipv4Enabled ? 'static' : 'none');
 					uci.set('network', 'guest', 'device', 'br-guest');
 					uci.set('network', 'guest', 'label', opts.label);
 					uci.set('network', 'guest', 'freenetic_managed', '1');
 				}
 				if (anyEnabled && opts.ipv4Enabled) {
+					uci.set('network', 'guest', 'proto', 'static');
 					uci.set('network', 'guest', 'ipaddr', opts.ipaddr);
 					uci.set('network', 'guest', 'netmask', opts.netmask);
+				} else if (anyEnabled) {
+					uci.set('network', 'guest', 'proto', 'none');
+					uci.unset('network', 'guest', 'ipaddr');
+					uci.unset('network', 'guest', 'netmask');
+					if (uci.get('dhcp', 'guest', 'interface') != null)
+						uci.set('dhcp', 'guest', 'ignore', '1');
 				}
 
 				if (anyEnabled && opts.ipv4Enabled && uci.get('dhcp', 'guest', 'interface') == null) {
@@ -620,7 +743,7 @@ return view.extend({
 					applyDhcpOptions('dhcp', 'guest', opts.existingDhcpOptions, opts.gateway, opts.dns);
 				}
 
-				if (anyEnabled && uci.get('firewall', 'guest', 'name') == null) {
+				if (anyEnabled && uci.get('firewall', 'guest') == null) {
 					uci.add('firewall', 'zone', 'guest');
 					uci.set('firewall', 'guest', 'name', 'guest');
 					uci.set('firewall', 'guest', 'network', 'guest');
@@ -631,21 +754,31 @@ return view.extend({
 				if (anyEnabled)
 					networkHelper.ensureGuestFirewall();
 
-				if (anyEnabled && uci.get('firewall', 'guest_wan_fwd', 'src') == null) {
+				if (anyEnabled && uci.get('firewall', 'guest_wan_fwd') == null) {
 					uci.add('firewall', 'forwarding', 'guest_wan_fwd');
 					uci.set('firewall', 'guest_wan_fwd', 'src', 'guest');
 					uci.set('firewall', 'guest_wan_fwd', 'dest', 'wan');
 					uci.set('firewall', 'guest_wan_fwd', 'freenetic_managed', '1');
 				}
-			} else if (opts.ipv4Enabled) {
-				uci.set('network', ifaceName, 'ipaddr', opts.ipaddr);
-				uci.set('network', ifaceName, 'netmask', opts.netmask);
-				if (uci.get('dhcp', ifaceName, 'interface') != null) {
-					uci.set('dhcp', ifaceName, 'start', String(opts.start));
-					uci.set('dhcp', ifaceName, 'limit', opts.limit);
-					uci.set('dhcp', ifaceName, 'leasetime', String(opts.leaseSeconds));
-					uci.set('dhcp', ifaceName, 'ignore', opts.dhcpOn ? '0' : '1');
-					applyDhcpOptions('dhcp', ifaceName, opts.existingDhcpOptions, opts.gateway, opts.dns);
+			} else {
+				if (opts.ipv4Enabled) {
+					if (uci.get('network', ifaceName, 'proto') === 'none')
+						uci.set('network', ifaceName, 'proto', 'static');
+					uci.set('network', ifaceName, 'ipaddr', opts.ipaddr);
+					uci.set('network', ifaceName, 'netmask', opts.netmask);
+					if (uci.get('dhcp', ifaceName, 'interface') != null) {
+						uci.set('dhcp', ifaceName, 'start', String(opts.start));
+						uci.set('dhcp', ifaceName, 'limit', opts.limit);
+						uci.set('dhcp', ifaceName, 'leasetime', String(opts.leaseSeconds));
+						uci.set('dhcp', ifaceName, 'ignore', opts.dhcpOn ? '0' : '1');
+						applyDhcpOptions('dhcp', ifaceName, opts.existingDhcpOptions, opts.gateway, opts.dns);
+					}
+				} else {
+					uci.set('network', ifaceName, 'proto', 'none');
+					uci.unset('network', ifaceName, 'ipaddr');
+					uci.unset('network', ifaceName, 'netmask');
+					if (uci.get('dhcp', ifaceName, 'interface') != null)
+						uci.set('dhcp', ifaceName, 'ignore', '1');
 				}
 			}
 
@@ -653,18 +786,25 @@ return view.extend({
 				/* Radio-wide, applies even if this particular network is
 				   disabled — the radio may still be serving another network
 				   (e.g. the guest segment's card for the same band). */
-				if (card.adv) {
-					const chan = card.adv.channelSelect.value;
-					uci.set('wireless', card.radioName, 'channel', chan);
-					uci.set('wireless', card.radioName, 'htmode', card.adv.htmodeSelect.value);
-					if (card.adv.txpowerSelect.value !== '')
-						uci.set('wireless', card.radioName, 'txpower', card.adv.txpowerSelect.value);
-					if (card.adv.countrySelect.value !== '00')
-						uci.set('wireless', card.radioName, 'country', card.adv.countrySelect.value);
+				if (card.adv && card.adv.original) {
+					const original = card.adv.original;
+					if (card.adv.channelSelect.value !== original.channel)
+						uci.set('wireless', card.radioName, 'channel', card.adv.channelSelect.value);
+					if (card.adv.htmodeSelect.value && card.adv.htmodeSelect.value !== original.htmode)
+						uci.set('wireless', card.radioName, 'htmode', card.adv.htmodeSelect.value);
+					this.writeOptionalRadioSetting(card.radioName, 'txpower',
+						card.adv.txpowerSelect.value, original.txpower);
+					if (card.adv.countrySelect.value !== original.country) {
+						if (card.adv.countrySelect.value !== '00')
+							uci.set('wireless', card.radioName, 'country', card.adv.countrySelect.value);
+						else
+							uci.unset('wireless', card.radioName, 'country');
+					}
 				}
 
-				const name = (isGuest ? 'guest_' : 'default_') + card.radioName;
-				if (isGuest && uci.get('wireless', name) != null)
+				const fallbackName = (isGuest ? 'guest_' : 'default_') + card.radioName;
+				const name = card.sectionName || fallbackName;
+				if (isGuest && name === fallbackName && uci.get('wireless', name) != null)
 					networkHelper.ensureGuestWifi(name, card.radioName, ifaceName);
 				if (!card.enableToggle.checked) {
 					if (uci.get('wireless', name, 'device') != null)
@@ -672,7 +812,7 @@ return view.extend({
 					return;
 				}
 
-				if (isGuest)
+				if (isGuest && name === fallbackName)
 					networkHelper.ensureGuestWifi(name, card.radioName, ifaceName);
 				else if (uci.get('wireless', name, 'device') == null) {
 					uci.add('wireless', 'wifi-iface', name);
@@ -684,15 +824,26 @@ return view.extend({
 				uci.set('wireless', card.radioName, 'disabled', '0');
 				uci.set('wireless', name, 'disabled', '0');
 				uci.set('wireless', name, 'ssid', v.ssid);
-				uci.set('wireless', name, 'encryption', v.enc);
-				if (v.enc !== 'none')
-					uci.set('wireless', name, 'key', v.key);
+				if ([ 'none', 'psk2', 'sae', 'sae-mixed' ].includes(v.enc)) {
+					uci.set('wireless', name, 'encryption', v.enc);
+					if (v.enc !== 'none')
+						uci.set('wireless', name, 'key', v.key);
+					else
+						uci.unset('wireless', name, 'key');
+				}
 			});
 
 			return uci.save();
 		}).then(() => applyChanges()).then(() => {
+			if (!this.hasAvahi || opts.mdnsEnabled === this.mdnsEnabled)
+				return null;
+			return setMdnsReflector(opts.mdnsEnabled).then(() => { this.mdnsEnabled = opts.mdnsEnabled; });
+		}).then(() => {
 			if (isGuest && opts.wifiCards.some(c => c.enableToggle.checked))
-				return fs.exec('/sbin/ifup', [ 'guest' ]).catch(() => {});
+				return fs.exec('/sbin/ifup', [ 'guest' ]).then(result => {
+					if (!result || result.code !== 0)
+						throw new Error(result && (result.stderr || result.stdout) || _('Guest interface could not be started.'));
+				});
 		}).then(() => {
 			notify(_('Settings saved.'), 'info');
 			btn.disabled = false;
@@ -713,7 +864,7 @@ return view.extend({
 			   legacy guest_* section is adopted only during an explicit save;
 			   a delete action must never infer ownership from its name. */
 			uci.sections('wireless', 'wifi-iface').forEach(s => {
-				if (networkHelper.isManaged(s))
+				if (networkHelper.isManaged(s) && s.network === 'guest')
 					uci.remove('wireless', s['.name']);
 			});
 			if (uci.get('dhcp', 'guest', 'freenetic_managed') === '1')

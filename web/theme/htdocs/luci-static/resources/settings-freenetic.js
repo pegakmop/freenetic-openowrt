@@ -206,6 +206,10 @@ return baseclass.extend({
 							   cache is cleared too. */
 							return uci.save().then(() => uci.apply())
 								.then(() => fs.exec('/usr/libexec/freenetic-clear-luci-cache', []))
+								.then(result => {
+									if (!result || result.code !== 0)
+										throw new Error(result && (result.stderr || result.stdout) || _('Could not clear the LuCI menu cache.'));
+								})
 								.then(() => {
 									if (target == '/luci-static/freenetic')
 										location.reload();

@@ -1,14 +1,17 @@
-# Freenetic 0.2.x release checklist
+# Freenetic 0.3.x release checklist
 
-The `0.2.x` line is a service line: compatibility fixes, preservation of
-native OpenWrt configuration, installer/package fixes and UI polish. Mesh/MWS
-work does not belong in this checklist; it starts in `0.3`.
+The `0.3.x` line adds Wi-Fi airspace analysis, physical Ethernet port roles,
+independent routed segments and per-network or per-device traffic policies.
+Because these features can change WAN, bridge, DHCP, firewall and PBR state,
+the line stays feature-frozen after `0.3.0-alpha.4`: beta, RC and stable builds
+may contain fixes, tests, compatibility work and restrained UI polish only.
 
 ## Before release
 
-- [ ] The change is small, backwards-compatible and belongs in `0.2.x`.
-- [ ] `testing` contains the complete change and the worktree is clean.
-- [ ] `make check-static` passes.
+- [ ] The change is a fix or release-hardening change and belongs in `0.3.x`.
+- [ ] The `0.3.0` branch contains the complete change and the worktree is clean.
+- [ ] `make check` passes, including both supported CLI ABIs when their
+      toolchains are present.
 - [ ] `git diff --check` passes.
 - [ ] Any ownership or helper change has a regression/contract test.
 - [ ] The changelog describes the user-visible behavior and compatibility
@@ -41,9 +44,10 @@ For every build, verify that:
 - [ ] the CLI links against the intended OpenWrt ABI;
 - [ ] the MT7621 mirror is present when the release uses APK.
 
-The ABI compatibility shim for `fnc` and `apk add --allow-untrusted` are
-intentional OpenWrt integration details in 0.2.x. Do not change either as part
-of an ordinary patch release.
+The ABI compatibility shim for `fnc` remains an intentional OpenWrt integration
+detail. APK releases must publish their build public key; the generated
+installer pins that key by SHA-256 and uses it together with OpenWrt's system
+keys instead of bypassing package signature verification.
 
 ## Router smoke test
 
@@ -62,9 +66,32 @@ following is the minimum stable-release path for each relevant OpenWrt line:
 - [ ] config/package backup and the intended sysupgrade `--test` path behave
       predictably.
 
-For upgrades, cover at least `0.1 → latest 0.2.x`, the previous `0.2.0` line
-and the previous stable patch. A downgrade need not be supported, but it must
-fail clearly before leaving a partial installation.
+For `0.3.0`, cover a clean install, `0.2.7 → 0.3.0` and the most recent
+prerelease → the candidate being tested. A downgrade need not be supported,
+but it must fail clearly before leaving a partial installation.
+
+## 0.3 network and policy smoke test
+
+Take a configuration backup before this section. Exercise these scenarios on
+a disposable/test router and verify the resulting UCI state, not only the UI
+notification:
+
+- [ ] a no-op Ethernet apply preserves custom LAN, Guest, WAN and WAN6 devices;
+- [ ] WAN↔LAN reassignment either reconnects successfully or rolls back within
+      the confirmation window;
+- [ ] an independent segment receives a non-overlapping subnet, DHCP/DNS input
+      exceptions and `input=REJECT` for other router services;
+- [ ] client blocking writes the client's actual firewall source zone,
+      including a `freenetic_port_*` zone;
+- [ ] a port forward to a Guest or independent-segment client writes the
+      matching destination zone and survives editing;
+- [ ] Direct and Blocked policies take effect without PBR installed;
+- [ ] a VPN policy is reported successful only after the PBR restart helper
+      returns `{ "ok": true }`;
+- [ ] Wi-Fi airspace scanning handles 2.4/5 GHz, channel 14 and 20/40/80/160 MHz
+      overlap calculations without changing radio configuration;
+- [ ] reboot preserves port roles, firewall ownership markers, traffic
+      policies and the selected release channel.
 
 ## Preservation and security regression pass
 
@@ -80,15 +107,14 @@ fail clearly before leaving a partial installation.
 
 ## Publishing
 
-- [ ] merge the verified `testing` state to the intended release branch;
-- [ ] keep the source installer metadata valid; the release builder writes the
-      final package and `fnc` checksums into the generated release installer,
-      then commits that installer to the release tag for raw-URL compatibility;
-- [ ] create and push the release tag from that clean commit;
+- [ ] publish from the verified `0.3.0` branch state;
+- [ ] create and push an annotated release tag from the clean, fully tested
+      commit; never move or recreate a published release tag;
 - [ ] build artifacts from the tag, not from a local dirty tree;
-- [ ] let the tagged GitHub Actions run complete its matrix, generated
-      installer and 20-asset validation;
-- [ ] verify the generated installer and its `SHA256SUMS.txt` manifest;
+- [ ] let the tagged GitHub Actions run complete static checks, its package
+      matrix, generated installer and 21-asset validation;
+- [ ] verify the generated installer, APK signing key, `SHA256SUMS.txt` and
+      GitHub/Sigstore provenance attestation;
 - [ ] verify that the matching changelog section is present in the release
       notes;
 - [ ] attach both package-manager variants and matching `fnc` binaries;

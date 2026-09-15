@@ -236,3 +236,8 @@ msgstr "Другие варианты управления"
 
 msgid "Switch color theme"
 msgstr "Переключить цветовую тему"
+msgid "Could not clear the LuCI menu cache."
+msgstr "Не удалось очистить кэш меню LuCI."
+
+msgid "Ethernet Ports"
+msgstr "Порты Ethernet"

@@ -2,6 +2,7 @@
 'require view';
 'require ui';
 'require uci';
+'require freenetic-network as networkHelper';
 'require freenetic-rpc as rpc';
 'require freenetic-ui as uiHelper';
 
@@ -38,9 +39,11 @@ function eyeIcon() {
    on so the popup itself (not just the closed box) matches everywhere else. */
 function buildDropdown(options, initialValue) {
 	const ul = E('ul', {});
+	const selectedLabel = E('span', { class: 'fn-wan-dropdown-value' });
 
 	function renderClosed(value) {
 		dom_empty(ul);
+		selectedLabel.textContent = (options.find(opt => opt.value === value) || {}).label || value || '–';
 		options.forEach(opt => {
 			const li = E('li', { 'data-value': opt.value }, opt.label);
 			if (opt.value === value) {
@@ -51,7 +54,7 @@ function buildDropdown(options, initialValue) {
 		});
 	}
 
-	const wrap = E('div', { class: 'cbi-dropdown', tabindex: 0 }, [ ul, E('span', { class: 'open' }, '▾') ]);
+	const wrap = E('div', { class: 'cbi-dropdown', tabindex: 0 }, [ selectedLabel, ul, E('span', { class: 'open' }, '▾') ]);
 	let value = initialValue;
 	renderClosed(value);
 
@@ -123,16 +126,6 @@ function getWan6Status() {
 	return getInterfaceStatus('wan6');
 }
 
-const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
-const IPV6_RE = /^[0-9A-Fa-f:]+(?:%[A-Za-z0-9_.-]+)?$/;
-const IPV6_CIDR_RE = /^[0-9A-Fa-f:]+(?:%[A-Za-z0-9_.-]+)?\/(?:0|[1-9]\d?|1[01]\d|12[0-8])$/;
-
-function validIPv6(value, withPrefix) {
-	if (!value || value.indexOf(':') === -1)
-		return false;
-	return (withPrefix ? IPV6_CIDR_RE : IPV6_RE).test(value);
-}
-
 function listValue(value) {
 	return Array.isArray(value) ? value : (value ? [ value ] : []);
 }
@@ -167,7 +160,10 @@ function findVlanDevice(deviceName) {
 		deviceName: null,
 		managed: false
 	};
+	let explicitDevice = false;
 	uci.sections('network', 'device').forEach(s => {
+		if (s.name === deviceName)
+			explicitDevice = true;
 		if (s.type === '8021q' && s.name === deviceName) {
 			result = {
 				vid: s.vid || '',
@@ -178,7 +174,34 @@ function findVlanDevice(deviceName) {
 			};
 		}
 	});
+	/* Traditional eth0.123 notation has no config-device section. */
+	if (!explicitDevice) {
+		const legacy = /^(.*)\.(\d{1,4})$/.exec(String(deviceName || ''));
+		if (legacy && Number(legacy[2]) >= 1 && Number(legacy[2]) <= 4094) {
+			result.vid = legacy[2];
+			result.baseIfname = legacy[1];
+			result.deviceName = deviceName;
+			result.legacy = true;
+		}
+	}
 	return result;
+}
+
+const WAN4_PROTOCOLS = [ 'dhcp', 'pppoe', 'static' ];
+const WAN6_PROTOCOLS = [ 'dhcpv6', 'static' ];
+
+function protocolOptions(protocol, ipv6) {
+	const options = ipv6 ? [
+		{ value: 'dhcpv6', label: _('Automatic (DHCPv6)') },
+		{ value: 'static', label: _('Static IPv6') }
+	] : [
+		{ value: 'dhcp', label: _('Automatic (DHCP)') },
+		{ value: 'pppoe', label: _('PPPoE') },
+		{ value: 'static', label: _('Static IP') }
+	];
+	if ((ipv6 ? WAN6_PROTOCOLS : WAN4_PROTOCOLS).indexOf(protocol) === -1)
+		options.push({ value: protocol, label: _('Existing protocol: %s (preserved)').format(String(protocol).toUpperCase()) });
+	return options;
 }
 
 return view.extend({
@@ -188,6 +211,26 @@ return view.extend({
 			getWanStatus(),
 			getWan6Status()
 		]);
+	},
+
+	hasForeignDeviceReferences(deviceName, ownSectionName) {
+		if (!deviceName)
+			return false;
+		const interfaceReference = uci.sections('network', 'interface').some(section =>
+			section['.name'] !== 'wan' && section['.name'] !== 'wan6' && section.device === deviceName);
+		const bridgeReference = uci.sections('network', 'device').some(section =>
+			section['.name'] !== ownSectionName && section.type === 'bridge' && listValue(section.ports).indexOf(deviceName) !== -1);
+		return interfaceReference || bridgeReference;
+	},
+
+	releaseManagedVlan(sectionName) {
+		const section = sectionName && uci.get('network', sectionName);
+		if (!section || section.freenetic_managed !== '1')
+			return;
+		if (this.hasForeignDeviceReferences(section.name, sectionName))
+			uci.unset('network', sectionName, 'freenetic_managed');
+		else
+			uci.remove('network', sectionName);
 	},
 
 	render(data) {
@@ -212,11 +255,7 @@ return view.extend({
 		const enableToggle = E('input', { type: 'checkbox', class: 'fn-switch-input' });
 		enableToggle.checked = !disabled;
 
-		const protoSelect = buildDropdown([
-			{ value: 'dhcp', label: _('Automatic (DHCP)') },
-			{ value: 'pppoe', label: _('PPPoE') },
-			{ value: 'static', label: _('Static IP') }
-		], (proto === 'pppoe' || proto === 'static') ? proto : 'dhcp');
+		const protoSelect = buildDropdown(protocolOptions(proto, false), proto);
 
 		const userInput = E('input', { type: 'text', class: 'fn-input', value: uci.get('network', 'wan', 'username') || '', placeholder: _('Provided by your ISP') });
 		const pass = passwordField(uci.get('network', 'wan', 'password') || '', _('Provided by your ISP'));
@@ -252,9 +291,9 @@ return view.extend({
 			E('strong', {}, _('Additional OpenWrt options detected')),
 			E('span', {}, _('This connection contains additional OpenWrt parameters that Freenetic does not display. Saving preserves parameters it does not edit.'))
 		]) : '';
-		const settingsBody = E('div', {}, [
+		const settingsBody = E('div', { class: 'fn-wan-settings' }, [
 			wan4AdvancedNote,
-			E('div', { class: 'fn-mn-wifi-head', style: 'margin-bottom:16px;' }, [
+			E('div', { class: 'fn-mn-wifi-head fn-wan-enable-row' }, [
 				E('label', { class: 'fn-switch' }, [ enableToggle, E('span', { class: 'fn-switch-slider' }) ]),
 				E('span', {}, _('Connection enabled'))
 			]),
@@ -291,10 +330,7 @@ return view.extend({
 		const enable6Toggle = E('input', { type: 'checkbox', class: 'fn-switch-input' });
 		enable6Toggle.checked = !wan6Disabled;
 
-		const proto6Select = buildDropdown([
-			{ value: 'dhcpv6', label: _('Automatic (DHCPv6)') },
-			{ value: 'static', label: _('Static IPv6') }
-		], wan6Proto === 'static' ? 'static' : 'dhcpv6');
+		const proto6Select = buildDropdown(protocolOptions(wan6Proto, true), wan6Proto);
 		const ip6AddrInput = E('input', { type: 'text', class: 'fn-input', value: wan6Addr, placeholder: '2001:db8::2/64' });
 		const ip6GatewayInput = E('input', { type: 'text', class: 'fn-input', value: wan6Gateway, placeholder: '2001:db8::1' });
 		const ip6PrefixInput = E('input', { type: 'text', class: 'fn-input', value: wan6Prefix, placeholder: '2001:db8:100::/48' });
@@ -335,9 +371,9 @@ return view.extend({
 			E('strong', {}, _('Additional OpenWrt options detected')),
 			E('span', {}, _('This connection contains additional OpenWrt parameters that Freenetic does not display. Saving preserves parameters it does not edit.'))
 		]) : '';
-		const ipv6SettingsBody = E('div', {}, [
+		const ipv6SettingsBody = E('div', { class: 'fn-wan-settings' }, [
 			wan6AdvancedNote,
-			E('div', { class: 'fn-mn-wifi-head', style: 'margin-bottom:16px;' }, [
+			E('div', { class: 'fn-mn-wifi-head fn-wan-enable-row' }, [
 				E('label', { class: 'fn-switch' }, [ enable6Toggle, E('span', { class: 'fn-switch-slider' }) ]),
 				E('span', {}, _('Connection enabled'))
 			]),
@@ -381,7 +417,7 @@ return view.extend({
 				E('h3', {}, title),
 				E('span', { class: 'fn-collapse-icon', 'aria-hidden': 'true' }, '▾')
 			]);
-			const content = E('div', { class: 'fn-card-body fn-pf-form', id: bodyId }, [ body ]);
+			const content = E('div', { class: 'fn-card-body fn-pf-form fn-wan-settings-content', id: bodyId }, [ body ]);
 			const setExpanded = value => {
 				content.hidden = !value;
 				head.setAttribute('aria-expanded', value ? 'true' : 'false');
@@ -395,10 +431,10 @@ return view.extend({
 				}
 			});
 			setExpanded(expanded);
-			return E('div', { class: 'fn-card', style: 'grid-column: 1 / -1' }, [ head, content ]);
+			return E('div', { class: 'fn-card fn-wan-settings-card', style: 'grid-column: 1 / -1' }, [ head, content ]);
 		};
 
-		return E('div', { class: 'fn-dash' }, [
+		return E('div', { class: 'fn-dash fn-wan-page' }, [
 			E('div', { class: 'fn-card', style: 'grid-column: 1 / -1' }, [
 				E('div', { class: 'fn-card-head' }, [
 					svgIcon('M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2ZM2 12h20M12 2c2.5 2.7 4 6.2 4 10s-1.5 7.3-4 10c-2.5-2.7-4-6.2-4-10s1.5-7.3 4-10Z', 20),
@@ -499,7 +535,7 @@ return view.extend({
 			return;
 		}
 		if (fields.proto === 'static') {
-			if (!IPV4_RE.test(fields.ipaddr) || !IPV4_RE.test(fields.netmask) || !IPV4_RE.test(fields.gateway)) {
+			if (!networkHelper.validIPv4(fields.ipaddr) || !networkHelper.validIPv4Netmask(fields.netmask) || !networkHelper.validIPv4(fields.gateway)) {
 				notify(_('Please enter a valid IP address, subnet mask and gateway.'), 'warning');
 				return;
 			}
@@ -512,11 +548,11 @@ return view.extend({
 			notify(_('VLAN ID must be between 1 and 4094.'), 'warning');
 			return;
 		}
-		if (fields.dns1 && !IPV4_RE.test(fields.dns1)) {
+		if (fields.dns1 && !networkHelper.validIPv4(fields.dns1)) {
 			notify(_('Please enter a valid DNS server address.'), 'warning');
 			return;
 		}
-		if (fields.dns2 && !IPV4_RE.test(fields.dns2)) {
+		if (fields.dns2 && !networkHelper.validIPv4(fields.dns2)) {
 			notify(_('Please enter a valid DNS server address.'), 'warning');
 			return;
 		}
@@ -529,27 +565,33 @@ return view.extend({
 			else
 				uci.set('network', 'wan', 'disabled', '1');
 
-			uci.set('network', 'wan', 'proto', fields.proto);
+			const editableProtocol = WAN4_PROTOCOLS.indexOf(fields.proto) !== -1;
+			if (editableProtocol)
+				uci.set('network', 'wan', 'proto', fields.proto);
 
-			if (fields.proto === 'pppoe') {
+			if (editableProtocol && fields.proto === 'pppoe') {
 				uci.set('network', 'wan', 'username', fields.username);
 				uci.set('network', 'wan', 'password', fields.password);
 				uci.unset('network', 'wan', 'ipaddr');
 				uci.unset('network', 'wan', 'netmask');
 				uci.unset('network', 'wan', 'gateway');
-			} else if (fields.proto === 'static') {
+			} else if (editableProtocol && fields.proto === 'static') {
 				uci.set('network', 'wan', 'ipaddr', fields.ipaddr);
 				uci.set('network', 'wan', 'netmask', fields.netmask);
 				uci.set('network', 'wan', 'gateway', fields.gateway);
 				uci.unset('network', 'wan', 'username');
 				uci.unset('network', 'wan', 'password');
-			} else {
+			} else if (editableProtocol) {
 				uci.unset('network', 'wan', 'username');
 				uci.unset('network', 'wan', 'password');
 				uci.unset('network', 'wan', 'ipaddr');
 				uci.unset('network', 'wan', 'netmask');
 				uci.unset('network', 'wan', 'gateway');
 			}
+			/* Unknown protocols may carry protocol-specific credentials and device
+			 * options. Only the enabled flag is safe for this compact editor. */
+			if (!editableProtocol)
+				return uci.save();
 
 			const dns = [ fields.dns1, fields.dns2 ].filter(Boolean);
 			if (dns.length) {
@@ -565,58 +607,65 @@ return view.extend({
 
 			if (fields.vlan) {
 				const desiredDevice = this.baseIfname + '.' + fields.vlan;
-				const targetInfo = findVlanDevice(desiredDevice);
-				const targetMatchesBase = targetInfo.sectionName &&
-					targetInfo.baseIfname === this.baseIfname;
-
-				/* A VLAN device that already exists but is not marked is foreign.
-				   Reuse it when it is exactly the requested device, but never
-				   rewrite its options or claim ownership. */
-				if (targetMatchesBase && !targetInfo.managed) {
-					if (this.vlanSectionName && this.vlanSectionName !== targetInfo.sectionName) {
-						const oldManaged = uci.get('network', this.vlanSectionName);
-						if (oldManaged && oldManaged.freenetic_managed === '1')
-							uci.remove('network', this.vlanSectionName);
-					}
-					this.vlanSectionName = null;
+				if (this.vlanInfo && this.vlanInfo.legacy && desiredDevice === this.vlanInfo.deviceName) {
 					newDevice = desiredDevice;
-					this.vlanInfo = targetInfo;
 				} else {
-					let sectionName = this.vlanSectionName;
-					if (targetMatchesBase && targetInfo.managed) {
-						if (sectionName && sectionName !== targetInfo.sectionName) {
-							const oldManaged = uci.get('network', sectionName);
-							if (oldManaged && oldManaged.freenetic_managed === '1')
-								uci.remove('network', sectionName);
+					const targetInfo = findVlanDevice(desiredDevice);
+					const targetMatchesBase = targetInfo.sectionName &&
+						targetInfo.baseIfname === this.baseIfname;
+
+					/* A VLAN device that already exists but is not marked is foreign.
+					   Reuse it when it is exactly the requested device, but never
+					   rewrite its options or claim ownership. */
+					if (targetMatchesBase && !targetInfo.managed) {
+						if (this.vlanSectionName && this.vlanSectionName !== targetInfo.sectionName) {
+							this.releaseManagedVlan(this.vlanSectionName);
 						}
-						sectionName = targetInfo.sectionName;
+						this.vlanSectionName = null;
+						newDevice = desiredDevice;
+						this.vlanInfo = targetInfo;
+					} else {
+						let sectionName = this.vlanSectionName;
+						const currentManaged = sectionName && uci.get('network', sectionName);
+						const changesSharedDevice = currentManaged && currentManaged.freenetic_managed === '1' &&
+							(currentManaged.name !== desiredDevice || currentManaged.ifname !== this.baseIfname ||
+							 String(currentManaged.vid || '') !== String(fields.vlan));
+						if (changesSharedDevice && this.hasForeignDeviceReferences(currentManaged.name, sectionName)) {
+							uci.unset('network', sectionName, 'freenetic_managed');
+							sectionName = null;
+							this.vlanSectionName = null;
+						}
+						if (targetMatchesBase && targetInfo.managed) {
+							if (sectionName && sectionName !== targetInfo.sectionName) {
+								this.releaseManagedVlan(sectionName);
+							}
+							sectionName = targetInfo.sectionName;
+						}
+
+						const managedSection = sectionName && uci.get('network', sectionName);
+						if (!managedSection || managedSection.freenetic_managed !== '1')
+							sectionName = null;
+						if (!sectionName)
+							sectionName = uci.add('network', 'device');
+
+						uci.set('network', sectionName, 'type', '8021q');
+						uci.set('network', sectionName, 'ifname', this.baseIfname);
+						uci.set('network', sectionName, 'vid', fields.vlan);
+						uci.set('network', sectionName, 'name', desiredDevice);
+						uci.set('network', sectionName, 'freenetic_managed', '1');
+						this.vlanSectionName = sectionName;
+						this.vlanInfo = {
+							vid: String(fields.vlan),
+							baseIfname: this.baseIfname,
+							sectionName,
+							deviceName: desiredDevice,
+							managed: true
+						};
+						newDevice = desiredDevice;
 					}
-
-					const managedSection = sectionName && uci.get('network', sectionName);
-					if (!managedSection || managedSection.freenetic_managed !== '1')
-						sectionName = null;
-					if (!sectionName)
-						sectionName = uci.add('network', 'device');
-
-					uci.set('network', sectionName, 'type', '8021q');
-					uci.set('network', sectionName, 'ifname', this.baseIfname);
-					uci.set('network', sectionName, 'vid', fields.vlan);
-					uci.set('network', sectionName, 'name', desiredDevice);
-					uci.set('network', sectionName, 'freenetic_managed', '1');
-					this.vlanSectionName = sectionName;
-					this.vlanInfo = {
-						vid: String(fields.vlan),
-						baseIfname: this.baseIfname,
-						sectionName,
-						deviceName: desiredDevice,
-						managed: true
-					};
-					newDevice = desiredDevice;
 				}
 			} else if (this.vlanSectionName) {
-				const managed = uci.get('network', this.vlanSectionName);
-				if (managed && managed.freenetic_managed === '1')
-					uci.remove('network', this.vlanSectionName);
+				this.releaseManagedVlan(this.vlanSectionName);
 				this.vlanSectionName = null;
 				this.vlanInfo = {
 					vid: '',
@@ -649,20 +698,20 @@ return view.extend({
 
 	saveIpv6(fields, btn) {
 		if (fields.proto === 'static') {
-			if (!validIPv6(fields.address, true) || (fields.gateway && !validIPv6(fields.gateway, false))) {
+			if (!networkHelper.validIPv6(fields.address, true) || (fields.gateway && !networkHelper.validIPv6(fields.gateway, false))) {
 				notify(_('Please enter a valid IPv6 address with prefix and gateway.'), 'warning');
 				return;
 			}
-			if (fields.prefix && !validIPv6(fields.prefix, true)) {
+			if (fields.prefix && !networkHelper.validIPv6(fields.prefix, true)) {
 				notify(_('Please enter a valid delegated IPv6 prefix.'), 'warning');
 				return;
 			}
 		}
-		if (fields.dns1 && !((IPV4_RE.test(fields.dns1)) || validIPv6(fields.dns1, false))) {
+		if (fields.dns1 && !(networkHelper.validIPv4(fields.dns1) || networkHelper.validIPv6(fields.dns1, false))) {
 			notify(_('Please enter a valid IPv6 DNS server address.'), 'warning');
 			return;
 		}
-		if (fields.dns2 && !((IPV4_RE.test(fields.dns2)) || validIPv6(fields.dns2, false))) {
+		if (fields.dns2 && !(networkHelper.validIPv4(fields.dns2) || networkHelper.validIPv6(fields.dns2, false))) {
 			notify(_('Please enter a valid IPv6 DNS server address.'), 'warning');
 			return;
 		}
@@ -678,11 +727,13 @@ return view.extend({
 			else
 				uci.set('network', 'wan6', 'disabled', '1');
 
-			uci.set('network', 'wan6', 'proto', fields.proto);
-			if (!uci.get('network', 'wan6', 'device'))
+			const editableProtocol = WAN6_PROTOCOLS.indexOf(fields.proto) !== -1;
+			if (editableProtocol)
+				uci.set('network', 'wan6', 'proto', fields.proto);
+			if (editableProtocol && !uci.get('network', 'wan6', 'device'))
 				uci.set('network', 'wan6', 'device', uci.get('network', 'wan', 'device') || this.baseIfname);
 
-			if (fields.proto === 'static') {
+			if (editableProtocol && fields.proto === 'static') {
 				uci.set('network', 'wan6', 'ip6addr', [ fields.address ]);
 				if (fields.gateway)
 					uci.set('network', 'wan6', 'ip6gw', fields.gateway);
@@ -694,13 +745,15 @@ return view.extend({
 					uci.unset('network', 'wan6', 'ip6prefix');
 				uci.unset('network', 'wan6', 'reqaddress');
 				uci.unset('network', 'wan6', 'reqprefix');
-			} else {
+			} else if (editableProtocol) {
 				uci.unset('network', 'wan6', 'ip6addr');
 				uci.unset('network', 'wan6', 'ip6gw');
 				uci.unset('network', 'wan6', 'ip6prefix');
 				uci.set('network', 'wan6', 'reqaddress', fields.reqaddress);
 				uci.set('network', 'wan6', 'reqprefix', fields.reqprefix);
 			}
+			if (!editableProtocol)
+				return uci.save();
 
 			const dns = [ fields.dns1, fields.dns2 ].filter(Boolean);
 			if (dns.length) {

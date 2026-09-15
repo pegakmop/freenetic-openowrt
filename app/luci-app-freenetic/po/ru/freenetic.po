@@ -110,6 +110,106 @@ msgstr "Монитор трафика"
 msgid "Wi-Fi Monitor"
 msgstr "Монитор Wi‑Fi"
 
+msgid "Overview"
+msgstr "Обзор"
+
+msgid "Air map"
+msgstr "Карта эфира"
+
+msgid "Our router"
+msgstr "Наш роутер"
+
+msgid "Nearby networks"
+msgstr "Соседние сети"
+
+msgid "Recommended channel"
+msgstr "Рекомендуемый канал"
+
+msgid "Scanning nearby networks…"
+msgstr "Сканируем соседние сети…"
+
+msgid "Loading %s data…"
+msgstr "Загружаем данные %s…"
+
+msgid "Failed to scan nearby networks."
+msgstr "Не удалось просканировать соседние сети."
+
+msgid "Scan failed"
+msgstr "Ошибка сканирования"
+
+msgid "Updated just now"
+msgstr "Обновлено только что"
+
+msgid "Based on signal strength and channel overlap."
+msgstr "С учётом силы сигнала и пересечения каналов."
+
+msgid "The current channel already looks optimal."
+msgstr "Текущий канал уже выглядит оптимальным."
+
+msgid "The radio is not broadcasting. The recommendation is based on the latest scan."
+msgstr "Радиомодуль не вещает. Рекомендация основана на последнем сканировании."
+
+msgid "Not broadcasting"
+msgstr "Не вещает"
+
+#, javascript-format
+msgid "Configured: %s, %d MHz"
+msgstr "Настроено: %s, %d МГц"
+
+msgid "%d%% less estimated interference."
+msgstr "Ожидаемый уровень помех ниже на %d%%."
+
+msgid "Current channel"
+msgstr "Текущий канал"
+
+msgid "%d MHz channel width"
+msgstr "Ширина канала — %d МГц"
+
+msgid "Networks found"
+msgstr "Найдено сетей"
+
+msgid "Visible during the latest scan"
+msgstr "Видимы при последнем сканировании"
+
+msgid "Channel changes are disabled in this preview."
+msgstr "В тестовом наброске смена канала отключена."
+
+msgid "Apply"
+msgstr "Применить"
+
+msgid "No frequency data available."
+msgstr "Нет данных о доступных частотах."
+
+msgid "Nearby Wi-Fi networks by channel and signal strength"
+msgstr "Соседние сети Wi‑Fi по каналам и силе сигнала"
+
+msgid "Hidden network"
+msgstr "Скрытая сеть"
+
+msgid "Channel %d"
+msgstr "Канал %d"
+
+msgid "Strongest nearby networks"
+msgstr "Самые сильные соседние сети"
+
+msgid "No nearby networks found."
+msgstr "Соседние сети не найдены."
+
+msgid "Width"
+msgstr "Ширина"
+
+msgid "Signal"
+msgstr "Сигнал"
+
+msgid "Strong"
+msgstr "Сильный"
+
+msgid "Medium"
+msgstr "Средний"
+
+msgid "Weak"
+msgstr "Слабый"
+
 msgid "Other Connections"
 msgstr "Другие подключения"
 
@@ -575,11 +675,11 @@ msgstr "Установщик выпуска завершился с ошибко
 msgid "Freenetic was updated"
 msgstr "Freenetic обновлён"
 
-msgid "The interface update was installed successfully. Reload the page to use the new version."
-msgstr "Обновление интерфейса успешно установлено. Перезагрузите страницу, чтобы использовать новую версию."
+msgid "The interface update was installed successfully. The browser cache is being cleared and you will be signed out to load the new theme cleanly."
+msgstr "Обновление интерфейса успешно установлено. Кеш браузера очищается, после чего вы выйдете из системы, чтобы новая тема загрузилась без старых ресурсов."
 
-msgid "Reload interface"
-msgstr "Перезагрузить интерфейс"
+msgid "Sign in again"
+msgstr "Войти снова"
 
 msgid "Freenetic update failed"
 msgstr "Не удалось обновить Freenetic"
@@ -2367,11 +2467,11 @@ msgstr "Расширенные настройки"
 msgid "Hide advanced settings"
 msgstr "Скрыть расширенные настройки"
 
-msgid "Network settings are identical to the 2.4 GHz network."
-msgstr "Настройки сети совпадают с сетью 2,4 ГГц."
+msgid "SSID and security match the 2.4 GHz network. Channel settings remain independent."
+msgstr "SSID и защита совпадают с сетью 2,4 ГГц. Канал и ширина настраиваются отдельно."
 
-msgid "Same as 2.4 GHz network"
-msgstr "Как в сети 2,4 ГГц"
+msgid "Use the same Wi-Fi name and password as 2.4 GHz"
+msgstr "Использовать имя и пароль сети 2,4 ГГц"
 
 msgid "Please enter a network name (SSID)."
 msgstr "Введите имя сети (SSID)."
@@ -3058,6 +3158,9 @@ msgstr "Клиент заблокирован."
 msgid "Failed to block client: %s"
 msgstr "Не удалось заблокировать клиента: %s"
 
+msgid "The client firewall zone could not be determined."
+msgstr "Не удалось определить зону межсетевого экрана клиента."
+
 msgid "Client unblocked."
 msgstr "Клиент разблокирован."
 
@@ -3268,3 +3371,339 @@ msgstr "Обнаружены дополнительные параметры Ope
 
 msgid "This rule contains additional OpenWrt parameters; Freenetic does not display them. Saving preserves parameters it does not edit."
 msgstr "Это правило содержит дополнительные параметры OpenWrt; Freenetic их не отображает. При сохранении параметры, которые не редактируются интерфейсом, сохраняются."
+msgid "%s installed."
+msgstr "%s установлено."
+
+msgid "%s is still installed because its packages are required by another installed application."
+msgstr "%s остаётся установленным, поскольку его пакеты нужны другому установленному приложению."
+
+msgid "%s removed, but the network service could not be restarted: %s"
+msgstr "%s удалено, но сетевую службу не удалось перезапустить: %s"
+
+msgid "A Wi-Fi network name must not exceed 32 bytes."
+msgstr "Имя сети Wi-Fi не должно превышать 32 байта."
+
+msgid "A Wi-Fi password must contain 8–63 characters, or exactly 64 hexadecimal characters."
+msgstr "Пароль Wi-Fi должен содержать 8–63 символа или ровно 64 шестнадцатеричных символа."
+
+msgid "Could not update the mDNS reflector."
+msgstr "Не удалось изменить состояние ретранслятора mDNS."
+
+msgid "Current channel %s (preserved)"
+msgstr "Текущий канал %s (будет сохранён)"
+
+msgid "Current mode %s (preserved)"
+msgstr "Текущий режим %s (будет сохранён)"
+
+msgid "Current power %s dBm (preserved)"
+msgstr "Текущая мощность %s дБм (будет сохранена)"
+
+msgid "Current region %s (preserved)"
+msgstr "Текущий регион %s (будет сохранён)"
+
+msgid "Disabling IPv4 on the home network can make this web interface unreachable. Continue?"
+msgstr "Отключение IPv4 в домашней сети может сделать веб-интерфейс недоступным. Продолжить?"
+
+msgid "Enter a port from 1 to 65535"
+msgstr "Введите порт от 1 до 65535"
+
+msgid "Enter a valid IPv4 address and subnet mask."
+msgstr "Введите корректный адрес IPv4 и маску подсети."
+
+msgid "Existing action: %s (preserved)"
+msgstr "Текущее действие: %s (будет сохранено)"
+
+msgid "Existing protocol: %s (preserved)"
+msgstr "Текущий протокол: %s (будет сохранён)"
+
+msgid "Existing security: %s (preserved)"
+msgstr "Текущий тип защиты: %s (будет сохранён)"
+
+msgid "Firmware flashing failed."
+msgstr "Не удалось прошить устройство."
+
+msgid "Firmware flashing failed"
+msgstr "Не удалось прошить устройство"
+
+msgid "Gateway and DNS servers must be valid IPv4 addresses."
+msgstr "Шлюз и DNS-серверы должны быть корректными адресами IPv4."
+
+msgid "Guest interface could not be started."
+msgstr "Не удалось запустить гостевой интерфейс."
+
+msgid "IP protocol"
+msgstr "Протокол IP"
+
+msgid "Internal port must be a number from 1 to 65535."
+msgstr "Внутренний порт должен быть числом от 1 до 65535."
+
+msgid "Lease time must be between 60 and 2147483647 seconds."
+msgstr "Срок аренды должен быть от 60 до 2147483647 секунд."
+
+msgid "Ports must be between 1 and 65535; ranges must be written as start-end."
+msgstr "Порты должны быть от 1 до 65535; диапазон задаётся в виде начало-конец."
+
+msgid "Source and destination addresses must be valid IPv4/IPv6 addresses or CIDR networks."
+msgstr "Адреса источника и назначения должны быть корректными адресами IPv4/IPv6 или сетями CIDR."
+
+msgid "The DDNS helper failed."
+msgstr "Вспомогательная команда DDNS завершилась ошибкой."
+
+msgid "The DDNS service could not be restarted."
+msgstr "Не удалось перезапустить службу DDNS."
+
+msgid "The DHCP pool must stay inside the subnet, exclude the router address, and contain at least one address."
+msgstr "Пул DHCP должен находиться внутри подсети, не включать адрес роутера и содержать хотя бы один адрес."
+
+msgid "The end port must not be lower than the start port"
+msgstr "Конечный порт не может быть меньше начального"
+
+msgid "This firewall rule is not managed by Freenetic."
+msgstr "Это правило межсетевого экрана не управляется Freenetic."
+
+msgid "Unknown"
+msgstr "Неизвестно"
+msgid "Driver default"
+msgstr "По умолчанию драйвера"
+
+# Ethernet port assignment
+msgid "Ethernet Ports"
+msgstr "Порты Ethernet"
+
+msgid "Assign physical ports to the Internet, Home network, Guest network, or an independent routed segment. Independent segments can use different traffic policies."
+msgstr "Назначайте физические порты интернету, домашней, гостевой или отдельной маршрутизируемой сети. Для отдельных сегментов можно задать разные политики трафика."
+
+msgid "A port change can interrupt the connection"
+msgstr "Изменение порта может прервать соединение"
+
+msgid "All changes are applied together with automatic rollback if this browser cannot confirm the new configuration."
+msgstr "Все изменения применяются одновременно и автоматически откатываются, если браузер не сможет подтвердить новую конфигурацию."
+
+msgid "WAN uses an advanced device"
+msgstr "WAN использует расширенное устройство"
+
+msgid "VLAN or custom WAN devices must be changed on the Internet page before physical ports can be reassigned here."
+msgstr "WAN с VLAN или пользовательским устройством сначала нужно изменить на странице «Интернет», после чего здесь можно переназначить физические порты."
+
+msgid "Apply port configuration"
+msgstr "Применить конфигурацию портов"
+
+msgid "Home network (LAN)"
+msgstr "Домашняя сеть (LAN)"
+
+msgid "Separate segment"
+msgstr "Отдельный сегмент"
+
+msgid "Not assigned"
+msgstr "Не назначен"
+
+msgid "Custom configuration"
+msgstr "Пользовательская конфигурация"
+
+msgid "WAN port"
+msgstr "Порт WAN"
+
+#, javascript-format
+msgid "LAN port %d"
+msgstr "Порт LAN %d"
+
+#, javascript-format
+msgid "Ethernet port %d"
+msgstr "Порт Ethernet %d"
+
+msgid "No link"
+msgstr "Не подключён"
+
+msgid "Port role"
+msgstr "Роль порта"
+
+msgid "Router address (/24)"
+msgstr "Адрес роутера (/24)"
+
+msgid "This port gets its own IPv4 subnet, DHCP server, firewall zone, and traffic policy. Router access is limited to DHCP and DNS by default."
+msgstr "Порт получит собственную подсеть IPv4, DHCP-сервер, зону межсетевого экрана и политику трафика. По умолчанию доступ к роутеру ограничен DHCP и DNS."
+
+msgid "This port shares the selected network and inherits that network’s traffic policy."
+msgstr "Порт входит в выбранную сеть и наследует её политику трафика."
+
+msgid "This becomes the physical Internet uplink for WAN and WAN6."
+msgstr "Порт станет физическим интернет-каналом для WAN и WAN6."
+
+msgid "This port belongs to a configuration not managed by Freenetic."
+msgstr "Порт относится к конфигурации, которой Freenetic не управляет."
+
+msgid "The physical port stays unused."
+msgstr "Физический порт останется неиспользуемым."
+
+msgid "Custom port assignments are shown read-only to protect settings created outside Freenetic."
+msgstr "Пользовательские назначения портов доступны только для чтения, чтобы защитить настройки, созданные вне Freenetic."
+
+#, javascript-format
+msgid "Port %s"
+msgstr "Порт %s"
+
+msgid "Exactly one physical port must be assigned to Internet (WAN)."
+msgstr "Интернету (WAN) должен быть назначен ровно один физический порт."
+
+#, javascript-format
+msgid "The router address for %s must be a valid IPv4 address ending in .1."
+msgstr "Адрес роутера для %s должен быть корректным IPv4-адресом, оканчивающимся на .1."
+
+#, javascript-format
+msgid "The subnet %s is already used by another network."
+msgstr "Подсеть %s уже используется другой сетью."
+
+msgid "You are changing an active Ethernet port. The connection may drop and the configuration will roll back automatically if it cannot be confirmed. Continue?"
+msgstr "Вы изменяете активный порт Ethernet. Соединение может прерваться, а конфигурация автоматически откатится, если её не удастся подтвердить. Продолжить?"
+
+msgid "Ethernet port configuration applied."
+msgstr "Конфигурация портов Ethernet применена."
+
+#, javascript-format
+msgid "Failed to apply Ethernet port configuration: %s"
+msgstr "Не удалось применить конфигурацию портов Ethernet: %s"
+
+#, javascript-format
+msgid "%s uses the non-bridge device %s and cannot be edited safely here."
+msgstr "%s использует устройство %s без моста, поэтому безопасно изменить его здесь нельзя."
+
+#, javascript-format
+msgid "A configuration section required by %s is already managed outside Freenetic."
+msgstr "Раздел конфигурации, необходимый для %s, уже управляется вне Freenetic."
+
+# Adaptive Ethernet port detection
+msgid "Configured"
+msgstr "Настроен"
+
+msgid "Advanced WAN device"
+msgstr "Расширенное устройство WAN"
+
+msgid "Adaptive port detection"
+msgstr "Адаптивное определение портов"
+
+msgid "Confirmation required"
+msgstr "Требуется подтверждение"
+
+msgid "Freenetic can safely check connected, unassigned ports for DHCP and PPPoE. A detected service is shown as a recommendation and is never applied automatically."
+msgstr "Freenetic может безопасно проверить подключённые неназначенные порты на наличие DHCP и PPPoE. Обнаруженная служба показывается как рекомендация и никогда не применяется автоматически."
+
+msgid "Scan unassigned ports"
+msgstr "Проверить свободные порты"
+
+msgid "No connected unassigned ports to scan."
+msgstr "Нет подключённых свободных портов для проверки."
+
+msgid "Only connected ports assigned as unused can be scanned safely."
+msgstr "Безопасно проверить можно только подключённые порты, назначенные как неиспользуемые."
+
+msgid "Scanning…"
+msgstr "Проверяем…"
+
+msgid "Scan again"
+msgstr "Проверить снова"
+
+#, javascript-format
+msgid "%s detected"
+msgstr "Обнаружен %s"
+
+msgid "Cable disconnected during the scan"
+msgstr "Во время проверки кабель был отключён"
+
+msgid "No Internet service detected"
+msgstr "Интернет-служба не обнаружена"
+
+msgid "Port scan failed"
+msgstr "Не удалось проверить порт"
+
+msgid "Apply the unused port assignment before scanning it."
+msgstr "Сначала назначьте порт как неиспользуемый и примените конфигурацию."
+
+msgid "The Ethernet port was not found."
+msgstr "Порт Ethernet не найден."
+
+msgid "The Ethernet port cannot be scanned."
+msgstr "Этот порт Ethernet нельзя проверить."
+
+msgid "Port scanning is unavailable."
+msgstr "Проверка портов недоступна."
+
+msgid "Use as WAN"
+msgstr "Использовать как WAN"
+
+#, javascript-format
+msgid "Stage %s as WAN and leave the current WAN port unassigned? No network changes occur until you apply the configuration."
+msgstr "Подготовить %s как WAN, а текущий WAN оставить неназначенным? Сеть не изменится, пока вы не примените конфигурацию."
+
+msgid "WAN recommendation staged. Review it and apply the port configuration to continue."
+msgstr "Рекомендация WAN подготовлена. Проверьте её и примените конфигурацию портов для продолжения."
+
+# Freenetic removal
+msgid "Remove Freenetic"
+msgstr "Удалить Freenetic"
+
+msgid "Return to the standard LuCI interface. OpenWrt and third-party packages remain installed."
+msgstr "Вернуться к стандартному интерфейсу LuCI. OpenWrt и сторонние пакеты останутся установленными."
+
+msgid "Keep router settings"
+msgstr "Сохранить настройки роутера"
+
+msgid "Remove the Freenetic interface and command-line files, while preserving all network, Wi-Fi, firewall and VPN settings."
+msgstr "Удалить интерфейс Freenetic и файлы командной строки, сохранив все настройки сети, Wi-Fi, межсетевого экрана и VPN."
+
+msgid "Remove"
+msgstr "Удалить"
+
+msgid "Full cleanup"
+msgstr "Полная очистка"
+
+msgid "Also remove only the network objects explicitly created and marked as managed by Freenetic. Other OpenWrt settings are preserved."
+msgstr "Также удалить только сетевые объекты, явно созданные и отмеченные как управляемые Freenetic. Остальные настройки OpenWrt сохранятся."
+
+msgid "Remove completely"
+msgstr "Удалить полностью"
+
+msgid "Remove Freenetic?"
+msgstr "Удалить Freenetic?"
+
+msgid "The standard LuCI interface will be restored. Your current router configuration and installed third-party packages will remain in place."
+msgstr "Будет восстановлен стандартный интерфейс LuCI. Текущая конфигурация роутера и установленные сторонние пакеты останутся на месте."
+
+msgid "Download the startup configuration above first if you want an additional recovery copy."
+msgstr "Если нужна дополнительная резервная копия, сначала скачайте конфигурацию запуска выше."
+
+msgid "Remove Freenetic and its managed settings?"
+msgstr "Удалить Freenetic и управляемые им настройки?"
+
+msgid "Freenetic-managed guest networks, dedicated Ethernet segments, policies, routes and connections will be deleted. This can interrupt network access."
+msgstr "Гостевые сети, выделенные Ethernet-сегменты, политики, маршруты и подключения под управлением Freenetic будут удалены. Доступ к сети может прерваться."
+
+msgid "Type FREENETIC to confirm the full cleanup."
+msgstr "Введите FREENETIC, чтобы подтвердить полную очистку."
+
+msgid "Removing Freenetic…"
+msgstr "Удаляем Freenetic…"
+
+msgid "The standard LuCI interface is being restored. Do not close this page."
+msgstr "Восстанавливается стандартный интерфейс LuCI. Не закрывайте эту страницу."
+
+msgid "Freenetic could not be removed."
+msgstr "Не удалось удалить Freenetic."
+
+#, javascript-format
+msgid "The Freenetic interface and %d managed configuration sections were removed. Restart the router to activate every configuration change."
+msgstr "Интерфейс Freenetic и управляемые разделы конфигурации удалены: %d. Перезапустите роутер, чтобы применить все изменения."
+
+msgid "The Freenetic interface was removed. Your router settings were preserved."
+msgstr "Интерфейс Freenetic удалён. Настройки роутера сохранены."
+
+msgid "Freenetic removed"
+msgstr "Freenetic удалён"
+
+msgid "The browser cache is being cleared. You will be signed out and returned to the standard LuCI login page."
+msgstr "Кэш браузера очищается. Текущий сеанс завершится, после чего откроется страница входа стандартного LuCI."
+
+msgid "Log in to standard LuCI"
+msgstr "Войти в стандартный LuCI"
+
+msgid "Removal failed"
+msgstr "Ошибка удаления"

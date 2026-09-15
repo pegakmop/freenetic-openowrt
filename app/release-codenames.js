@@ -2,7 +2,8 @@
 
 const RELEASE_CODENAMES = Object.freeze({
 	'0.1': 'Misery',
-	'0.2': 'Onyx'
+	'0.2': 'Onyx',
+	'0.3': 'Noxium'
 });
 const RELEASE_QUALIFIERS = Object.freeze({
 	'0.2.7': 'Hotfix'
@@ -26,10 +27,39 @@ function codenameForTag(tag) {
 	return codename;
 }
 
+function concealedAlphaTitle(version) {
+	const match = /^(\d+\.\d+\.\d+)-alpha\.(\d+)$/.exec(version);
+	return match ? `Freenetic ${match[1]}a-${match[2]}` : null;
+}
+
+function concealedPrereleaseTitle(version) {
+	const match = /^(\d+\.\d+\.\d+)-(alpha|beta|rc)\.(\d+)$/.exec(version);
+	if (!match)
+		return null;
+	const stage = match[2] === 'alpha' ? 'a' : (match[2] === 'beta' ? 'b' : 'rc');
+	return `Freenetic ${match[1]}${stage}-${match[3]}`;
+}
+
 function releaseTitle(tag) {
-	const { version } = releaseVersion(tag);
+	const { line, version } = releaseVersion(tag);
+	/* 0.3.x introduced concealed prerelease names. Keep the alpha/beta/RC
+	 * history anonymous even after the stable codename becomes public. */
+	if (line === '0.3') {
+		const prereleaseTitle = concealedPrereleaseTitle(version);
+		if (prereleaseTitle)
+			return prereleaseTitle;
+	}
+	const codename = RELEASE_CODENAMES[line];
+	if (!codename) {
+		const prereleaseTitle = concealedPrereleaseTitle(version);
+		if (prereleaseTitle)
+			return prereleaseTitle;
+		throw new Error(`no codename configured for Freenetic ${line}.x`);
+	}
 	const qualifier = RELEASE_QUALIFIERS[version];
-	return `Freenetic ${version} — ${codenameForTag(tag)}${qualifier ? ` ${qualifier}` : ''}`;
+	if (version === '0.3.0')
+		return `Introducing Freenetic ${version} ${codename}`;
+	return `Freenetic ${version} — ${codename}${qualifier ? ` ${qualifier}` : ''}`;
 }
 
 if (require.main === module) {
@@ -42,4 +72,4 @@ if (require.main === module) {
 	}
 }
 
-module.exports = { RELEASE_CODENAMES, RELEASE_QUALIFIERS, codenameForTag, releaseTitle, releaseVersion };
+module.exports = { RELEASE_CODENAMES, RELEASE_QUALIFIERS, concealedAlphaTitle, concealedPrereleaseTitle, codenameForTag, releaseTitle, releaseVersion };

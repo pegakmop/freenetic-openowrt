@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const childProcess = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -54,6 +55,32 @@ assert.ok(openvpn.includes('[ "$#" -eq 2 ]'), 'OpenVPN helper must require actio
 assert.ok(openvpn.includes("''|*[!A-Za-z0-9_-]*"),
 	'OpenVPN names must use a conservative allowlist');
 
+const portProbe = read(applicationHelpers, 'freenetic-port-probe');
+assert.ok(portProbe.includes("''|-*|*[!A-Za-z0-9_-]*"),
+	'Ethernet probe port names must use a conservative allowlist');
+assert.match(portProbe, /jsonfilter -i \/etc\/board\.json/,
+	'Ethernet probing must be restricted to ports declared by the board');
+assert.match(portProbe, /\/sys\/class\/net\/\$port\/master/,
+	'Ethernet probing must reject ports attached to a bridge');
+assert.match(portProbe, /udhcpc[\s\S]*-s "\$0"/,
+	'DHCP discovery must use the non-configuring probe event handler');
+assert.match(portProbe, /pppoe-discovery/,
+	'adaptive ports must support non-session PPPoE discovery');
+assert.match(portProbe, /"error_code"/,
+	'Ethernet probe errors must expose stable codes for localized UI messages');
+assert.match(portProbe, /network\.lan\.device/,
+	'Ethernet probing must recognize the same LAN device form as LuCI');
+assert.match(portProbe, /network\.wan\.ports\[\*\]/,
+	'Ethernet probing must recognize the same WAN ports form as LuCI');
+assert.match(portProbe, /mktemp -d \/tmp\/freenetic-port-probe\.XXXXXX/,
+	'Ethernet probing must isolate root-owned temporary files');
+
+const avahi = read(applicationHelpers, 'freenetic-avahi-reflector');
+assert.match(avahi, /mktemp \/tmp\/freenetic-avahi-reflector\.XXXXXX/,
+	'Avahi updates must use unpredictable root-owned temporary files');
+assert.doesNotMatch(avahi, /freenetic-avahi-reflector\.\$\$/,
+	'Avahi updates must not use PID-derived temporary paths');
+
 const update = read(applicationHelpers, 'freenetic-self-update');
 assert.ok(update.includes('[ "$#" -eq 1 ] || { reply_error "Usage: $0 status"; exit 0; }'),
 	'self-update status must reject extra arguments');
@@ -66,6 +93,18 @@ const awgFeed = read(applicationHelpers, 'freenetic-awg-feed');
 assert.ok(awgFeed.includes('[ "$#" -le 1 ]'), 'AWG feed helper must reject extra arguments');
 assert.match(awgFeed, /case "\$ACTION" in[\s\S]*\n\s*status\)/,
 	'AWG feed helper must keep a fixed action set');
+assert.doesNotMatch(awgFeed, /\$FEED_ROOT\/keys|wget[^\n]+awg-openwrt-feed\.(?:pem|pub)/,
+	'AWG feed trust anchors must never be bootstrapped from the repository they authenticate');
+const awgKeyDirectory = path.join(root, 'app', 'luci-app-freenetic', 'root',
+	'usr', 'share', 'freenetic', 'keys');
+for (const [ name, expectedSha256 ] of Object.entries({
+	'awg-openwrt-feed.pem': 'a71810e45492ceee99df86a72e05c78400d04c3159cc6145a23824cd66e0a239',
+	'awg-openwrt-feed.pub': '3f5456b200f2e771aad61376a25b8bead54047ac6cb851dc5dbc52c56c8e5d4b'
+})) {
+	const contents = fs.readFileSync(path.join(awgKeyDirectory, name));
+	assert.equal(crypto.createHash('sha256').update(contents).digest('hex'), expectedSha256,
+		`${name} must remain the independently pinned AWG feed trust anchor`);
+}
 
 for (const name of [
 	'freenetic-ipsec-restart',
@@ -94,5 +133,11 @@ assert.match(packageInjection.stdout, /"ok":false/, 'package status must report 
 const openvpnInjection = run(applicationHelpers, 'freenetic-openvpn-profile', [ 'install', 'bad;touch' ]);
 assert.equal(openvpnInjection.status, 0, 'OpenVPN helper must return a JSON error for invalid names');
 assert.match(openvpnInjection.stdout, /"ok":false/, 'OpenVPN helper must report invalid names');
+const portProbeInjection = run(applicationHelpers, 'freenetic-port-probe', [ 'bad;touch' ]);
+assert.equal(portProbeInjection.status, 0, 'Ethernet probe must return a JSON error for invalid names');
+assert.match(portProbeInjection.stdout, /"ok":false/, 'Ethernet probe must report invalid names');
+const uninstallInjection = run(applicationHelpers, 'freenetic-uninstall', [ 'purge-managed;reboot' ]);
+assert.equal(uninstallInjection.status, 0, 'uninstall must return a structured error for an invalid mode');
+assert.match(uninstallInjection.stdout, /"ok":false/, 'uninstall must reject mode injection');
 
 console.log('helper security contracts: ok');

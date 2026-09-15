@@ -23,6 +23,12 @@ assert.match(dashboard, /installButton\.style\.display = 'none'/,
 	'theme button display rules must not override the hidden update action');
 assert.match(dashboard, /installButton\.style\.display = ''/,
 	'a compatible release must explicitly reveal the update action');
+assert.match(dashboard, /window\.caches\.keys\(\)[\s\S]*window\.caches\.delete\(key\)/,
+	'a successful update must clear browser CacheStorage before loading the new theme');
+assert.match(dashboard, /window\.location\.replace\('\/cgi-bin\/luci\/admin\/logout\?_='/,
+	'a successful update must end the active LuCI session instead of reloading stale assets');
+assert.doesNotMatch(dashboard, /The interface update was installed successfully\. Reload the page to use the new version\./,
+	'a successful update must not retain the old cache-preserving completion path');
 assert.match(dashboard, /class: 'fn-freenetic-update-panel'/,
 	'the dashboard must group Freenetic build details and update controls in one panel');
 assert.match(css, /\.fn-freenetic-update-panel\s*\{[\s\S]*?\.fn-update-status-info::before/,

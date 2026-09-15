@@ -8,7 +8,7 @@ include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Freenetic Web Interface
 LUCI_DESCRIPTION:=Freenetic dashboard and router management views
-LUCI_DEPENDS:=+luci-base +luci-theme-freenetic +luci-app-package-manager
+LUCI_DEPENDS:=+luci-base +luci-theme-freenetic +luci-app-package-manager +pppoe-discovery
 
 PKG_LICENSE:=Apache-2.0
 

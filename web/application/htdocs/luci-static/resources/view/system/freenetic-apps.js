@@ -358,6 +358,15 @@ return view.extend({
 		return item.packages.every(p => this.installedNames[p]);
 	},
 
+	removablePackages(item) {
+		const needed = {};
+		GROUPS.forEach(group => group.items.forEach(other => {
+			if (other.id !== item.id && this.itemInstalled(other))
+				other.packages.forEach(name => { needed[name] = true; });
+		}));
+		return item.packages.filter(name => !needed[name]);
+	},
+
 	itemMatchesFilter(item, group) {
 		switch (this.activeFilter) {
 		case 'advanced':
@@ -458,11 +467,14 @@ return view.extend({
 
 	toggleItem(item, wasInstalled, btn, statusPill, row) {
 		const action = wasInstalled ? 'remove' : 'install';
+		const operationPackages = wasInstalled ? this.removablePackages(item) : item.packages.slice();
 		this.packageOperationInProgress++;
 		btn.disabled = true;
 		dom_content(btn, wasInstalled ? _('Removing…') : _('Installing…'));
 
-		const run = () => fs.exec_direct(PACKAGE_MANAGER_HELPER, [ action ].concat(item.packages), 'json');
+		const run = () => operationPackages.length
+			? fs.exec_direct(PACKAGE_MANAGER_HELPER, [ action ].concat(operationPackages), 'json')
+			: Promise.resolve({ code: 0 });
 		const operation = wasInstalled ? run() : this.ensurePackageIndexes().then(run);
 
 		return operation.then(res => {
@@ -474,23 +486,28 @@ return view.extend({
 				return;
 			}
 
-			const nowInstalled = !wasInstalled;
-			const restart = nowInstalled && item.restartNetifdOnInstall
+			operationPackages.forEach(p => {
+				if (wasInstalled)
+					delete this.installedNames[p];
+				else
+					this.installedNames[p] = true;
+			});
+			const nowInstalled = this.itemInstalled(item);
+			const restart = operationPackages.length && item.restartNetifdOnInstall
 				? restartNetifd().then(() => ({ ok: true })).catch(error => ({ ok: false, error: error }))
 				: Promise.resolve({ ok: true });
 
 			return restart.then(networkResult => {
-				item.packages.forEach(p => {
-					if (nowInstalled)
-						this.installedNames[p] = true;
-					else
-						delete this.installedNames[p];
-				});
-
-				if (!nowInstalled)
+				if (wasInstalled && nowInstalled)
+					notify(_('%s is still installed because its packages are required by another installed application.').format(item.name), 'warning');
+				else if (wasInstalled && !networkResult.ok)
+					notify(_('%s removed, but the network service could not be restarted: %s').format(item.name, networkResult.error && networkResult.error.message || networkResult.error || _('unknown error')), 'warning');
+				else if (wasInstalled)
 					notify(_('%s removed.').format(item.name), 'info');
 				else if (networkResult.ok)
-					notify(_('%s installed. Network service restarted.').format(item.name), 'info');
+					notify(item.restartNetifdOnInstall
+						? _('%s installed. Network service restarted.').format(item.name)
+						: _('%s installed.').format(item.name), 'info');
 				else
 					notify(_('%s installed, but the network service could not be restarted: %s Reboot the router before using this feature.').format(item.name, networkResult.error && networkResult.error.message || networkResult.error || _('unknown error')), 'warning');
 

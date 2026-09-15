@@ -2,6 +2,7 @@
 'require view';
 'require ui';
 'require uci';
+'require freenetic-network as networkHelper';
 'require freenetic-view-guard as guard';
 'require freenetic-rpc as rpc';
 'require freenetic-ui as uiHelper';
@@ -79,11 +80,24 @@ function protocolChoice(protos) {
 }
 
 function actionLabel(target) {
+	if (target === 'ACCEPT')
+		return _('Allow');
 	if (target === 'REJECT')
 		return _('Reject');
 	if (target === 'DROP')
 		return _('Block');
-	return _('Allow');
+	return target || _('Unknown');
+}
+
+function actionChoice(target) {
+	const options = [
+		[ 'ACCEPT', _('Allow') ],
+		[ 'REJECT', _('Reject') ],
+		[ 'DROP', _('Block') ]
+	];
+	if (!options.some(option => option[0] === target))
+		options.push([ target, _('Existing action: %s (preserved)').format(target) ]);
+	return options;
 }
 
 /* Keep the editor intentionally small. Unknown rule options remain in UCI
@@ -223,12 +237,10 @@ return view.extend({
 		const destSelect = E('select', { class: 'fn-input' }, zoneOptions.map(o => o.cloneNode(true)));
 		destSelect.value = rule ? (rule.dest || '') : '';
 
-		const actionSelect = E('select', { class: 'fn-input' }, [
-			E('option', { value: 'ACCEPT' }, _('Allow')),
-			E('option', { value: 'REJECT' }, _('Reject')),
-			E('option', { value: 'DROP' }, _('Block'))
-		]);
-		actionSelect.value = rule ? (rule.target || 'ACCEPT') : 'ACCEPT';
+		const currentTarget = rule ? (rule.target || 'ACCEPT') : 'ACCEPT';
+		const actionSelect = E('select', { class: 'fn-input' },
+			actionChoice(currentTarget).map(option => E('option', { value: option[0] }, option[1])));
+		actionSelect.value = currentTarget;
 
 		const protocol = protocolChoice(rule ? rule.proto : 'all');
 		const protoSelect = E('select', { class: 'fn-input' },
@@ -299,6 +311,18 @@ return view.extend({
 		if (!fields.name) {
 			notify(_('Please enter a name for the rule.'), 'warning');
 			return;
+		}
+		for (const address of [ fields.srcIp, fields.destIp ]) {
+			if (address && !networkHelper.validAddress(address, address.indexOf(':') !== -1 ? 'ipv6' : 'ipv4', true)) {
+				notify(_('Source and destination addresses must be valid IPv4/IPv6 addresses or CIDR networks.'), 'warning');
+				return;
+			}
+		}
+		for (const port of [ fields.srcPort, fields.destPort ]) {
+			if (port && !networkHelper.validPort(port, true)) {
+				notify(_('Ports must be between 1 and 65535; ranges must be written as start-end.'), 'warning');
+				return;
+			}
 		}
 
 		btn.disabled = true;

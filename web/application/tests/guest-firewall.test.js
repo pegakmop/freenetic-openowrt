@@ -10,7 +10,7 @@ const source = fs.readFileSync(modulePath, 'utf8');
 
 const state = {
 	firewall: {
-		guest: { '.type': 'zone', '.name': 'guest', input: 'ACCEPT' },
+		guest: { '.type': 'zone', '.name': 'guest', input: 'ACCEPT', freenetic_managed: '1' },
 		unrelated_rule: { '.type': 'rule', '.name': 'unrelated_rule', target: 'DROP' }
 	}
 };
@@ -70,6 +70,12 @@ networkHelper.removeGuestFirewallRules();
 assert.equal(state.firewall.freenetic_guest_dhcp, undefined);
 assert.equal(state.firewall.freenetic_guest_dns, undefined);
 assert.ok(state.firewall.unrelated_rule, 'unrelated firewall rules must be preserved');
+
+state.firewall.guest.freenetic_managed = undefined;
+state.firewall.guest.input = 'ACCEPT';
+assert.throws(() => networkHelper.ensureGuestFirewall(), /not Freenetic-managed/,
+	'a foreign guest zone must not be mutated merely because it uses the conventional name');
+assert.equal(state.firewall.guest.input, 'ACCEPT');
 
 for (const relativeView of [
 	'view/status/freenetic-dashboard.js',

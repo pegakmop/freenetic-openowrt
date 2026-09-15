@@ -2,6 +2,7 @@
 'require baseclass';
 'require fs';
 'require uci';
+'require freenetic-network as networkHelper';
 'require freenetic-rpc as rpc';
 
 /* Protocol constants, UCI normalization and provider helpers. The view
@@ -150,28 +151,14 @@ function validKey(value, optional) {
 }
 
 function validIPv4(value) {
-	if (!IPV4_RE.test(String(value || '')))
-		return false;
-	return String(value).split('.').every(part => +part >= 0 && +part <= 255);
+	return networkHelper.validIPv4(value);
 }
 
 function validAddress(value) {
 	value = String(value || '').trim();
-	const parts = value.split('/');
-	if (parts.length > 2 || !parts[0])
-		return false;
-	if (parts[0].indexOf(':') !== -1) {
-		if (!/^[0-9a-f:]+$/i.test(parts[0]) || (parts[0].match(/::/g) || []).length > 1)
-			return false;
-		const groups = parts[0].split('::');
-		const count = p => p ? p.split(':').filter(Boolean).length : 0;
-		if (groups.length === 1 && count(groups[0]) !== 8)
-			return false;
-		if (groups.length === 2 && count(groups[0]) + count(groups[1]) >= 8)
-			return false;
-		return parts.length === 1 || /^\d+$/.test(parts[1]) && +parts[1] <= 128;
-	}
-	return validIPv4(parts[0]) && (parts.length === 1 || /^\d+$/.test(parts[1]) && +parts[1] <= 32);
+	return value.indexOf(':') !== -1
+		? networkHelper.validAddress(value, 'ipv6', true)
+		: networkHelper.validAddress(value, 'ipv4', true);
 }
 
 function validHost(value) {

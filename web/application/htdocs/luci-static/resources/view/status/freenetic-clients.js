@@ -26,18 +26,19 @@ function getDhcpLeases() {
 function getArpState() {
 	return ubusCall('file', 'read', { path: '/proc/net/arp' }).then(r => {
 		const table = {};
-		const active = {};
 		(r.data || '').split('\n').slice(1).forEach(line => {
 			const cols = line.trim().split(/\s+/);
 			const mac = cols.length >= 4 ? macKey(cols[3]) : '';
 			if (!mac || mac === '00:00:00:00:00:00')
 				return;
-			table[cols[0]] = cols[3];
-			if (parseInt(cols[2], 16) & 0x2)
-				active[mac] = true;
+			table[cols[0]] = {
+				mac,
+				device: cols[5] || '',
+				active: !!(parseInt(cols[2], 16) & 0x2)
+			};
 		});
-		return { table, active };
-	}).catch(() => ({ table: {}, active: {} }));
+		return table;
+	}).catch(() => ({}));
 }
 
 function getDhcpHosts() {
@@ -54,15 +55,15 @@ function getFirewallBlocks() {
 		const values = r.values || {};
 		return Object.keys(values)
 			.map(k => values[k])
-			.filter(s => s['.type'] === 'rule' && s.src_mac && (s.name || '').indexOf('freenetic_block_') === 0);
+			.filter(s => s['.type'] === 'rule' && s.src_mac && s.freenetic_managed === '1' &&
+				(s.name || '').indexOf('freenetic_block_') === 0);
 	}).catch(() => []);
 }
 
-function getInterfaceInfo(name) {
-	return ubusCall('network.interface', 'status', { interface: name }).then(r => {
-		const addr = (r['ipv4-address'] || [])[0];
-		return addr ? { address: addr.address, mask: addr.mask } : null;
-	}).catch(() => null);
+function optionList(value) {
+	if (Array.isArray(value))
+		return value;
+	return typeof value === 'string' ? value.trim().split(/\s+/).filter(Boolean) : [];
 }
 
 function ip2int(ip) {
@@ -79,6 +80,65 @@ function ipInLan(ip, lan) {
 	const bits = lan.mask || 24;
 	const shift = bits >= 32 ? 0 : 32 - bits;
 	return (a >>> shift) === (b >>> shift);
+}
+
+/* Only interfaces on which this router actually serves DHCP contain clients.
+   Mapping those logical networks to their live L3 devices keeps upstream WAN
+   neighbours (the ISP gateway in particular) out of the client list while
+   still supporting Guest and Freenetic's per-port dedicated segments. */
+function getClientSegments() {
+	return Promise.all([
+		ubusCall('network.interface', 'dump').catch(() => ({ interface: [] })),
+		ubusCall('uci', 'get', { config: 'network' }).catch(() => ({ values: {} })),
+		ubusCall('uci', 'get', { config: 'dhcp' }).catch(() => ({ values: {} })),
+		ubusCall('uci', 'get', { config: 'firewall' }).catch(() => ({ values: {} }))
+	]).then(([dump, networkResult, dhcpResult, firewallResult]) => {
+		const network = networkResult.values || {};
+		const dhcp = dhcpResult.values || {};
+		const firewall = firewallResult.values || {};
+		const enabled = {};
+		const zoneByNetwork = {};
+
+		Object.keys(dhcp).forEach(key => {
+			const section = dhcp[key] || {};
+			if (section['.type'] === 'dhcp' && section.interface && String(section.ignore || '0') !== '1')
+				enabled[section.interface] = true;
+		});
+		Object.keys(firewall).forEach(key => {
+			const section = firewall[key] || {};
+			if (section['.type'] !== 'zone' || !section.name)
+				return;
+			optionList(section.network).forEach(name => { zoneByNetwork[name] = section.name; });
+		});
+
+		const result = { byDevice: {}, networks: [] };
+		(dump.interface || []).forEach(status => {
+			const name = status.interface;
+			if (!name || !enabled[name])
+				return;
+
+			const config = network[name] || {};
+			const addr = (status['ipv4-address'] || [])[0] || {};
+			const segment = {
+				network: name,
+				label: name === 'lan' ? _('Home network') :
+					(name === 'guest' ? _('Guest network') : (config.label || name)),
+				zone: zoneByNetwork[name] || name,
+				address: addr.address || '',
+				mask: addr.mask
+			};
+			result.networks.push(segment);
+			[ status.device, status.l3_device ].forEach(device => {
+				if (device)
+					result.byDevice[device] = segment;
+			});
+		});
+		return result;
+	});
+}
+
+function segmentForIp(segments, ip) {
+	return ((segments && segments.networks) || []).find(segment => ipInLan(ip, segment)) || null;
 }
 
 /* network.wireless status is not a reliable source of AP interfaces across
@@ -133,12 +193,11 @@ return view.extend({
 		const arp = getArpState();
 		return Promise.all([
 			getDhcpLeases(),
-			arp.then(state => state.table),
+			arp,
 			getWifiStations(),
-			getInterfaceInfo('guest'),
+			getClientSegments(),
 			getDhcpHosts(),
-			getFirewallBlocks(),
-			arp.then(state => state.active)
+			getFirewallBlocks()
 		]);
 	},
 
@@ -146,10 +205,9 @@ return view.extend({
 		this.leases = data[0];
 		this.arp = data[1];
 		this.stations = data[2];
-		this.guestInfo = data[3];
+		this.clientSegments = data[3];
 		this.hosts = data[4];
 		this.blocks = data[5];
-		this.activeArpMacs = data[6];
 
 		this.unregTable = E('div', { class: 'fn-table fn-client-table' });
 		this.regTable = E('div', { class: 'fn-table fn-client-table' });
@@ -182,17 +240,16 @@ return view.extend({
 	},
 
 	refresh() {
-		const arp = getArpState();
 		return Promise.all([
-			getDhcpLeases(), arp.then(state => state.table), getWifiStations(),
-			getDhcpHosts(), getFirewallBlocks(), arp.then(state => state.active)
+			getDhcpLeases(), getArpState(), getWifiStations(), getClientSegments(),
+			getDhcpHosts(), getFirewallBlocks()
 		]).then(L.bind(function(res) {
 			this.leases = res[0];
 			this.arp = res[1];
 			this.stations = res[2];
-			this.hosts = res[3];
-			this.blocks = res[4];
-			this.activeArpMacs = res[5];
+			this.clientSegments = res[3];
+			this.hosts = res[4];
+			this.blocks = res[5];
 			this.fillTables();
 		}, this)).catch(() => {});
 	},
@@ -207,15 +264,28 @@ return view.extend({
 			const mac = macKey(l.macaddr);
 			if (!mac)
 				return;
-			devices[mac] = { mac, ip: l.ipaddr, hostname: l.hostname || '', online: !!this.activeArpMacs[mac] };
+			devices[mac] = {
+				mac,
+				ip: l.ipaddr,
+				hostname: l.hostname || '',
+				online: false,
+				segment: segmentForIp(this.clientSegments, l.ipaddr)
+			};
 		});
 
 		Object.keys(this.arp).forEach(ip => {
-			const mac = macKey(this.arp[ip]);
+			const arp = this.arp[ip] || {};
+			const mac = macKey(arp.mac);
+			const segment = (this.clientSegments.byDevice || {})[arp.device];
+			if (!mac || !segment)
+				return;
 			if (!devices[mac])
-				devices[mac] = { mac, ip, hostname: '', online: !!this.activeArpMacs[mac] };
-			else if (!devices[mac].ip)
+				devices[mac] = { mac, ip, hostname: '', online: arp.active, segment };
+			else {
 				devices[mac].ip = ip;
+				devices[mac].online = arp.active;
+				devices[mac].segment = segment;
+			}
 		});
 		Object.keys(this.stations).forEach(mac => {
 			if (devices[mac])
@@ -227,16 +297,16 @@ return view.extend({
 
 	describeConnection(mac, live) {
 		if (!live)
-			return { segment: _('Not in network'), connection: '–' };
+			return { segment: _('Not in network'), connection: '–', zone: 'lan' };
 
 		const wifi = this.stations[mac];
-		const isGuest = ipInLan(live.ip, this.guestInfo);
-		const segment = isGuest ? _('Guest network') : _('Home network');
+		const segmentInfo = live.segment || segmentForIp(this.clientSegments, live.ip);
+		const segment = segmentInfo ? segmentInfo.label : _('Home network');
 		const connection = wifi
 			? (wifi.band === '5g' ? '5 GHz' : '2.4 GHz') + ' Wi-Fi' + (typeof wifi.signal === 'number' ? ' · ' + wifi.signal + ' dBm' : '')
 			: (live.online ? _('Wired') : _('Not connected'));
 
-		return { segment, connection };
+		return { segment, connection, zone: segmentInfo ? segmentInfo.zone : 'lan' };
 	},
 
 	fillTables() {
@@ -276,7 +346,11 @@ return view.extend({
 			blockedByMac: blocksByMac
 		});
 
-		const blockedRows = this.blocks.map(b => ({
+		const blockedRows = this.blocks.filter(block => {
+			const mac = macKey(block.src_mac);
+			const client = live[mac];
+			return !client || block.src === this.describeConnection(mac, client).zone;
+		}).map(b => ({
 			mac: macKey(b.src_mac), name: hostsByMac[macKey(b.src_mac)] ? hostsByMac[macKey(b.src_mac)].name : b.src_mac,
 			live: live[macKey(b.src_mac)], sectionName: b['.name']
 		}));
@@ -306,16 +380,19 @@ return view.extend({
 		}
 
 		rows.forEach(row => {
-			const { segment, connection } = this.describeConnection(row.mac, row.live);
+			const { segment, connection, zone } = this.describeConnection(row.mac, row.live);
 			const online = !!(row.live && row.live.online);
 			const ip = row.live ? row.live.ip : (row.ip || '–');
-			const isBlocked = opts.blockedByMac && opts.blockedByMac[row.mac];
+			const block = opts.blockedByMac && opts.blockedByMac[row.mac];
+			/* An alpha.1 rule may point at lan even when the client belongs to a
+			 * dedicated zone. Never present such an ineffective rule as blocked. */
+			const isBlocked = !!block && (!row.live || block.src === zone);
 
 			const actions = E('div', { class: 'fn-table-actions' }, [ opts.rowAction(row) ]);
 			if (opts.blockedByMac && !isBlocked) {
 				actions.appendChild(E('button', {
 					type: 'button', class: 'fn-settings-btn',
-					click: () => this.blockClient(row.mac)
+					click: () => this.blockClient(row.mac, zone)
 				}, _('Block')));
 			}
 
@@ -363,12 +440,25 @@ return view.extend({
 		});
 	},
 
-	blockClient(mac) {
+	blockClient(mac, sourceZone) {
 		return uci.load('firewall').then(() => {
+			if (!sourceZone)
+				throw new Error(_('The client firewall zone could not be determined.'));
+			/* Replace only Freenetic-owned rules for this MAC. This repairs the
+			 * incorrect alpha.1 source zone without touching native user rules. */
+			uci.sections('firewall', 'rule').forEach(rule => {
+				if (rule.freenetic_managed === '1' &&
+				    (rule.name || '').indexOf('freenetic_block_') === 0 &&
+				    macKey(rule.src_mac) === macKey(mac))
+					uci.remove('firewall', rule['.name']);
+			});
 			const section = uci.add('firewall', 'rule');
 			uci.set('firewall', section, 'freenetic_managed', '1');
 			uci.set('firewall', section, 'name', 'freenetic_block_' + mac.replace(/:/g, ''));
-			uci.set('firewall', section, 'src', 'lan');
+			/* sourceZone comes from the firewall zone which owns the client's
+			 * DHCP-backed network. Preserve it verbatim: dedicated Ethernet
+			 * segments do not belong to either the lan or guest zone. */
+			uci.set('firewall', section, 'src', sourceZone);
 			uci.set('firewall', section, 'dest', 'wan');
 			uci.set('firewall', section, 'src_mac', mac);
 			uci.set('firewall', section, 'target', 'REJECT');
@@ -383,6 +473,9 @@ return view.extend({
 
 	unblockClient(sectionName) {
 		return uci.load('firewall').then(() => {
+			const section = uci.get('firewall', sectionName);
+			if (!section || section.freenetic_managed !== '1' || (section.name || '').indexOf('freenetic_block_') !== 0)
+				throw new Error(_('This firewall rule is not managed by Freenetic.'));
 			uci.remove('firewall', sectionName);
 			return uci.save();
 		}).then(() => applyChanges()).then(() => {

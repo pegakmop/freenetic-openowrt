@@ -833,6 +833,29 @@ return view.extend({
 		}).catch(error => ({ ok: false, error: error.message || error }));
 	},
 
+	reconcileGlobalPbr() {
+		if (!this.pbrSection)
+			return;
+		const configName = sectionName(this.pbrSection) || 'config';
+		const managed = uci.sections('pbr', 'policy').some(section =>
+			isManagedSection(section) && section.enabled !== '0');
+		const marker = uci.get('pbr', configName, 'freenetic_managed') === '1';
+		if (managed) {
+			const alreadyEnabled = uci.get('pbr', configName, 'enabled') !== '0';
+			uci.set('pbr', configName, 'enabled', '1');
+			if (marker || !alreadyEnabled)
+				uci.set('pbr', configName, 'freenetic_managed', '1');
+			return;
+		}
+		if (!marker)
+			return;
+		const foreignEnabled = uci.sections('pbr', 'policy').concat(uci.sections('pbr', 'include')).some(section =>
+			!isManagedSection(section) && section.enabled !== '0');
+		if (!foreignEnabled)
+			uci.set('pbr', configName, 'enabled', '0');
+		uci.unset('pbr', configName, 'freenetic_managed');
+	},
+
 	refreshPolicies() {
 		return Promise.all([ getUciConfig('network'), getUciConfig('firewall'), getUciConfig('pbr') ]).then(data => {
 			this.network = data[0] || {};
@@ -846,7 +869,7 @@ return view.extend({
 	},
 
 	savePolicy(network, opts, saveButton) {
-		if (!opts.cidr) {
+		if (!opts.cidr && opts.mode !== 'block') {
 			notify(_('Set an IPv4 address and subnet mask for this network first.'), 'warning');
 			return Promise.resolve();
 		}
@@ -866,10 +889,17 @@ return view.extend({
 
 		return uci.load(configs).then(() => {
 			const pbrSection = managedPolicySection(network);
+			const existing = opts.pbrAvailable && uci.get('pbr', pbrSection);
+			const blockSection = managedBlockSection(network);
+			const existingBlock = uci.get('firewall', blockSection);
+			/* Resolve every deterministic-name collision before the first mutation.
+			 * A rejected save must not leave dirty in-memory UCI changes that a later
+			 * unrelated Apply could accidentally commit. */
+			if (existing && existing.freenetic_managed !== '1')
+				throw new Error(_('A non-Freenetic pbr policy already uses this name.'));
+			if (existingBlock && existingBlock.freenetic_managed !== '1')
+				throw new Error(_('A non-Freenetic firewall rule already uses this name.'));
 			if (opts.pbrAvailable) {
-				const existing = uci.get('pbr', pbrSection);
-				if (existing && existing.freenetic_managed !== '1')
-					throw new Error(_('A non-Freenetic pbr policy already uses this name.'));
 				if (opts.mode === 'direct' || opts.mode === 'vpn') {
 					const section = existing || uci.add('pbr', 'policy', pbrSection);
 					uci.set('pbr', section, 'name', 'Freenetic — ' + (this.network[network] && (this.network[network].label || networkLabel(network)) || network));
@@ -885,12 +915,9 @@ return view.extend({
 				}
 			}
 
-			const blockSection = managedBlockSection(network);
-			const existingBlock = uci.get('firewall', blockSection);
-			if (existingBlock && existingBlock.freenetic_managed !== '1')
-				throw new Error(_('A non-Freenetic firewall rule already uses this name.'));
 			if (opts.mode === 'block') {
-				const section = existingBlock || uci.add('firewall', 'rule', blockSection);
+				const firstRule = uci.sections('firewall', 'rule')[0];
+				const section = existingBlock ? sectionName(existingBlock) : uci.add('firewall', 'rule', blockSection);
 				uci.set('firewall', section, 'name', 'Freenetic — Block Internet from ' + (this.network[network] && (this.network[network].label || networkLabel(network)) || network));
 				uci.set('firewall', section, 'src', opts.zone);
 				uci.set('firewall', section, 'dest', opts.wanZone);
@@ -899,6 +926,8 @@ return view.extend({
 				uci.set('firewall', section, 'freenetic_managed', '1');
 				uci.set('firewall', section, 'freenetic_scope', 'network');
 				uci.set('firewall', section, 'freenetic_network', network);
+				if (firstRule && sectionName(firstRule) !== section)
+					uci.move('firewall', section, sectionName(firstRule), false);
 			}
 			else if (existingBlock && existingBlock.freenetic_managed === '1') {
 				uci.remove('firewall', blockSection);
@@ -907,22 +936,7 @@ return view.extend({
 				this.syncDeviceFirewallExceptions(network, opts.zone, opts.wanZone);
 
 			if (opts.pbrAvailable) {
-				const configName = this.pbrSection && sectionName(this.pbrSection) || 'config';
-				const managed = uci.sections('pbr', 'policy').some(section => section.freenetic_managed === '1' && section.enabled !== '0');
-				const anyEnabled = uci.sections('pbr', 'policy').some(section => section.enabled !== '0');
-				if (managed) {
-					uci.set('pbr', configName, 'enabled', '1');
-					uci.set('pbr', configName, 'freenetic_managed', '1');
-				}
-				else if (uci.get('pbr', configName, 'freenetic_managed') === '1' && !anyEnabled) {
-					uci.set('pbr', configName, 'enabled', '0');
-					uci.unset('pbr', configName, 'freenetic_managed');
-				}
-				else if (!managed && uci.get('pbr', configName, 'freenetic_managed') === '1') {
-					/* A user policy is still active. Keep pbr running but drop our
-					 * ownership marker so a later Freenetic change cannot disable it. */
-					uci.unset('pbr', configName, 'freenetic_managed');
-				}
+				this.reconcileGlobalPbr();
 				this.reorderManagedPbrPolicies();
 			}
 
@@ -947,6 +961,10 @@ return view.extend({
 			notify(_('A detected network segment with firewall zones is required for Block Internet.'), 'warning');
 			return Promise.resolve();
 		}
+		if (opts.mode === 'direct' && !opts.pbrAvailable && (!opts.network || !opts.zone || !opts.wanZone)) {
+			notify(_('A detected network segment with firewall zones is required for a Direct override.'), 'warning');
+			return Promise.resolve();
+		}
 
 		saveButton.disabled = true;
 		const configs = [ 'network', 'firewall' ];
@@ -957,10 +975,18 @@ return view.extend({
 
 		return uci.load(configs).then(() => {
 			const pbrSectionName = managedDeviceSection(mac);
+			const existing = opts.pbrAvailable && uci.get('pbr', pbrSectionName);
+			const blockSectionName = managedDeviceBlockSection(mac);
+			const existingBlock = uci.get('firewall', blockSectionName);
+			const allowSectionName = managedDeviceAllowSection(mac);
+			const existingAllow = uci.get('firewall', allowSectionName);
+			if (existing && !isManagedSection(existing, 'device'))
+				throw new Error(_('A non-Freenetic pbr policy already uses this device name.'));
+			if (existingBlock && !isManagedSection(existingBlock, 'device'))
+				throw new Error(_('A non-Freenetic firewall rule already uses this device name.'));
+			if (existingAllow && !isManagedSection(existingAllow, 'device-allow'))
+				throw new Error(_('A non-Freenetic firewall rule already uses this device exception name.'));
 			if (opts.pbrAvailable) {
-				const existing = uci.get('pbr', pbrSectionName);
-				if (existing && !isManagedSection(existing, 'device'))
-					throw new Error(_('A non-Freenetic pbr policy already uses this device name.'));
 				if (opts.mode === 'direct' || opts.mode === 'vpn') {
 					const section = existing || uci.add('pbr', 'policy', pbrSectionName);
 					uci.set('pbr', section, 'name', 'Freenetic — ' + label);
@@ -978,12 +1004,9 @@ return view.extend({
 				}
 			}
 
-			const blockSectionName = managedDeviceBlockSection(mac);
-			const existingBlock = uci.get('firewall', blockSectionName);
-			if (existingBlock && !isManagedSection(existingBlock, 'device'))
-				throw new Error(_('A non-Freenetic firewall rule already uses this device name.'));
 			if (opts.mode === 'block') {
-				const section = existingBlock || uci.add('firewall', 'rule', blockSectionName);
+				const firstRule = uci.sections('firewall', 'rule')[0];
+				const section = existingBlock ? sectionName(existingBlock) : uci.add('firewall', 'rule', blockSectionName);
 				uci.set('firewall', section, 'name', 'Freenetic — Block Internet from ' + label);
 				uci.set('firewall', section, 'src', opts.zone);
 				uci.set('firewall', section, 'dest', opts.wanZone);
@@ -994,6 +1017,8 @@ return view.extend({
 				uci.set('firewall', section, 'freenetic_scope', 'device');
 				uci.set('firewall', section, 'freenetic_mac', mac);
 				uci.set('firewall', section, 'freenetic_network', opts.network);
+				if (firstRule && sectionName(firstRule) !== section)
+					uci.move('firewall', section, sectionName(firstRule), false);
 			}
 			else if (existingBlock && isManagedSection(existingBlock, 'device')) {
 				uci.remove('firewall', blockSectionName);
@@ -1002,12 +1027,10 @@ return view.extend({
 			/* A segment-level block rule is intentionally broad.  Add a managed
 			 * allow exception ahead of it when a device explicitly chooses WAN or
 			 * VPN, so the per-device rule has the same override semantics as pbr. */
-			const allowSectionName = managedDeviceAllowSection(mac);
-			const existingAllow = uci.get('firewall', allowSectionName);
-			if (existingAllow && !isManagedSection(existingAllow, 'device-allow'))
-				throw new Error(_('A non-Freenetic firewall rule already uses this device exception name.'));
 			const segmentBlock = opts.network && uci.get('firewall', managedBlockSection(opts.network));
-			if ((opts.mode === 'direct' || opts.mode === 'vpn') && isManagedSection(segmentBlock) && opts.zone && opts.wanZone) {
+			if ((opts.mode === 'direct' && opts.zone && opts.wanZone) ||
+			    (opts.mode === 'vpn' && isManagedSection(segmentBlock) && opts.zone && opts.wanZone)) {
+				const firstRule = uci.sections('firewall', 'rule')[0];
 				const section = existingAllow || uci.add('firewall', 'rule', allowSectionName);
 				uci.set('firewall', section, 'name', 'Freenetic — Allow device override for ' + label);
 				uci.set('firewall', section, 'src', opts.zone);
@@ -1019,27 +1042,21 @@ return view.extend({
 				uci.set('firewall', section, 'freenetic_scope', 'device-allow');
 				uci.set('firewall', section, 'freenetic_mac', mac);
 				uci.set('firewall', section, 'freenetic_network', opts.network);
-				uci.move('firewall', section, managedBlockSection(opts.network), false);
+				/* A Direct override must remain effective even when pbr is absent,
+				 * including against an earlier broad deny rule. VPN only needs to
+				 * precede the Freenetic segment block; routing is still handled by pbr. */
+				const before = opts.mode === 'direct'
+					? firstRule && sectionName(firstRule)
+					: managedBlockSection(opts.network);
+				if (before && before !== section)
+					uci.move('firewall', section, before, false);
 			}
 			else if (existingAllow && isManagedSection(existingAllow, 'device-allow')) {
 				uci.remove('firewall', allowSectionName);
 			}
 
 			if (opts.pbrAvailable) {
-				const configName = this.pbrSection && sectionName(this.pbrSection) || 'config';
-				const managed = uci.sections('pbr', 'policy').some(section => section.freenetic_managed === '1' && section.enabled !== '0');
-				const anyEnabled = uci.sections('pbr', 'policy').some(section => section.enabled !== '0');
-				if (managed) {
-					uci.set('pbr', configName, 'enabled', '1');
-					uci.set('pbr', configName, 'freenetic_managed', '1');
-				}
-				else if (uci.get('pbr', configName, 'freenetic_managed') === '1' && !anyEnabled) {
-					uci.set('pbr', configName, 'enabled', '0');
-					uci.unset('pbr', configName, 'freenetic_managed');
-				}
-				else if (!managed && uci.get('pbr', configName, 'freenetic_managed') === '1') {
-					uci.unset('pbr', configName, 'freenetic_managed');
-				}
+				this.reconcileGlobalPbr();
 				this.reorderManagedPbrPolicies();
 			}
 

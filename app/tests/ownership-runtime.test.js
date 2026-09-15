@@ -83,6 +83,7 @@ const uci = new FakeUci({
 const baseclass = { extend: value => value };
 const networkHelper = new Function('baseclass', 'uci', source)(baseclass, uci);
 
+networkHelper.assertGuestFirewallOwnership();
 networkHelper.adoptLegacyGuest();
 
 assert.equal(uci.get('wireless', 'guest_radio0', 'freenetic_managed'), '1');
@@ -118,6 +119,25 @@ const collisionUci = new FakeUci({
 const collisionHelper = new Function('baseclass', 'uci', source)(baseclass, collisionUci);
 assert.throws(() => collisionHelper.ensureGuestFirewall(), /not Freenetic-managed/,
 	'guest hardening must not claim a foreign rule with a reserved section name');
+
+const sharedGuestUci = new FakeUci({
+	wireless: {}, network: {}, dhcp: {},
+	firewall: {
+		guest: {
+			'.name': 'guest', '.type': 'zone', name: 'guest',
+			network: [ 'guest', 'operator_iot' ], input: 'ACCEPT'
+		}
+	}
+});
+const sharedGuestHelper = new Function('baseclass', 'uci', source)(baseclass, sharedGuestUci);
+assert.throws(() => sharedGuestHelper.assertGuestFirewallOwnership(), /not a Freenetic guest zone/,
+	'a shared foreign zone must fail before any save-path mutation begins');
+sharedGuestHelper.adoptLegacyGuest();
+assert.equal(sharedGuestUci.get('firewall', 'guest', 'freenetic_managed'), undefined,
+	'a shared operator zone must not be adopted as a legacy Freenetic guest zone');
+assert.throws(() => sharedGuestHelper.ensureGuestFirewall(), /not Freenetic-managed/);
+assert.equal(sharedGuestUci.get('firewall', 'guest', 'input'), 'ACCEPT',
+	'a rejected foreign guest zone must remain byte-for-byte policy compatible');
 
 const wifiCollisionUci = new FakeUci({ wireless: {
 	radio0: { '.name': 'radio0', '.type': 'wifi-device' },

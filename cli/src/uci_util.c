@@ -17,8 +17,11 @@ int fnc_uci_set(const char *package, const char *section,
 	if (!ctx)
 		return -1;
 
-	snprintf(expr, sizeof(expr), "%s.%s.%s=%s", package, section,
-		 option, value);
+	if (snprintf(expr, sizeof(expr), "%s.%s.%s=%s", package, section,
+		     option, value) < 0 || strlen(expr) >= sizeof(expr) - 1) {
+		fprintf(stderr, "fnc: uci: выражение слишком длинное\n");
+		goto out;
+	}
 	if (uci_lookup_ptr(ctx, &ptr, expr, true) != UCI_OK) {
 		fprintf(stderr, "fnc: uci: не удалось разобрать '%s'\n", expr);
 		goto out;
@@ -156,7 +159,11 @@ int fnc_uci_section_type(const char *package, const char *section,
 	if (!ctx)
 		return -1;
 
-	snprintf(expr, sizeof(expr), "%s.%s", package, section);
+	if (snprintf(expr, sizeof(expr), "%s.%s", package, section) < 0 ||
+	    strlen(expr) >= sizeof(expr) - 1) {
+		fprintf(stderr, "fnc: uci: выражение слишком длинное\n");
+		goto out;
+	}
 	if (uci_lookup_ptr(ctx, &ptr, expr, true) == UCI_OK &&
 	    (ptr.flags & UCI_LOOKUP_COMPLETE) && ptr.s) {
 		strncpy(out, ptr.s->type, outsz - 1);
@@ -164,6 +171,7 @@ int fnc_uci_section_type(const char *package, const char *section,
 		ret = 0;
 	}
 
+out:
 	uci_free_context(ctx);
 	return ret;
 }

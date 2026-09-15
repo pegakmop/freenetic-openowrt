@@ -39,6 +39,18 @@ function svgIcon(d, size) {
 	return span;
 }
 
+function clearBrowserCacheAndLogout() {
+	const cacheCleanup = window.caches && typeof window.caches.keys === 'function'
+		? window.caches.keys()
+			.then(keys => Promise.all(keys.map(key => window.caches.delete(key))))
+			.catch(() => null)
+		: Promise.resolve();
+
+	return cacheCleanup.finally(() => {
+		window.location.replace('/cgi-bin/luci/admin/logout?_=' + Date.now());
+	});
+}
+
 function qrGlyph(size) {
 	size = size || 16;
 	const span = E('span', { class: 'fn-icon' });
@@ -650,6 +662,7 @@ return view.extend({
 			/* This is an explicit guest-network save. It is the safe point to
 			   adopt sections created by older Freenetic versions; deletion uses
 			   the marker only and never relies on a guest_* name. */
+			networkHelper.assertGuestFirewallOwnership();
 			networkHelper.adoptLegacyGuest();
 			const radios = uci.sections('wireless', 'wifi-device');
 
@@ -700,7 +713,7 @@ return view.extend({
 			}
 			uci.set('dhcp', 'guest', 'dhcpv4', 'server');
 
-			if (uci.get('firewall', 'guest', 'name') == null) {
+			if (uci.get('firewall', 'guest') == null) {
 				uci.add('firewall', 'zone', 'guest');
 				uci.set('firewall', 'guest', 'name', 'guest');
 				uci.set('firewall', 'guest', 'network', 'guest');
@@ -710,7 +723,7 @@ return view.extend({
 			}
 			networkHelper.ensureGuestFirewall();
 
-			if (uci.get('firewall', 'guest_wan_fwd', 'src') == null) {
+			if (uci.get('firewall', 'guest_wan_fwd') == null) {
 				uci.add('firewall', 'forwarding', 'guest_wan_fwd');
 				uci.set('firewall', 'guest_wan_fwd', 'src', 'guest');
 				uci.set('firewall', 'guest_wan_fwd', 'dest', 'wan');
@@ -718,7 +731,9 @@ return view.extend({
 			}
 
 			return uci.save();
-		}).then(() => applyChanges()).then(() => fs.exec('/sbin/ifup', [ 'guest' ])).then(() => {
+		}).then(() => applyChanges()).then(() => fs.exec('/sbin/ifup', [ 'guest' ])).then(result => {
+			if (!result || result.code !== 0)
+				throw new Error(result && (result.stderr || result.stdout) || _('Guest interface could not be started.'));
 			notify(_('Guest network enabled.'), 'info');
 			return this.refreshNetworks();
 		}).catch(err => {
@@ -908,7 +923,7 @@ return view.extend({
 		});
 
 		return E('div', { class: 'fn-card' }, [
-			cardHead('M4 9h16v10H4zM8 9V6a4 4 0 0 1 8 0v3', _('Network Ports'), [ 'admin', 'network', 'home_network' ]),
+			cardHead('M4 9h16v10H4zM8 9V6a4 4 0 0 1 8 0v3', _('Network Ports'), [ 'admin', 'network', 'ethernet_ports' ]),
 			E('div', { class: 'fn-card-body' }, [ row ])
 		]);
 	},
@@ -1342,14 +1357,15 @@ return view.extend({
 										throw error;
 									}
 									ui.showModal(_('Freenetic was updated'), [
-										E('p', {}, _('The interface update was installed successfully. Reload the page to use the new version.')),
+										E('p', {}, _('The interface update was installed successfully. The browser cache is being cleared and you will be signed out to load the new theme cleanly.')),
 										E('div', { class: 'button-row' }, [
 											E('button', {
 												class: 'btn cbi-button-positive',
-												click: () => window.location.reload()
-											}, _('Reload interface'))
+												click: clearBrowserCacheAndLogout
+											}, _('Sign in again'))
 										])
 									]);
+									window.setTimeout(clearBrowserCacheAndLogout, 1200);
 								})
 								.catch(error => {
 									const confirmed = error && error.freeneticConfirmedFailure;

@@ -2,6 +2,7 @@
 'require view';
 'require ui';
 'require uci';
+'require freenetic-network as networkHelper';
 'require freenetic-rpc as rpc';
 'require freenetic-ui as uiHelper';
 
@@ -20,6 +21,51 @@ function getFirewallConfig() {
 
 function getDhcpLeases() {
 	return ubusCall('luci-rpc', 'getDHCPLeases').then(r => r.dhcp_leases || []).catch(() => []);
+}
+
+function getNetworkConfig() {
+	return ubusCall('uci', 'get', { config: 'network' }).then(r => r.values || {}).catch(() => ({}));
+}
+
+function listValue(value) {
+	return Array.isArray(value) ? value.slice() : (value ? String(value).split(/[\s,]+/).filter(Boolean) : []);
+}
+
+function ipv4ToUint(address) {
+	const parts = String(address || '').split('.');
+	if (parts.length !== 4 || !parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255))
+		return null;
+	return parts.reduce((value, part) => (value * 256 + Number(part)) >>> 0, 0);
+}
+
+function prefixFromNetmask(netmask) {
+	const value = ipv4ToUint(netmask);
+	if (value == null)
+		return null;
+	let prefix = 0, zeroSeen = false;
+	for (let bit = 31; bit >= 0; bit--) {
+		const set = (value & (1 << bit)) !== 0;
+		if (set && zeroSeen)
+			return null;
+		if (set) prefix++;
+		else zeroSeen = true;
+	}
+	return prefix;
+}
+
+function addressInInterface(address, iface) {
+	const target = ipv4ToUint(address);
+	if (target == null)
+		return false;
+	return listValue(iface && iface.ipaddr).some(raw => {
+		const parts = String(raw).split('/');
+		const local = ipv4ToUint(parts[0]);
+		const prefix = parts.length > 1 ? Number(parts[1]) : prefixFromNetmask(iface.netmask || '255.255.255.0');
+		if (local == null || !Number.isInteger(prefix) || prefix < 0 || prefix > 32)
+			return false;
+		const size = Math.pow(2, 32 - prefix);
+		return Math.floor(local / size) === Math.floor(target / size);
+	});
 }
 
 /* "WAN"/"LAN" zone names aren't hardcoded — same masq-zone detection idea as
@@ -55,12 +101,13 @@ function protoLabel(protos) {
 
 return view.extend({
 	load() {
-		return Promise.all([ getFirewallConfig(), getDhcpLeases(), uci.load('network') ]);
+		return Promise.all([ getFirewallConfig(), getDhcpLeases(), uci.load('network'), getNetworkConfig() ]);
 	},
 
 	render(data) {
 		this.firewall = data[0];
 		this.leases = data[1];
+		this.network = data[3];
 		this.zones = detectZones(this.firewall);
 		this.activeFamily = 'ipv4';
 
@@ -93,6 +140,18 @@ return view.extend({
 				this.upnpTable
 			])
 		]);
+	},
+
+	destinationZoneForAddress(address, fallback) {
+		const ifaceName = Object.keys(this.network || {}).find(name => {
+			const iface = this.network[name];
+			return iface && iface['.type'] === 'interface' && addressInInterface(address, iface);
+		});
+		if (!ifaceName)
+			return fallback || this.zones.lan;
+		const zone = Object.keys(this.firewall || {}).map(name => this.firewall[name]).find(section =>
+			section && section['.type'] === 'zone' && listValue(section.network).indexOf(ifaceName) !== -1);
+		return zone && zone.name || fallback || this.zones.lan;
 	},
 
 	refresh() {
@@ -222,6 +281,7 @@ return view.extend({
 		const portParts = existingPort.split('-');
 		const isRange = portParts.length === 2;
 		const inputNetwork = rule ? (rule.src || this.zones.wan) : this.zones.wan;
+		const existingDestination = rule ? (rule.dest || this.zones.lan) : this.zones.lan;
 
 		const nameInput = E('input', { type: 'text', class: 'fn-input', placeholder: _('Description'), value: rule ? (rule.name || '') : '' });
 		const enabledInput = E('input', { type: 'checkbox' });
@@ -252,10 +312,16 @@ return view.extend({
 			if (!lease.ipaddr || knownAddresses[lease.ipaddr])
 				return;
 			knownAddresses[lease.ipaddr] = true;
-			outputSelect.appendChild(E('option', { value: lease.ipaddr }, lease.hostname ? lease.hostname + ' (' + lease.ipaddr + ')' : lease.ipaddr));
+			outputSelect.appendChild(E('option', {
+				value: lease.ipaddr,
+				'data-destination-zone': this.destinationZoneForAddress(lease.ipaddr, this.zones.lan)
+			}, lease.hostname ? lease.hostname + ' (' + lease.ipaddr + ')' : lease.ipaddr));
 		});
 		if (rule && rule.dest_ip && !knownAddresses[rule.dest_ip])
-			outputSelect.appendChild(E('option', { value: rule.dest_ip }, rule.dest_ip));
+			outputSelect.appendChild(E('option', {
+				value: rule.dest_ip,
+				'data-destination-zone': existingDestination
+			}, rule.dest_ip));
 		outputSelect.appendChild(E('option', { value: '__custom__' }, _('Enter address manually')));
 		outputSelect.value = rule && rule.dest_ip ? rule.dest_ip : '';
 		const customOutputInput = E('input', { type: 'text', class: 'fn-input', placeholder: isV6 ? '2001:db8::10' : '192.168.1.100', value: '' });
@@ -289,11 +355,13 @@ return view.extend({
 		const portError = errorNode();
 		const rangeStartError = errorNode();
 		const rangeEndError = errorNode();
+		const intPortError = errorNode();
 		const outputField = legendField(_('Output'), E('div', { class: 'fn-pf-output-control' }, [ outputSelect, customOutputWrap ]), outputError);
 		const singlePortField = legendField(_('Open the port'), extPortInput, portError);
 		const rangeStartField = legendField(_('Open the ports'), rangeStartInput, rangeStartError);
 		const rangeEndField = legendField('', extPortEndInput, rangeEndError);
-		const singlePortWrap = E('div', { class: 'fn-pf-single-port' }, [ singlePortField, legendField(_('Redirect to port'), intPortInput, errorNode()) ]);
+		const intPortField = legendField(_('Redirect to port'), intPortInput, intPortError);
+		const singlePortWrap = E('div', { class: 'fn-pf-single-port' }, [ singlePortField, intPortField ]);
 		const rangePortWrap = E('div', { class: 'fn-pf-range-port', hidden: !isRange }, [ rangeStartField, E('span', { class: 'fn-pf-range-dash' }, '–'), rangeEndField ]);
 		const singleRadio = E('input', { type: 'radio', name: 'fn-pf-rule-type', value: 'single' });
 		const rangeRadio = E('input', { type: 'radio', name: 'fn-pf-rule-type', value: 'range' });
@@ -320,13 +388,14 @@ return view.extend({
 			node.hidden = true;
 		};
 		const getOutputAddress = () => outputSelect.value === '__custom__' ? customOutputInput.value.trim() : outputSelect.value;
-		const validAddress = value => isV6 ? /^[0-9A-Fa-f:]+$/.test(value) && value.indexOf(':') !== -1 : /^\d{1,3}(\.\d{1,3}){3}$/.test(value);
-		const validPort = value => /^\d+$/.test(value) && parseInt(value, 10) >= 1 && parseInt(value, 10) <= 65535;
+		const validAddress = value => networkHelper.validAddress(value, isV6 ? 'ipv6' : 'ipv4', false);
+		const validPort = value => networkHelper.validPort(value, false);
 		const validate = () => {
 			clearError(outputField, outputError);
 			clearError(singlePortField, portError);
 			clearError(rangeStartField, rangeStartError);
 			clearError(rangeEndField, rangeEndError);
+			clearError(intPortField, intPortError);
 			let valid = true;
 			const outputAddress = getOutputAddress();
 			if (!outputAddress || !validAddress(outputAddress)) {
@@ -337,6 +406,10 @@ return view.extend({
 				showError(singlePortField, portError, _('Fill in this field'));
 				valid = false;
 			}
+			if (singleRadio.checked && intPortInput.value.trim() && !validPort(intPortInput.value.trim())) {
+				showError(intPortField, intPortError, _('Enter a port from 1 to 65535'));
+				valid = false;
+			}
 			if (rangeRadio.checked) {
 				if (!validPort(rangeStartInput.value.trim())) {
 					showError(rangeStartField, rangeStartError, _('Fill in this field'));
@@ -344,6 +417,11 @@ return view.extend({
 				}
 				if (!validPort(extPortEndInput.value.trim())) {
 					showError(rangeEndField, rangeEndError, _('Fill in this field'));
+					valid = false;
+				}
+				if (validPort(rangeStartInput.value.trim()) && validPort(extPortEndInput.value.trim()) &&
+				    Number(rangeStartInput.value) > Number(extPortEndInput.value)) {
+					showError(rangeEndField, rangeEndError, _('The end port must not be lower than the start port'));
 					valid = false;
 				}
 			}
@@ -362,6 +440,9 @@ return view.extend({
 				proto: protoSelect.value,
 				extPort: extPort,
 				ip: getOutputAddress(),
+				destZone: outputSelect.value === '__custom__'
+					? this.destinationZoneForAddress(getOutputAddress(), existingDestination)
+					: (outputSelect.options[outputSelect.selectedIndex].getAttribute('data-destination-zone') || existingDestination),
 				intPort: singleRadio.checked ? intPortInput.value.trim() : ''
 			}, saveBtn);
 		});
@@ -411,13 +492,15 @@ return view.extend({
 			notify(_('Please enter an external port.'), 'warning');
 			return;
 		}
-		if (!/^\d+(-\d+)?$/.test(fields.extPort)) {
+		if (!networkHelper.validPort(fields.extPort, true)) {
 			notify(_('External port must be a number or a range (e.g. 8080-8090).'), 'warning');
 			return;
 		}
-		const validIp = fields.family === 'ipv6'
-			? /^[0-9A-Fa-f:]+$/.test(fields.ip) && fields.ip.indexOf(':') !== -1
-			: /^\d{1,3}(\.\d{1,3}){3}$/.test(fields.ip);
+		if (fields.intPort && !networkHelper.validPort(fields.intPort, false)) {
+			notify(_('Internal port must be a number from 1 to 65535.'), 'warning');
+			return;
+		}
+		const validIp = networkHelper.validAddress(fields.ip, fields.family, false);
 		if (!validIp) {
 			notify(fields.family === 'ipv6' ? _('Please enter a valid internal IPv6 address.') : _('Please enter a valid internal IPv4 address.'), 'warning');
 			return;
@@ -432,7 +515,7 @@ return view.extend({
 				uci.set('firewall', section, 'freenetic_managed', '1');
 			uci.set('firewall', section, 'target', 'DNAT');
 			uci.set('firewall', section, 'src', fields.inputNetwork || this.zones.wan);
-			uci.set('firewall', section, 'dest', this.zones.lan);
+			uci.set('firewall', section, 'dest', fields.destZone || this.destinationZoneForAddress(fields.ip, this.zones.lan));
 			uci.set('firewall', section, 'name', fields.name || '');
 			uci.set('firewall', section, 'proto', fields.proto.split(' '));
 			uci.set('firewall', section, 'src_dport', fields.extPort);

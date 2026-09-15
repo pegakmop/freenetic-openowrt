@@ -59,5 +59,11 @@ assert.ok(acl.write.ubus.uci.includes('set'), 'raw UCI writes require the legacy
 assert.ok(acl.write.ubus.uci.includes('commit'), 'OpenWrt 24.10 requires an explicit UCI commit grant');
 assert.ok(acl.read.file['/proc/[0-9]*/net/arp'],
 	'new rpcd releases resolve /proc/net through /proc/<pid>/net and require the resolved path grant');
+assert.ok(acl.read.file['/usr/libexec/package-manager-call update'],
+	'package index refresh must have the exact helper ACL used by the application catalog');
+assert.ok(acl.write.file['/sbin/ifup guest'],
+	'guest activation must be constrained to the only interface the UI starts');
+assert.equal(acl.write.file['/sbin/ifup'], undefined,
+	'the ACL must not grant a generic argument-free ifup capability');
 
 console.log('rpcd ACL contract: ok');
