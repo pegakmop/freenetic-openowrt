@@ -6,7 +6,7 @@ which they became user-visible.
 
 ## [Unreleased]
 
-## [0.3.0-alpha.3] — 2026-09-15
+## [0.3.0-alpha.4] — 2026-09-15
 
 ### Security
 
@@ -45,6 +45,9 @@ which they became user-visible.
 - Every final APK artifact is re-signed independently with the exported
   release key and strictly verified before publication. This avoids retaining
   a transient SDK signature on all but the first package.
+- Release publication verifies the remote annotated tag object directly,
+  avoiding a false rejection after `actions/checkout` peels its local tag ref
+  to the tested commit.
 - Release installer generation is idempotent when its template already points
   at a GitHub Release asset.
 - WAN VLAN changes preserve Freenetic-created devices referenced by foreign
@@ -70,6 +73,16 @@ which they became user-visible.
 - Refined the WAN, VPN, DDNS, diagnostics and access-policy layouts, and gave
   the stock OpenWrt package manager a compact responsive package grid.
 
+## [0.3.0-alpha.3] — 2026-09-15
+
+### Release status
+
+- Static checks and all four OpenWrt package jobs passed, including strict APK
+  signature verification. Publication then stopped because the checkout action
+  had locally replaced the annotated tag ref with its peeled commit before the
+  publisher inspected it. No installer or package assets were published for
+  this tag; the corrected build is 0.3.0-alpha.4.
+
 ## [0.3.0-alpha.2] — 2026-09-15
 
 ### Release status
@@ -77,7 +90,7 @@ which they became user-visible.
 - The immutable source tag is retained for traceability, but release
   publication stopped when CI rejected APK artifacts carrying the SDK's
   transient signature. No installer or package assets were published for this
-  tag; the corrected build is 0.3.0-alpha.3.
+  tag; the corrected build is 0.3.0-alpha.4.
 
 ## [0.3.0-alpha.1] — 2026-09-15
 
