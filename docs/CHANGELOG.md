@@ -6,6 +6,8 @@ which they became user-visible.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-09-15
+
 ### Added
 
 - Added release-line codenames beside stable build numbers on the dashboard:
