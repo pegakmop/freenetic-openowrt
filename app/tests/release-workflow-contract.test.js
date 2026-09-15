@@ -27,10 +27,16 @@ assert.match(workflow, /startsWith\(github\.ref, 'refs\/tags\/v'\)/,
 assert.match(workflow, /contents: write/, 'the release job must have explicit release permission');
 assert.match(workflow, /--verify-tag/, 'release publication must verify the pushed tag');
 assert.match(workflow, /app\/prepare-release\.js/, 'release publication must generate installer metadata from final assets');
+assert.match(workflow, /\$GITHUB_WORKSPACE\/docs\/CHANGELOG\.md/,
+	'release publication must read release notes from the documentation directory');
 assert.match(workflow, /asset_count.*-eq 20/, 'the release must contain packages, binaries, installer and manifest');
 assert.match(workflow, /pre-0\.2\.6 dashboard can discover this release/,
 	'the release must retain architecture-only fnc names for older dashboards');
 assert.match(workflow, /--notes-file/, 'release publication must use the generated changelog notes');
+assert.match(workflow, /node app\/release-codenames\.js "\$RELEASE_TAG"/,
+	'release publication must derive its human title from the codename registry');
+assert.match(workflow, /--title "\$release_title"/,
+	'release publication must use the codename-bearing human title');
 assert.match(workflow, /cp -f "\$RELEASE_DIR\/install\.sh" "\$GITHUB_WORKSPACE\/install\.sh"/,
 	'release publication must copy the generated installer into the tagged source');
 assert.match(workflow, /git config user\.name/,

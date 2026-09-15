@@ -289,7 +289,7 @@ jobs:
           node app/prepare-release.js \
             "$release_dir" \
             "$GITHUB_WORKSPACE/install.sh" \
-            "$GITHUB_WORKSPACE/CHANGELOG.md" \
+            "$GITHUB_WORKSPACE/docs/CHANGELOG.md" \
             "$notes_file" \
             "$RELEASE_TAG" \
             "$asset_version"
@@ -308,6 +308,7 @@ jobs:
           RELEASE_NOTES: ${{ steps.release.outputs.release_notes }}
         run: |
           set -eu
+          release_title="$(node app/release-codenames.js "$RELEASE_TAG")"
           # Keep the generated installer at the tag as well as in the release.
           # Older routers fetch raw/.../<tag>/install.sh and do not know about
           # release assets yet; this commit keeps that URL checksum-correct.
@@ -323,6 +324,6 @@ jobs:
           gh release create "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
-            --title "Freenetic ${RELEASE_TAG#v}" \
+            --title "$release_title" \
             --notes-file "$RELEASE_NOTES" \
             "$RELEASE_DIR"/*

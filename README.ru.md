@@ -2,9 +2,9 @@
 
 [English version](README.md)
 
-[История изменений](CHANGELOG.md)
+[Релизы](docs/RELEASES.md) · [История изменений](docs/CHANGELOG.md)
 
-[Безопасность](SECURITY.md) · [Участие в разработке](CONTRIBUTING.md) · [Архитектура](ARCHITECTURE.md) · [Совместимость](COMPATIBILITY.md) · [Чеклист релиза](RELEASE_CHECKLIST.md)
+[Безопасность](docs/SECURITY.md) · [Участие в разработке](docs/CONTRIBUTING.md) · [Архитектура](docs/ARCHITECTURE.md) · [Совместимость](docs/COMPATIBILITY.md) · [Чеклист релиза](docs/RELEASE_CHECKLIST.md)
 
 Freenetic — clean-room реализация UX и CLI Keenetic поверх чистого
 OpenWrt. Не форк и не бинарная совместимость с проприетарной

@@ -10,6 +10,8 @@ which they became user-visible.
 
 - Release builds now generate a checksum-pinned installer and publish the
   matching changelog section as GitHub Release notes.
+- GitHub Release titles now include the codename of their release line while
+  tags remain machine-readable semantic versions.
 
 ## [0.2.6] — 2026-09-14
 
