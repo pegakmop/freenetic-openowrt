@@ -1,4 +1,5 @@
 'use strict';
+'require baseclass';
 'require ui';
 'require uci';
 'require fs';
@@ -90,7 +91,7 @@ const {
 	serializeConfig
 } = connectionCore;
 
-return {
+return baseclass.extend({ mixin: {
 	getL2tpConnection(section) {
 		const name = sectionName(section);
 		const remoteName = section.freenetic_ipsec_remote || '';
@@ -853,5 +854,4 @@ return {
 				return false;
 			});
 	},
-};
-
+} });

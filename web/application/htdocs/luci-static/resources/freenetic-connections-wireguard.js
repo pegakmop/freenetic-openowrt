@@ -1,4 +1,5 @@
 'use strict';
+'require baseclass';
 'require ui';
 'require uci';
 'require fs';
@@ -92,7 +93,7 @@ const {
 	serializeConfig
 } = connectionCore;
 
-return {
+return baseclass.extend({ mixin: {
 	getWireguardConnection(section) {
 		const name = sectionName(section);
 		const protocol = String(section.proto || '').toLowerCase();
@@ -712,5 +713,4 @@ return {
 		}).catch(err => notifyLong(_('AmneziaWG installation failed: %s').format(err.message || err), 'danger'))
 			.finally(() => { button.disabled = false; dom_content(button, _('Connect feed and install')); });
 	},
-};
-
+} });

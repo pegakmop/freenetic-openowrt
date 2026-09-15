@@ -105,6 +105,14 @@ function evaluateView(relative, uci, options = {}) {
 		'freenetic-connections-ipsec.js'), 'utf8');
 	const dashboardDataSource = fs.readFileSync(path.join(resourceRoot,
 		'freenetic-dashboard-data.js'), 'utf8');
+	const baseclass = {
+		extend(properties) {
+			function Module() {}
+			for (const [ key, value ] of Object.entries(properties))
+				Object.defineProperty(Module.prototype, key, { value, writable: true });
+			return Module;
+		}
+	};
 	const view = {
 		extend(value) { return value; }
 	};
@@ -148,18 +156,25 @@ function evaluateView(relative, uci, options = {}) {
 	const location = { reload() {} };
 	const L = { url(value) { return value; }, bind(fn, context) { return fn.bind(context); } };
 	const E = () => makeElement();
-	const connectionCore = new Function('baseclass', 'fs', 'uci', 'rpc', '_', connectionCoreSource)(
-		view, fsModule, uci, rpc, translate);
-	const moduleArgs = [ 'ui', 'uci', 'fs', 'uiHelper', 'networkHelper', 'E', '_', 'L',
+	const ConnectionCore = new Function('baseclass', 'fs', 'uci', 'rpc', '_', connectionCoreSource)(
+		baseclass, fsModule, uci, rpc, translate);
+	const connectionCore = new ConnectionCore();
+	const moduleArgs = [ 'baseclass', 'ui', 'uci', 'fs', 'uiHelper', 'networkHelper', 'E', '_', 'L',
 		'window', 'document', 'URL', 'Blob', 'FileReader', 'connectionCore' ];
-	const moduleValues = [ ui, uci, fsModule, uiHelper, networkHelper, E, translate, L,
+	const moduleValues = [ baseclass, ui, uci, fsModule, uiHelper, networkHelper, E, translate, L,
 		window, document, URL, Blob, undefined, connectionCore ];
-	const evaluateConnectionModule = moduleSource => new Function(...moduleArgs, moduleSource)(...moduleValues);
+	const evaluateConnectionModule = moduleSource => {
+		const ConnectionModule = new Function(...moduleArgs, moduleSource)(...moduleValues);
+		assert.equal(typeof ConnectionModule, 'function',
+			'LuCI resource module factory must yield a constructor');
+		return new ConnectionModule();
+	};
 	const wireguardView = evaluateConnectionModule(connectionWireguardSource);
 	const openvpnView = evaluateConnectionModule(connectionOpenvpnSource);
 	const ipsecView = evaluateConnectionModule(connectionIpsecSource);
-	const dashboardData = new Function('baseclass', 'fs', 'uci', 'rpc', '_', dashboardDataSource)(
-		view, fsModule, uci, rpc, translate);
+	const DashboardData = new Function('baseclass', 'fs', 'uci', 'rpc', '_', dashboardDataSource)(
+		baseclass, fsModule, uci, rpc, translate);
+	const dashboardData = new DashboardData();
 
 	return new Function('view', 'ui', 'uci', 'fs', 'rpc', 'uiHelper',
 		'networkHelper', 'guard', 'poll', 'E', '_', 'L', 'window',

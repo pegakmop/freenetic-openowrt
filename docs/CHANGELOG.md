@@ -6,6 +6,12 @@ which they became user-visible.
 
 ## [Unreleased]
 
+### Fixed
+
+- Other Connections protocol modules now export valid LuCI constructors;
+  WireGuard, OpenVPN and IPsec editors load correctly instead of failing with
+  `factory yields invalid constructor` on supported OpenWrt releases.
+
 ### Improved
 
 - Release builds now generate a checksum-pinned installer and publish the

@@ -19,8 +19,15 @@ assert.match(main, /require freenetic-connections-openvpn as openvpnView/,
 	'Other Connections must load the OpenVPN view module');
 assert.match(main, /require freenetic-connections-ipsec as ipsecView/,
 	'Other Connections must load the IPsec view module');
-assert.match(main, /Object\.assign\(\{[\s\S]*wireguardView, openvpnView, ipsecView\)/,
+assert.match(main, /Object\.assign\(\{[\s\S]*wireguardView\.mixin, openvpnView\.mixin, ipsecView\.mixin\)/,
 	'Other Connections must compose the protocol modules through one dispatcher');
+
+for (const [ name, source ] of Object.entries({ wireguard, openvpn, ipsec })) {
+	assert.match(source, /'require baseclass'/,
+		`${name} module must load the LuCI base class`);
+	assert.match(source, /return baseclass\.extend\(\{ mixin: \{/,
+		`${name} module must yield a LuCI constructor exposing its view mixin`);
+}
 
 assert.match(wireguard, /getWireguardConnection\(section\)/,
 	'WireGuard module must own WireGuard connection mapping');

@@ -395,4 +395,4 @@ return view.extend(Object.assign({
 	},
 
 	addFooter() { return E([]); }
-}, wireguardView, openvpnView, ipsecView));
+}, wireguardView.mixin, openvpnView.mixin, ipsecView.mixin));

@@ -1,4 +1,5 @@
 'use strict';
+'require baseclass';
 'require ui';
 'require uci';
 'require fs';
@@ -90,7 +91,7 @@ const {
 	serializeConfig
 } = connectionCore;
 
-return {
+return baseclass.extend({ mixin: {
 	getOpenvpnConnection(section) {
 		const name = sectionName(section);
 		const profilePath = section.config || '';
@@ -344,5 +345,4 @@ return {
 		if (modal)
 			modal.classList.add('fn-oc-import-modal');
 	},
-};
-
+} });
