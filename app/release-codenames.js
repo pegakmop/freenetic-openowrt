@@ -4,6 +4,9 @@ const RELEASE_CODENAMES = Object.freeze({
 	'0.1': 'Misery',
 	'0.2': 'Onyx'
 });
+const RELEASE_QUALIFIERS = Object.freeze({
+	'0.2.7': 'Hotfix'
+});
 
 function releaseVersion(tag) {
 	const match = /^v(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?$/.exec(tag);
@@ -25,7 +28,8 @@ function codenameForTag(tag) {
 
 function releaseTitle(tag) {
 	const { version } = releaseVersion(tag);
-	return `Freenetic ${version} — ${codenameForTag(tag)}`;
+	const qualifier = RELEASE_QUALIFIERS[version];
+	return `Freenetic ${version} — ${codenameForTag(tag)}${qualifier ? ` ${qualifier}` : ''}`;
 }
 
 if (require.main === module) {
@@ -38,4 +42,4 @@ if (require.main === module) {
 	}
 }
 
-module.exports = { RELEASE_CODENAMES, codenameForTag, releaseTitle, releaseVersion };
+module.exports = { RELEASE_CODENAMES, RELEASE_QUALIFIERS, codenameForTag, releaseTitle, releaseVersion };

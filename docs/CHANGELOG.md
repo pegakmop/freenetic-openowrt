@@ -6,6 +6,8 @@ which they became user-visible.
 
 ## [Unreleased]
 
+## [0.2.7] — 2026-09-15
+
 ### Fixed
 
 - Other Connections protocol modules now export valid LuCI constructors;
@@ -22,12 +24,17 @@ which they became user-visible.
 
 ### Improved
 
-- Release builds now generate a checksum-pinned installer and publish the
-  matching changelog section as GitHub Release notes.
 - GitHub Release titles now include the codename of their release line while
   tags remain machine-readable semantic versions.
+- Project documentation is grouped under `docs/`, with a public release
+  codename table that keeps future names hidden until their line begins.
 
 ## [0.2.6] — 2026-09-14
+
+### Improved
+
+- Release builds now generate a checksum-pinned installer and publish the
+  matching changelog section as GitHub Release notes.
 
 ### Fixed
 
