@@ -164,7 +164,8 @@ $SSH_CMD "$ROUTER" '
              /usr/libexec/freenetic-network-restart \
              /usr/libexec/freenetic-ipsec-restart \
              /usr/libexec/freenetic-ipsec-status \
-             /usr/libexec/freenetic-pbr-restart; do
+             /usr/libexec/freenetic-pbr-restart \
+             /usr/libexec/freenetic-uninstall; do
         grep -qxF "$p" /etc/sysupgrade.conf || echo "$p" >> /etc/sysupgrade.conf
     done
 '

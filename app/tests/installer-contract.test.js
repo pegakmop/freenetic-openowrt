@@ -34,6 +34,7 @@ for (const marker of [
 	"/etc/init.d/rpcd",
 	"fnc show version",
 	"freenetic.updates.installed_release=$RELEASE_TAG",
+	": > /etc/config/freenetic",
 	"uci -q commit freenetic"
 ]) {
 	assert(installer.includes(marker), `installer is missing: ${marker}`);
@@ -64,6 +65,8 @@ assert.ok(installer.indexOf('stage smoke_test') < installer.indexOf('stage packa
 	'all fallible native validation must finish before the package transaction');
 assert.ok(installer.indexOf('stage state_commit') < installer.indexOf('stage package_install'),
 	'fallible update-state persistence must finish before the package transaction');
+assert.ok(installer.indexOf(': > /etc/config/freenetic') < installer.indexOf('uci -q set freenetic.updates=freenetic'),
+	'a fresh install must create the UCI state file before adding its first section');
 assert.match(installer, /PERSISTENT_MUTATION_STARTED:-0[\s\S]*INSTALL_COMMITTED:-0[\s\S]*rolling back native files and update state/,
 	'a pre-commit failure must restore the native and UCI snapshot');
 const afterPackageCommit = installer.slice(installer.indexOf('INSTALL_COMMITTED=1',

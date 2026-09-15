@@ -4366,6 +4366,44 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 .fn-apps-row .fn-status-pill { flex: 0 0 auto; margin-right: 4px; letter-spacing: .08em; }
 .fn-apps-row .fn-settings-btn { flex: 0 0 auto; width: auto; padding: 7px 16px; }
 
+/* System removal stays visually separate from routine file operations. The
+   restrained red edge communicates risk without turning the whole page into
+   an alarm banner. */
+.fn-uninstall-card { border-color: color-mix(in srgb, var(--fn-danger) 42%, var(--fn-border)); }
+.fn-uninstall-card .fn-card-head { color: var(--fn-danger); }
+.fn-uninstall-card .fn-card-head .fn-icon { display: inline-flex; margin-right: 10px; }
+.fn-uninstall-intro { margin: 0 0 14px; color: var(--fn-text-secondary); }
+.fn-uninstall-options {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+.fn-uninstall-option {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	min-width: 0;
+	padding: 14px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+}
+.fn-uninstall-option-purge { background: color-mix(in srgb, var(--fn-danger-soft) 45%, var(--fn-surface)); }
+.fn-uninstall-option .fn-settings-btn { flex: 0 0 auto; width: auto; margin: 0; }
+.fn-uninstall-purge-btn { font-weight: 600; }
+.fn-uninstall-confirm {
+	display: block;
+	width: 100%;
+	margin: 12px 0 4px;
+	font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+@media (max-width: 800px) {
+	.fn-uninstall-options { grid-template-columns: minmax(0, 1fr); }
+	.fn-uninstall-option { align-items: flex-start; flex-direction: column; }
+	.fn-uninstall-option .fn-settings-btn { align-self: stretch; }
+}
+
 @keyframes fn-wifi-acl-card-in {
 	from { opacity: 0; transform: translateY(6px); }
 	to { opacity: 1; transform: translateY(0); }

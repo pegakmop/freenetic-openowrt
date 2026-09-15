@@ -74,6 +74,8 @@
 				"/usr/libexec/freenetic-avahi-reflector disable": [ "exec" ],
 				"/usr/libexec/freenetic-ipsec-restart": [ "exec" ],
 				"/usr/libexec/freenetic-pbr-restart": [ "exec" ],
+				"/usr/libexec/freenetic-uninstall keep-config": [ "exec" ],
+				"/usr/libexec/freenetic-uninstall purge-managed": [ "exec" ],
 				"/usr/libexec/freenetic-port-probe *": [ "exec" ],
 				"/usr/lib/ddns/dynamic_dns_lucihelper.sh": [ "exec" ]
 			},

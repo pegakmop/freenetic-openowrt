@@ -136,5 +136,8 @@ assert.match(openvpnInjection.stdout, /"ok":false/, 'OpenVPN helper must report 
 const portProbeInjection = run(applicationHelpers, 'freenetic-port-probe', [ 'bad;touch' ]);
 assert.equal(portProbeInjection.status, 0, 'Ethernet probe must return a JSON error for invalid names');
 assert.match(portProbeInjection.stdout, /"ok":false/, 'Ethernet probe must report invalid names');
+const uninstallInjection = run(applicationHelpers, 'freenetic-uninstall', [ 'purge-managed;reboot' ]);
+assert.equal(uninstallInjection.status, 0, 'uninstall must return a structured error for an invalid mode');
+assert.match(uninstallInjection.stdout, /"ok":false/, 'uninstall must reject mode injection');
 
 console.log('helper security contracts: ok');

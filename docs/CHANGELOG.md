@@ -6,6 +6,39 @@ which they became user-visible.
 
 ## [Unreleased]
 
+## [0.3.0-beta.2] — 2026-09-15
+
+### Added
+
+- Added a guided Freenetic uninstaller under Management → System. The default
+  path removes the interface and native CLI while preserving router settings;
+  an explicitly confirmed full cleanup removes only UCI sections carrying the
+  `freenetic_managed=1` ownership marker.
+- The removal flow selects a stock LuCI theme before package removal, clears
+  LuCI and Freenetic browser caches, ends the current session and returns to
+  the standard LuCI login page.
+
+### Fixed
+
+- A true fresh install no longer fails while recording its release state when
+  `/etc/config/freenetic` does not exist yet. The installer creates the private
+  state file before its first UCI write and retains the existing rollback
+  behavior on any later failure.
+- APK removal now waits for a short-lived package-manager lock and returns the
+  relevant package-manager diagnostics instead of a generic failure.
+- The post-removal redirect now uses the actual `/cgi-bin/luci/` entry point
+  rather than constructing a non-existent `/cgi-bin/admin/` URL.
+
+### Verification
+
+- The safe uninstall path was exercised through rpcd on a Globitel BT-RB300.
+  All four Freenetic packages, the native CLI and stale namespaced files were
+  removed; Bootstrap, shared OpenWrt dependencies and third-party VPN/PBR
+  packages remained installed.
+- Network, wireless, DHCP and firewall files remained byte-for-byte identical
+  across the safe uninstall. A failed package transaction also restored its
+  configuration snapshot and active theme.
+
 ## [0.3.0-beta.1] — 2026-09-15
 
 ### Release status

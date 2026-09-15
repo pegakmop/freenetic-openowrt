@@ -39,6 +39,7 @@ const EXPECTED_FILES = {
 		'usr/libexec/freenetic-package-status',
 		'usr/libexec/freenetic-pbr-restart',
 		'usr/libexec/freenetic-self-update',
+		'usr/libexec/freenetic-uninstall',
 		'usr/share/luci/menu.d/zz-luci-freenetic.json',
 		'usr/share/rpcd/acl.d/luci-app-freenetic.json',
 		'www/luci-static/resources/freenetic-diagnostics.js',

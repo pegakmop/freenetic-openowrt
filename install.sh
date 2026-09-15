@@ -355,6 +355,13 @@ fi
 # Record the desired state before the package commit so a UCI failure remains
 # rollback-safe. The snapshot above is restored if anything below fails.
 stage state_commit
+if [ ! -e /etc/config/freenetic ]; then
+	# A true first install has no package-provided config yet. UCI cannot add a
+	# section to a missing package file, so create an empty private state file
+	# before recording the release. cleanup() removes it if a later pre-commit
+	# step fails because HAD_FREENETIC_CONFIG is still false.
+	( umask 077; : > /etc/config/freenetic ) || fail "cannot create update state"
+fi
 uci -q set freenetic.updates=freenetic || fail "cannot initialize update state"
 uci -q set "freenetic.updates.installed_release=$RELEASE_TAG" ||
 	fail "cannot record the installed release"
