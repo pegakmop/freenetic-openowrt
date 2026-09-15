@@ -532,7 +532,10 @@ return view.extend({
 			E('option', { value: '' }, txpowerlist.length ? _('Automatic') : _('Not available')),
 			...txpowerlist.map(p => E('option', { value: String(p.dbm) }, p.dbm + ' dBm (' + p.mw + ' mW)'))
 		]);
-		const currentTxpower = radio.txpower != null ? String(radio.txpower) : (info.txpower != null ? String(info.txpower) : '');
+		/* The live iwinfo power is an observed value, not an explicit UCI
+		 * override. Keep an unset txpower represented by the Automatic option
+		 * so selecting it can reliably remove an existing limit. */
+		const currentTxpower = radio.txpower != null ? String(radio.txpower) : '';
 		if (txpowerlist.some(p => String(p.dbm) === currentTxpower))
 			txpowerSelect.value = currentTxpower;
 		else if (currentTxpower) {
@@ -615,6 +618,15 @@ return view.extend({
 		}
 	},
 
+	writeOptionalRadioSetting(radioName, option, value, originalValue) {
+		if (value === originalValue)
+			return;
+		if (value === '')
+			uci.unset('wireless', radioName, option);
+		else
+			uci.set('wireless', radioName, option, value);
+	},
+
 	saveSegment(kind, ifaceName, opts, btn) {
 		const isGuest = kind === 'guest';
 		const supportedSecurity = [ 'none', 'psk2', 'sae', 'sae-mixed' ];
@@ -675,8 +687,10 @@ return view.extend({
 		btn.disabled = true;
 
 		return uci.load([ 'wireless', 'network', 'dhcp', 'firewall' ]).then(() => {
-			if (isGuest)
+			if (isGuest) {
+				networkHelper.assertGuestFirewallOwnership();
 				networkHelper.adoptLegacyGuest();
+			}
 
 			if (uci.get('network', ifaceName, 'proto') != null)
 				uci.set('network', ifaceName, 'label', opts.label);
@@ -729,7 +743,7 @@ return view.extend({
 					applyDhcpOptions('dhcp', 'guest', opts.existingDhcpOptions, opts.gateway, opts.dns);
 				}
 
-				if (anyEnabled && uci.get('firewall', 'guest', 'name') == null) {
+				if (anyEnabled && uci.get('firewall', 'guest') == null) {
 					uci.add('firewall', 'zone', 'guest');
 					uci.set('firewall', 'guest', 'name', 'guest');
 					uci.set('firewall', 'guest', 'network', 'guest');
@@ -740,7 +754,7 @@ return view.extend({
 				if (anyEnabled)
 					networkHelper.ensureGuestFirewall();
 
-				if (anyEnabled && uci.get('firewall', 'guest_wan_fwd', 'src') == null) {
+				if (anyEnabled && uci.get('firewall', 'guest_wan_fwd') == null) {
 					uci.add('firewall', 'forwarding', 'guest_wan_fwd');
 					uci.set('firewall', 'guest_wan_fwd', 'src', 'guest');
 					uci.set('firewall', 'guest_wan_fwd', 'dest', 'wan');
@@ -778,8 +792,8 @@ return view.extend({
 						uci.set('wireless', card.radioName, 'channel', card.adv.channelSelect.value);
 					if (card.adv.htmodeSelect.value && card.adv.htmodeSelect.value !== original.htmode)
 						uci.set('wireless', card.radioName, 'htmode', card.adv.htmodeSelect.value);
-					if (card.adv.txpowerSelect.value !== '' && card.adv.txpowerSelect.value !== original.txpower)
-						uci.set('wireless', card.radioName, 'txpower', card.adv.txpowerSelect.value);
+					this.writeOptionalRadioSetting(card.radioName, 'txpower',
+						card.adv.txpowerSelect.value, original.txpower);
 					if (card.adv.countrySelect.value !== original.country) {
 						if (card.adv.countrySelect.value !== '00')
 							uci.set('wireless', card.radioName, 'country', card.adv.countrySelect.value);

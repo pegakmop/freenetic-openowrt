@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const childProcess = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -65,6 +66,20 @@ assert.match(portProbe, /udhcpc[\s\S]*-s "\$0"/,
 	'DHCP discovery must use the non-configuring probe event handler');
 assert.match(portProbe, /pppoe-discovery/,
 	'adaptive ports must support non-session PPPoE discovery');
+assert.match(portProbe, /"error_code"/,
+	'Ethernet probe errors must expose stable codes for localized UI messages');
+assert.match(portProbe, /network\.lan\.device/,
+	'Ethernet probing must recognize the same LAN device form as LuCI');
+assert.match(portProbe, /network\.wan\.ports\[\*\]/,
+	'Ethernet probing must recognize the same WAN ports form as LuCI');
+assert.match(portProbe, /mktemp -d \/tmp\/freenetic-port-probe\.XXXXXX/,
+	'Ethernet probing must isolate root-owned temporary files');
+
+const avahi = read(applicationHelpers, 'freenetic-avahi-reflector');
+assert.match(avahi, /mktemp \/tmp\/freenetic-avahi-reflector\.XXXXXX/,
+	'Avahi updates must use unpredictable root-owned temporary files');
+assert.doesNotMatch(avahi, /freenetic-avahi-reflector\.\$\$/,
+	'Avahi updates must not use PID-derived temporary paths');
 
 const update = read(applicationHelpers, 'freenetic-self-update');
 assert.ok(update.includes('[ "$#" -eq 1 ] || { reply_error "Usage: $0 status"; exit 0; }'),
@@ -78,6 +93,18 @@ const awgFeed = read(applicationHelpers, 'freenetic-awg-feed');
 assert.ok(awgFeed.includes('[ "$#" -le 1 ]'), 'AWG feed helper must reject extra arguments');
 assert.match(awgFeed, /case "\$ACTION" in[\s\S]*\n\s*status\)/,
 	'AWG feed helper must keep a fixed action set');
+assert.doesNotMatch(awgFeed, /\$FEED_ROOT\/keys|wget[^\n]+awg-openwrt-feed\.(?:pem|pub)/,
+	'AWG feed trust anchors must never be bootstrapped from the repository they authenticate');
+const awgKeyDirectory = path.join(root, 'app', 'luci-app-freenetic', 'root',
+	'usr', 'share', 'freenetic', 'keys');
+for (const [ name, expectedSha256 ] of Object.entries({
+	'awg-openwrt-feed.pem': 'a71810e45492ceee99df86a72e05c78400d04c3159cc6145a23824cd66e0a239',
+	'awg-openwrt-feed.pub': '3f5456b200f2e771aad61376a25b8bead54047ac6cb851dc5dbc52c56c8e5d4b'
+})) {
+	const contents = fs.readFileSync(path.join(awgKeyDirectory, name));
+	assert.equal(crypto.createHash('sha256').update(contents).digest('hex'), expectedSha256,
+		`${name} must remain the independently pinned AWG feed trust anchor`);
+}
 
 for (const name of [
 	'freenetic-ipsec-restart',

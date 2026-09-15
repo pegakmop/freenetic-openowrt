@@ -28,9 +28,21 @@ case "$ACTION" in
 	*) reply_error "Unknown action"; exit 0 ;;
 esac
 
-tmp="/tmp/freenetic-avahi-reflector.$$"
-backup="/tmp/freenetic-avahi-reflector-backup.$$"
-trap 'rm -f "$tmp" "$backup"' EXIT HUP INT TERM
+tmp=''
+backup=''
+cleanup() {
+	[ -z "$tmp" ] || rm -f "$tmp"
+	[ -z "$backup" ] || rm -f "$backup"
+}
+trap cleanup EXIT HUP INT TERM
+tmp=$(mktemp /tmp/freenetic-avahi-reflector.XXXXXX 2>/dev/null) || {
+	reply_error "Could not create a secure temporary file"
+	exit 0
+}
+backup=$(mktemp /tmp/freenetic-avahi-reflector-backup.XXXXXX 2>/dev/null) || {
+	reply_error "Could not create a secure backup file"
+	exit 0
+}
 
 cp -p "$CONF" "$backup" || { reply_error "Could not back up Avahi configuration"; exit 0; }
 awk -v desired="$desired" '

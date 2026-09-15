@@ -3158,6 +3158,9 @@ msgstr "Клиент заблокирован."
 msgid "Failed to block client: %s"
 msgstr "Не удалось заблокировать клиента: %s"
 
+msgid "The client firewall zone could not be determined."
+msgstr "Не удалось определить зону межсетевого экрана клиента."
+
 msgid "Client unblocked."
 msgstr "Клиент разблокирован."
 
@@ -3419,6 +3422,9 @@ msgstr "Текущий тип защиты: %s (будет сохранён)"
 msgid "Firmware flashing failed."
 msgstr "Не удалось прошить устройство."
 
+msgid "Firmware flashing failed"
+msgstr "Не удалось прошить устройство"
+
 msgid "Gateway and DNS servers must be valid IPv4 addresses."
 msgstr "Шлюз и DNS-серверы должны быть корректными адресами IPv4."
 
@@ -3514,8 +3520,8 @@ msgstr "Роль порта"
 msgid "Router address (/24)"
 msgstr "Адрес роутера (/24)"
 
-msgid "This port gets its own IPv4 subnet, DHCP server, firewall zone, and traffic policy."
-msgstr "Порт получит собственную подсеть IPv4, DHCP-сервер, зону межсетевого экрана и политику трафика."
+msgid "This port gets its own IPv4 subnet, DHCP server, firewall zone, and traffic policy. Router access is limited to DHCP and DNS by default."
+msgstr "Порт получит собственную подсеть IPv4, DHCP-сервер, зону межсетевого экрана и политику трафика. По умолчанию доступ к роутеру ограничен DHCP и DNS."
 
 msgid "This port shares the selected network and inherits that network’s traffic policy."
 msgstr "Порт входит в выбранную сеть и наследует её политику трафика."
@@ -3556,6 +3562,10 @@ msgstr "Конфигурация портов Ethernet применена."
 #, javascript-format
 msgid "Failed to apply Ethernet port configuration: %s"
 msgstr "Не удалось применить конфигурацию портов Ethernet: %s"
+
+#, javascript-format
+msgid "%s uses the non-bridge device %s and cannot be edited safely here."
+msgstr "%s использует устройство %s без моста, поэтому безопасно изменить его здесь нельзя."
 
 #, javascript-format
 msgid "A configuration section required by %s is already managed outside Freenetic."
@@ -3604,6 +3614,18 @@ msgstr "Интернет-служба не обнаружена"
 
 msgid "Port scan failed"
 msgstr "Не удалось проверить порт"
+
+msgid "Apply the unused port assignment before scanning it."
+msgstr "Сначала назначьте порт как неиспользуемый и примените конфигурацию."
+
+msgid "The Ethernet port was not found."
+msgstr "Порт Ethernet не найден."
+
+msgid "The Ethernet port cannot be scanned."
+msgstr "Этот порт Ethernet нельзя проверить."
+
+msgid "Port scanning is unavailable."
+msgstr "Проверка портов недоступна."
 
 msgid "Use as WAN"
 msgstr "Использовать как WAN"

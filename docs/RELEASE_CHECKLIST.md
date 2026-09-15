@@ -41,9 +41,10 @@ For every build, verify that:
 - [ ] the CLI links against the intended OpenWrt ABI;
 - [ ] the MT7621 mirror is present when the release uses APK.
 
-The ABI compatibility shim for `fnc` and `apk add --allow-untrusted` are
-intentional OpenWrt integration details in 0.2.x. Do not change either as part
-of an ordinary patch release.
+The ABI compatibility shim for `fnc` remains an intentional OpenWrt integration
+detail. APK releases must publish their build public key; the generated
+installer pins that key by SHA-256 and uses it together with OpenWrt's system
+keys instead of bypassing package signature verification.
 
 ## Router smoke test
 
@@ -81,14 +82,13 @@ fail clearly before leaving a partial installation.
 ## Publishing
 
 - [ ] merge the verified `testing` state to the intended release branch;
-- [ ] keep the source installer metadata valid; the release builder writes the
-      final package and `fnc` checksums into the generated release installer,
-      then commits that installer to the release tag for raw-URL compatibility;
-- [ ] create and push the release tag from that clean commit;
+- [ ] create and push an annotated release tag from the clean, fully tested
+      commit; never move or recreate a published release tag;
 - [ ] build artifacts from the tag, not from a local dirty tree;
-- [ ] let the tagged GitHub Actions run complete its matrix, generated
-      installer and 20-asset validation;
-- [ ] verify the generated installer and its `SHA256SUMS.txt` manifest;
+- [ ] let the tagged GitHub Actions run complete static checks, its package
+      matrix, generated installer and 21-asset validation;
+- [ ] verify the generated installer, APK signing key, `SHA256SUMS.txt` and
+      GitHub/Sigstore provenance attestation;
 - [ ] verify that the matching changelog section is present in the release
       notes;
 - [ ] attach both package-manager variants and matching `fnc` binaries;

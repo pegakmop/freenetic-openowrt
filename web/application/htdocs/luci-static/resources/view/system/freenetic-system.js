@@ -257,6 +257,50 @@ return view.extend({
 		]);
 	},
 
+	flashUploadedFirmware() {
+		ui.showModal(_('Flashing…'), [
+			E('p', { class: 'spinning' }, _('The firmware is being flashed. Do not power off the device.'))
+		]);
+		let reconnectStarted = false;
+		const startReconnect = () => {
+			if (reconnectStarted)
+				return;
+			reconnectStarted = true;
+			ui.showModal(_('Rebooting…'), [
+				E('p', { class: 'spinning' }, _('The system is rebooting now.'))
+			]);
+			awaitReconnectToDashboard(window.location.host, '192.168.1.1', 'openwrt.lan');
+		};
+		const showFailure = message => {
+			ui.showModal(_('Firmware flashing failed'), [
+				E('p', {}, String(message || _('Unknown error')).trim()),
+				E('div', { class: 'button-row' }, [
+					E('button', { class: 'btn', click: ui.hideModal }, _('Close'))
+				])
+			]);
+		};
+		/* A successful sysupgrade normally drops rpcd before the promise
+		 * settles. Give immediate local failures a chance to surface in
+		 * the modal, then begin reconnect polling if the call is still in
+		 * flight or the connection disappears. */
+		const reconnectTimer = window.setTimeout(startReconnect, 1500);
+		return fs.exec('/sbin/sysupgrade', [ '/tmp/firmware.bin' ]).then(result => {
+			if (result && result.code !== 0) {
+				window.clearTimeout(reconnectTimer);
+				showFailure(result.stderr || result.stdout || _('Firmware flashing failed.'));
+				return;
+			}
+			startReconnect();
+		}).catch(error => {
+			if (error && /network|connection|request/i.test(error.message || '')) {
+				startReconnect();
+				return;
+			}
+			window.clearTimeout(reconnectTimer);
+			showFailure(error && (error.message || String(error)));
+		});
+	},
+
 	handleSysupgrade() {
 		/* ui.uploadFile() renders its own complete modal (Browse… button,
 		   file input, progress bar) — it's not a helper you feed an
@@ -285,27 +329,7 @@ return view.extend({
 						E('button', { class: 'btn', click: ui.hideModal }, _('Cancel')),
 						E('button', {
 							class: 'btn cbi-button-positive',
-							click: ui.createHandlerFn(this, () => {
-								ui.showModal(_('Flashing…'), [
-									E('p', { class: 'spinning' }, _('The firmware is being flashed. Do not power off the device.'))
-								]);
-								/* A successful sysupgrade replaces the running system before
-								 * rpcd can answer, so this promise normally never settles. Start
-								 * reconnect polling immediately, exactly like stock LuCI. */
-								fs.exec('/sbin/sysupgrade', [ '/tmp/firmware.bin' ]).then(result => {
-									if (result && result.code !== 0)
-										ui.addNotification(null, E('p', {}, (result.stderr || result.stdout || _('Firmware flashing failed.')).trim()), 'danger');
-								}).catch(error => {
-									/* Connection loss is expected once flashing succeeds. */
-									if (error && !/network|connection|request/i.test(error.message || ''))
-										ui.addNotification(null, E('p', {}, error.message || String(error)), 'danger');
-								});
-								ui.showModal(_('Rebooting…'), [
-									E('p', { class: 'spinning' }, _('The system is rebooting now.'))
-								]);
-								awaitReconnectToDashboard(window.location.host, '192.168.1.1', 'openwrt.lan');
-								return Promise.resolve();
-							})
+							click: ui.createHandlerFn(this, () => this.flashUploadedFirmware())
 						}, _('Flash'))
 					])
 				]);

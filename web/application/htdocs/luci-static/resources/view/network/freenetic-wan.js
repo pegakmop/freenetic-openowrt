@@ -39,9 +39,11 @@ function eyeIcon() {
    on so the popup itself (not just the closed box) matches everywhere else. */
 function buildDropdown(options, initialValue) {
 	const ul = E('ul', {});
+	const selectedLabel = E('span', { class: 'fn-wan-dropdown-value' });
 
 	function renderClosed(value) {
 		dom_empty(ul);
+		selectedLabel.textContent = (options.find(opt => opt.value === value) || {}).label || value || '–';
 		options.forEach(opt => {
 			const li = E('li', { 'data-value': opt.value }, opt.label);
 			if (opt.value === value) {
@@ -52,7 +54,7 @@ function buildDropdown(options, initialValue) {
 		});
 	}
 
-	const wrap = E('div', { class: 'cbi-dropdown', tabindex: 0 }, [ ul, E('span', { class: 'open' }, '▾') ]);
+	const wrap = E('div', { class: 'cbi-dropdown', tabindex: 0 }, [ selectedLabel, ul, E('span', { class: 'open' }, '▾') ]);
 	let value = initialValue;
 	renderClosed(value);
 
@@ -158,7 +160,10 @@ function findVlanDevice(deviceName) {
 		deviceName: null,
 		managed: false
 	};
+	let explicitDevice = false;
 	uci.sections('network', 'device').forEach(s => {
+		if (s.name === deviceName)
+			explicitDevice = true;
 		if (s.type === '8021q' && s.name === deviceName) {
 			result = {
 				vid: s.vid || '',
@@ -170,7 +175,7 @@ function findVlanDevice(deviceName) {
 		}
 	});
 	/* Traditional eth0.123 notation has no config-device section. */
-	if (!result.sectionName) {
+	if (!explicitDevice) {
 		const legacy = /^(.*)\.(\d{1,4})$/.exec(String(deviceName || ''));
 		if (legacy && Number(legacy[2]) >= 1 && Number(legacy[2]) <= 4094) {
 			result.vid = legacy[2];
@@ -206,6 +211,26 @@ return view.extend({
 			getWanStatus(),
 			getWan6Status()
 		]);
+	},
+
+	hasForeignDeviceReferences(deviceName, ownSectionName) {
+		if (!deviceName)
+			return false;
+		const interfaceReference = uci.sections('network', 'interface').some(section =>
+			section['.name'] !== 'wan' && section['.name'] !== 'wan6' && section.device === deviceName);
+		const bridgeReference = uci.sections('network', 'device').some(section =>
+			section['.name'] !== ownSectionName && section.type === 'bridge' && listValue(section.ports).indexOf(deviceName) !== -1);
+		return interfaceReference || bridgeReference;
+	},
+
+	releaseManagedVlan(sectionName) {
+		const section = sectionName && uci.get('network', sectionName);
+		if (!section || section.freenetic_managed !== '1')
+			return;
+		if (this.hasForeignDeviceReferences(section.name, sectionName))
+			uci.unset('network', sectionName, 'freenetic_managed');
+		else
+			uci.remove('network', sectionName);
 	},
 
 	render(data) {
@@ -266,9 +291,9 @@ return view.extend({
 			E('strong', {}, _('Additional OpenWrt options detected')),
 			E('span', {}, _('This connection contains additional OpenWrt parameters that Freenetic does not display. Saving preserves parameters it does not edit.'))
 		]) : '';
-		const settingsBody = E('div', {}, [
+		const settingsBody = E('div', { class: 'fn-wan-settings' }, [
 			wan4AdvancedNote,
-			E('div', { class: 'fn-mn-wifi-head', style: 'margin-bottom:16px;' }, [
+			E('div', { class: 'fn-mn-wifi-head fn-wan-enable-row' }, [
 				E('label', { class: 'fn-switch' }, [ enableToggle, E('span', { class: 'fn-switch-slider' }) ]),
 				E('span', {}, _('Connection enabled'))
 			]),
@@ -346,9 +371,9 @@ return view.extend({
 			E('strong', {}, _('Additional OpenWrt options detected')),
 			E('span', {}, _('This connection contains additional OpenWrt parameters that Freenetic does not display. Saving preserves parameters it does not edit.'))
 		]) : '';
-		const ipv6SettingsBody = E('div', {}, [
+		const ipv6SettingsBody = E('div', { class: 'fn-wan-settings' }, [
 			wan6AdvancedNote,
-			E('div', { class: 'fn-mn-wifi-head', style: 'margin-bottom:16px;' }, [
+			E('div', { class: 'fn-mn-wifi-head fn-wan-enable-row' }, [
 				E('label', { class: 'fn-switch' }, [ enable6Toggle, E('span', { class: 'fn-switch-slider' }) ]),
 				E('span', {}, _('Connection enabled'))
 			]),
@@ -392,7 +417,7 @@ return view.extend({
 				E('h3', {}, title),
 				E('span', { class: 'fn-collapse-icon', 'aria-hidden': 'true' }, '▾')
 			]);
-			const content = E('div', { class: 'fn-card-body fn-pf-form', id: bodyId }, [ body ]);
+			const content = E('div', { class: 'fn-card-body fn-pf-form fn-wan-settings-content', id: bodyId }, [ body ]);
 			const setExpanded = value => {
 				content.hidden = !value;
 				head.setAttribute('aria-expanded', value ? 'true' : 'false');
@@ -406,10 +431,10 @@ return view.extend({
 				}
 			});
 			setExpanded(expanded);
-			return E('div', { class: 'fn-card', style: 'grid-column: 1 / -1' }, [ head, content ]);
+			return E('div', { class: 'fn-card fn-wan-settings-card', style: 'grid-column: 1 / -1' }, [ head, content ]);
 		};
 
-		return E('div', { class: 'fn-dash' }, [
+		return E('div', { class: 'fn-dash fn-wan-page' }, [
 			E('div', { class: 'fn-card', style: 'grid-column: 1 / -1' }, [
 				E('div', { class: 'fn-card-head' }, [
 					svgIcon('M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2ZM2 12h20M12 2c2.5 2.7 4 6.2 4 10s-1.5 7.3-4 10c-2.5-2.7-4-6.2-4-10s1.5-7.3 4-10Z', 20),
@@ -594,20 +619,25 @@ return view.extend({
 					   rewrite its options or claim ownership. */
 					if (targetMatchesBase && !targetInfo.managed) {
 						if (this.vlanSectionName && this.vlanSectionName !== targetInfo.sectionName) {
-							const oldManaged = uci.get('network', this.vlanSectionName);
-							if (oldManaged && oldManaged.freenetic_managed === '1')
-								uci.remove('network', this.vlanSectionName);
+							this.releaseManagedVlan(this.vlanSectionName);
 						}
 						this.vlanSectionName = null;
 						newDevice = desiredDevice;
 						this.vlanInfo = targetInfo;
 					} else {
 						let sectionName = this.vlanSectionName;
+						const currentManaged = sectionName && uci.get('network', sectionName);
+						const changesSharedDevice = currentManaged && currentManaged.freenetic_managed === '1' &&
+							(currentManaged.name !== desiredDevice || currentManaged.ifname !== this.baseIfname ||
+							 String(currentManaged.vid || '') !== String(fields.vlan));
+						if (changesSharedDevice && this.hasForeignDeviceReferences(currentManaged.name, sectionName)) {
+							uci.unset('network', sectionName, 'freenetic_managed');
+							sectionName = null;
+							this.vlanSectionName = null;
+						}
 						if (targetMatchesBase && targetInfo.managed) {
 							if (sectionName && sectionName !== targetInfo.sectionName) {
-								const oldManaged = uci.get('network', sectionName);
-								if (oldManaged && oldManaged.freenetic_managed === '1')
-									uci.remove('network', sectionName);
+								this.releaseManagedVlan(sectionName);
 							}
 							sectionName = targetInfo.sectionName;
 						}
@@ -635,9 +665,7 @@ return view.extend({
 					}
 				}
 			} else if (this.vlanSectionName) {
-				const managed = uci.get('network', this.vlanSectionName);
-				if (managed && managed.freenetic_managed === '1')
-					uci.remove('network', this.vlanSectionName);
+				this.releaseManagedVlan(this.vlanSectionName);
 				this.vlanSectionName = null;
 				this.vlanInfo = {
 					vid: '',

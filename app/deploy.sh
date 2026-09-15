@@ -93,12 +93,13 @@ $SSH_CMD "$ROUTER" '
         mkdir -p /etc/config
         cp /tmp/freenetic-pkg/root/etc/config/freenetic /etc/config/freenetic
     fi
-    mkdir -p /usr/share/luci/menu.d /usr/share/rpcd/acl.d /usr/libexec
+    mkdir -p /usr/share/luci/menu.d /usr/share/rpcd/acl.d /usr/libexec /usr/share/freenetic
     # Remove the menu filename used by the former monolithic theme package.
     rm -f /usr/share/luci/menu.d/luci-theme-freenetic.json
     cp /tmp/freenetic-pkg/root/usr/share/luci/menu.d/*.json /usr/share/luci/menu.d/
     cp /tmp/freenetic-pkg/root/usr/share/rpcd/acl.d/*.json /usr/share/rpcd/acl.d/
     cp /tmp/freenetic-pkg/root/usr/libexec/freenetic-* /usr/libexec/
+    cp -r /tmp/freenetic-pkg/root/usr/share/freenetic/. /usr/share/freenetic/
     chmod +x /usr/libexec/freenetic-*
 	# LuCI derives the ?v= cache key for every JS module from the installed
 	# package database mtime. A development copy bypasses apk/opkg, so advance
@@ -155,6 +156,7 @@ $SSH_CMD "$ROUTER" '
              /usr/share/luci/menu.d/zz-luci-freenetic.json \
              /usr/share/rpcd/acl.d/luci-theme-freenetic.json \
              /usr/share/rpcd/acl.d/luci-app-freenetic.json \
+             /usr/share/freenetic/keys \
              /usr/libexec/freenetic-backup-call /usr/libexec/freenetic-clear-luci-cache \
              /usr/libexec/freenetic-diagnostics-call /usr/libexec/freenetic-awg-feed \
              /etc/openvpn/freenetic /usr/libexec/freenetic-openvpn-profile \

@@ -28,6 +28,7 @@
 				"/dev/mtdblock[0-9]*": [ "read" ],
 				"/tmp/freenetic-startup-config.tar.gz": [ "read" ],
 				"/usr/libexec/package-manager-call list-installed": [ "exec" ],
+				"/usr/libexec/package-manager-call update": [ "exec" ],
 				"/usr/libexec/freenetic-self-update status": [ "exec" ],
 				"/usr/libexec/freenetic-package-status *": [ "exec" ],
 				"/usr/libexec/freenetic-awg-feed status": [ "exec" ],
@@ -55,7 +56,7 @@
 			},
 			"file": {
 				"/tmp/freenetic-openvpn-*": [ "write" ],
-				"/sbin/ifup": [ "exec" ],
+				"/sbin/ifup guest": [ "exec" ],
 				"/sbin/sysupgrade --test /tmp/firmware.bin": [ "exec" ],
 				"/sbin/sysupgrade /tmp/firmware.bin": [ "exec" ],
 				"/tmp/firmware.bin": [ "write" ],

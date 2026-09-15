@@ -10,7 +10,8 @@ json_escape() {
 }
 
 reply_error() {
-	printf '{"ok":false,"error":"%s"}\n' "$(json_escape "$1")"
+	printf '{"ok":false,"error_code":"%s","error":"%s"}\n' \
+		"$(json_escape "$1")" "$(json_escape "$2")"
 	exit 0
 }
 
@@ -27,43 +28,51 @@ case "${1:-}" in
 		;;
 esac
 
-[ "$#" -eq 1 ] || reply_error "Exactly one Ethernet port is required."
+[ "$#" -eq 1 ] || reply_error "invalid-arguments" "Exactly one Ethernet port is required."
 port=$1
 
 case "$port" in
-	''|-*|*[!A-Za-z0-9_-]*) reply_error "Invalid Ethernet port name." ;;
+	''|-*|*[!A-Za-z0-9_-]*) reply_error "invalid-name" "Invalid Ethernet port name." ;;
 esac
 
-[ "$(id -u)" -eq 0 ] || reply_error "Ethernet probing requires root privileges."
-[ -d "/sys/class/net/$port" ] || reply_error "Ethernet port was not found."
+[ "$(id -u)" -eq 0 ] || reply_error "root-required" "Ethernet probing requires root privileges."
+[ -d "/sys/class/net/$port" ] || reply_error "not-found" "Ethernet port was not found."
 
 # Restrict the helper to ports exported by the board description. This keeps
 # the browser-facing command away from tunnels, bridges and arbitrary netdevs.
 builtin_ports=$(
 	jsonfilter -i /etc/board.json -e '@.network.lan.ports[*]' 2>/dev/null || true
+	jsonfilter -i /etc/board.json -e '@.network.lan.device' 2>/dev/null || true
+	jsonfilter -i /etc/board.json -e '@.network.wan.ports[*]' 2>/dev/null || true
 	jsonfilter -i /etc/board.json -e '@.network.wan.device' 2>/dev/null || true
 )
-printf '%s\n' "$builtin_ports" | grep -Fxq -- "$port" || reply_error "Only built-in Ethernet ports can be probed."
+printf '%s\n' "$builtin_ports" | grep -Fxq -- "$port" || \
+	reply_error "not-builtin" "Only built-in Ethernet ports can be probed."
 
 # Probing a configured port could leak a DHCP request into a local segment or
 # disturb the active uplink. Both the UI and this helper therefore accept only
 # ports that are currently unassigned.
-[ ! -L "/sys/class/net/$port/master" ] || reply_error "Assign the port as unused before probing it."
+[ ! -L "/sys/class/net/$port/master" ] || \
+	reply_error "port-assigned" "Assign the port as unused before probing it."
 if uci -q show network 2>/dev/null | grep -Fq -- "'$port'"; then
-	reply_error "Assign the port as unused before probing it."
+	reply_error "port-assigned" "Assign the port as unused before probing it."
 fi
 
 was_up=false
 ip link show dev "$port" 2>/dev/null | grep -q '<[^>]*UP[^>]*>' && was_up=true
-probe_result="/tmp/freenetic-port-probe.$$.dhcp"
-probe_pppoe="/tmp/freenetic-port-probe.$$.pppoe"
+probe_dir=$(mktemp -d /tmp/freenetic-port-probe.XXXXXX 2>/dev/null) ||
+	reply_error "temporary-directory" "A secure temporary directory could not be created."
+probe_result="$probe_dir/dhcp"
+probe_pppoe="$probe_dir/pppoe"
 cleanup() {
 	rm -f "$probe_result" "$probe_pppoe"
+	rmdir "$probe_dir" >/dev/null 2>&1 || true
 	[ "$was_up" = true ] || ip link set dev "$port" down >/dev/null 2>&1 || true
 }
 trap cleanup EXIT HUP INT TERM
 
-ip link set dev "$port" up >/dev/null 2>&1 || reply_error "The Ethernet port could not be enabled for probing."
+ip link set dev "$port" up >/dev/null 2>&1 || \
+	reply_error "enable-failed" "The Ethernet port could not be enabled for probing."
 
 carrier=$(cat "/sys/class/net/$port/carrier" 2>/dev/null || printf '0')
 if [ "$carrier" != '1' ]; then

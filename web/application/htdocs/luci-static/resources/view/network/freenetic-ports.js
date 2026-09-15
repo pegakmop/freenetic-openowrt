@@ -99,11 +99,52 @@ function ipv4(value) {
 	return parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) >= 0 && Number(part) <= 255);
 }
 
-function subnet24(address) {
+function ipv4ToUint(address) {
 	if (!ipv4(address))
 		return null;
-	const parts = String(address).split('.').map(Number);
-	return parts.slice(0, 3).join('.') + '.0/24';
+	return String(address).split('.').reduce((value, part) =>
+		(value * 256 + Number(part)) >>> 0, 0);
+}
+
+function prefixFromNetmask(netmask) {
+	const value = ipv4ToUint(netmask);
+	if (value == null)
+		return null;
+	let prefix = 0;
+	let zeroSeen = false;
+	for (let bit = 31; bit >= 0; bit--) {
+		const set = (value & (1 << bit)) !== 0;
+		if (set && zeroSeen)
+			return null;
+		if (set)
+			prefix++;
+		else
+			zeroSeen = true;
+	}
+	return prefix;
+}
+
+function ipv4Range(address, netmask) {
+	const parts = String(address || '').split('/');
+	const ip = ipv4ToUint(parts[0]);
+	let prefix = parts.length > 1 ? Number(parts[1]) : prefixFromNetmask(netmask || '255.255.255.0');
+	if (ip == null || !Number.isInteger(prefix) || prefix < 0 || prefix > 32)
+		return null;
+	const size = Math.pow(2, 32 - prefix);
+	const start = Math.floor(ip / size) * size;
+	return { start: start, end: start + size - 1, prefix: prefix };
+}
+
+function rangesOverlap(left, right) {
+	return !!left && !!right && left.start <= right.end && right.start <= left.end;
+}
+
+function subnet24(address) {
+	const range = ipv4Range(address, '255.255.255.0');
+	if (!range)
+		return null;
+	const start = range.start;
+	return [ start >>> 24, (start >>> 16) & 255, (start >>> 8) & 255, start & 255 ].join('.') + '/24';
 }
 
 function bridgeForName(network, name) {
@@ -170,6 +211,25 @@ function wanProtocolLabel(proto) {
 	case 'pppoe': return 'PPPoE';
 	case 'static': return _('Static IP');
 	default: return String(proto || '').toUpperCase() || _('Configured');
+	}
+}
+
+function probeErrorMessage(result) {
+	switch (result && result.error_code) {
+	case 'port-assigned':
+		return _('Apply the unused port assignment before scanning it.');
+	case 'not-found':
+		return _('The Ethernet port was not found.');
+	case 'invalid-arguments':
+	case 'invalid-name':
+	case 'not-builtin':
+		return _('The Ethernet port cannot be scanned.');
+	case 'root-required':
+	case 'enable-failed':
+	case 'temporary-directory':
+		return _('Port scanning is unavailable.');
+	default:
+		return _('Port scan failed');
 	}
 }
 
@@ -356,7 +416,7 @@ return view.extend({
 			dedicated.hidden = role.value !== 'dedicated';
 			dedicated.querySelector('.fn-port-vpn-field').hidden = policySelect.value !== 'vpn';
 			if (role.value === 'dedicated')
-				hint.textContent = _('This port gets its own IPv4 subnet, DHCP server, firewall zone, and traffic policy.');
+				hint.textContent = _('This port gets its own IPv4 subnet, DHCP server, firewall zone, and traffic policy. Router access is limited to DHCP and DNS by default.');
 			else if (role.value === 'lan' || role.value === 'guest')
 				hint.textContent = _('This port shares the selected network and inherits that network’s traffic policy.');
 			else if (role.value === 'wan')
@@ -478,7 +538,7 @@ return view.extend({
 			else if (result.ok)
 				message = _('No Internet service detected');
 			else
-				message = result.error || _('Port scan failed');
+				message = probeErrorMessage(result);
 
 			const row = E('div', { class: 'fn-port-adaptive-result' + (detected ? ' fn-port-adaptive-found' : '') }, [
 				E('span', { class: 'fn-port-adaptive-result-dot', 'aria-hidden': 'true' }),
@@ -520,6 +580,28 @@ return view.extend({
 		return sectionName(bridge);
 	},
 
+	sharedBridge(networkName, fallbackDevice, suggestedSection) {
+		const attached = uci.get('network', networkName, 'device');
+		const bridge = uci.sections('network', 'device').find(section =>
+			section.type === 'bridge' && section.name === attached);
+		if (bridge)
+			return sectionName(bridge);
+		if (attached && attached !== fallbackDevice)
+			throw new Error(_('%s uses the non-bridge device %s and cannot be edited safely here.').format(networkName, attached));
+		const created = this.ensureBridge(fallbackDevice, suggestedSection);
+		if (!attached)
+			uci.set('network', networkName, 'device', fallbackDevice);
+		return created;
+	},
+
+	updateWanDevices(wanPort) {
+		const oldWanPort = uci.get('network', 'wan', 'device');
+		const oldWan6Port = uci.get('network', 'wan6', 'device');
+		uci.set('network', 'wan', 'device', wanPort);
+		if (uci.get('network', 'wan6') && oldWan6Port === oldWanPort)
+			uci.set('network', 'wan6', 'device', wanPort);
+	},
+
 	removeManagedPortSegment(port) {
 		const networkName = portNetwork(port);
 		const remove = (config, name, scope) => {
@@ -531,9 +613,24 @@ return view.extend({
 		remove('dhcp', networkName, 'ethernet-port');
 		remove('firewall', networkName, 'ethernet-port');
 		remove('firewall', networkName + '_wan', 'ethernet-port');
+		remove('firewall', networkName + '_dhcp', 'ethernet-port');
+		remove('firewall', networkName + '_dns', 'ethernet-port');
 		if (this.pbrConfig)
 			remove('pbr', managedPolicySection(networkName));
 		remove('firewall', managedBlockSection(networkName));
+	},
+
+	createRouterServiceRule(networkName, suffix, label, destinationPort, protocols) {
+		const ruleName = networkName + '_' + suffix;
+		uci.add('firewall', 'rule', ruleName);
+		uci.set('firewall', ruleName, 'name', label);
+		uci.set('firewall', ruleName, 'src', networkName);
+		uci.set('firewall', ruleName, 'dest_port', destinationPort);
+		uci.set('firewall', ruleName, 'proto', protocols);
+		uci.set('firewall', ruleName, 'target', 'ACCEPT');
+		uci.set('firewall', ruleName, 'family', 'ipv4');
+		uci.set('firewall', ruleName, 'freenetic_managed', '1');
+		uci.set('firewall', ruleName, 'freenetic_scope', 'ethernet-port');
 	},
 
 	createPortSegment(card) {
@@ -560,11 +657,20 @@ return view.extend({
 		uci.add('firewall', 'zone', networkName);
 		uci.set('firewall', networkName, 'name', networkName);
 		uci.set('firewall', networkName, 'network', [ networkName ]);
-		uci.set('firewall', networkName, 'input', 'ACCEPT');
+		/* A separate segment is safe for untrusted/IoT devices by default:
+		 * clients can obtain an address and resolve names, but cannot reach
+		 * LuCI, SSH or other services listening on the router itself. */
+		uci.set('firewall', networkName, 'input', 'REJECT');
 		uci.set('firewall', networkName, 'output', 'ACCEPT');
 		uci.set('firewall', networkName, 'forward', 'REJECT');
 		uci.set('firewall', networkName, 'freenetic_managed', '1');
 		uci.set('firewall', networkName, 'freenetic_scope', 'ethernet-port');
+		this.createRouterServiceRule(networkName, 'dhcp',
+			'Freenetic — Allow DHCP from ' + networkName.replace('freenetic_port_', ''),
+			'67', 'udp');
+		this.createRouterServiceRule(networkName, 'dns',
+			'Freenetic — Allow DNS from ' + networkName.replace('freenetic_port_', ''),
+			'53', [ 'tcp', 'udp' ]);
 
 		uci.add('firewall', 'forwarding', networkName + '_wan');
 		uci.set('firewall', networkName + '_wan', 'src', networkName);
@@ -622,19 +728,32 @@ return view.extend({
 		}
 	},
 
+	restartPbr() {
+		if (!this.pbrConfig)
+			return Promise.resolve(null);
+		return fs.exec_direct(PBR_RESTART_HELPER, [], 'json').then(result => {
+			if (!result || result.ok !== true || result.installed === false)
+				throw new Error(_('The policy routing service did not restart.'));
+			return result;
+		});
+	},
+
 	validate() {
 		const wanCards = this.cards.filter(card => card.role.value === 'wan');
 		if (wanCards.length !== 1)
 			return _('Exactly one physical port must be assigned to Internet (WAN).');
 
-		const usedSubnets = {};
+		const usedSubnets = [];
 		for (const section of sections(this.network, 'interface')) {
 			const name = sectionName(section);
 			if (name && name.indexOf('freenetic_port_') === 0)
 				continue;
-			const raw = Array.isArray(section.ipaddr) ? section.ipaddr[0] : section.ipaddr;
-			const cidr = subnet24(String(raw || '').split('/')[0]);
-			if (cidr) usedSubnets[cidr] = true;
+			const addresses = listValue(section.ipaddr);
+			addresses.forEach(address => {
+				const range = ipv4Range(address, section.netmask);
+				if (range)
+					usedSubnets.push(range);
+			});
 		}
 
 		for (const card of this.cards) {
@@ -642,12 +761,15 @@ return view.extend({
 				continue;
 			const address = card.addressInput.value.trim();
 			const cidr = subnet24(address);
+			const range = ipv4Range(address, '255.255.255.0');
 			const networkName = portNetwork(card.port.device);
 			for (const collision of [
 				[ this.network[networkName], 'ethernet-port' ],
 				[ this.dhcp[networkName], 'ethernet-port' ],
 				[ this.firewall[networkName], 'ethernet-port' ],
 				[ this.firewall[networkName + '_wan'], 'ethernet-port' ],
+				[ this.firewall[networkName + '_dhcp'], 'ethernet-port' ],
+				[ this.firewall[networkName + '_dns'], 'ethernet-port' ],
 				[ this.firewall[managedBlockSection(networkName)], null ],
 				[ this.pbr[managedPolicySection(networkName)], null ]
 			]) {
@@ -656,9 +778,9 @@ return view.extend({
 			}
 			if (!cidr || !/\.1$/.test(address))
 				return _('The router address for %s must be a valid IPv4 address ending in .1.').format(card.port.device);
-			if (usedSubnets[cidr])
+			if (usedSubnets.some(existing => rangesOverlap(existing, range)))
 				return _('The subnet %s is already used by another network.').format(cidr);
-			usedSubnets[cidr] = true;
+			usedSubnets.push(range);
 			if (card.policySelect.value === 'vpn' && (!this.pbrConfig || !card.vpnSelect.value))
 				return _('Install Policy-based routing and configure a VPN connection first.');
 		}
@@ -681,8 +803,8 @@ return view.extend({
 			configs.push('pbr');
 		return uci.load(configs).then(() => {
 			const builtin = this.cards.map(card => card.port.device);
-			const lanBridge = this.ensureBridge('br-lan', 'freenetic_br_lan');
-			const guestBridge = this.hasGuest ? this.ensureBridge('br-guest', 'freenetic_br_guest') : null;
+			const lanBridge = this.sharedBridge('lan', 'br-lan', 'freenetic_br_lan');
+			const guestBridge = this.hasGuest ? this.sharedBridge('guest', 'br-guest', 'freenetic_br_guest') : null;
 
 			/* Remove built-in ports only from the shared bridges we manage here.
 			 * Custom bridge membership is locked in the UI and remains untouched. */
@@ -693,9 +815,7 @@ return view.extend({
 			this.cards.forEach(card => this.removeManagedPortSegment(card.port.device));
 
 			const wanPort = this.cards.find(card => card.role.value === 'wan').port.device;
-			uci.set('network', 'wan', 'device', wanPort);
-			if (uci.get('network', 'wan6'))
-				uci.set('network', 'wan6', 'device', wanPort);
+			this.updateWanDevices(wanPort);
 
 			const lanPorts = this.cards.filter(card => !card.locked && card.role.value === 'lan').map(card => card.port.device);
 			const oldLanPorts = listValue(uci.get('network', lanBridge, 'ports'));
@@ -709,11 +829,7 @@ return view.extend({
 			this.cards.filter(card => !card.locked && card.role.value === 'dedicated').forEach(card => this.createPortSegment(card));
 			this.updatePbrState();
 			return uci.save();
-		}).then(() => applyChanges(30)).then(() => {
-			if (!this.pbrConfig)
-				return null;
-			return fs.exec_direct(PBR_RESTART_HELPER, [], 'json').catch(() => null);
-		}).then(() => {
+		}).then(() => applyChanges(30)).then(() => this.restartPbr()).then(() => {
 			notify(_('Ethernet port configuration applied.'), 'info');
 			window.setTimeout(() => window.location.reload(), 900);
 		}).catch(error => {

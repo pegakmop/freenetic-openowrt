@@ -47,6 +47,8 @@ function getWifiRadios(wireless) {
 }
 
 function mhzToChannel(mhz, band) {
+	if (band !== '5g' && Number(mhz) === 2484)
+		return 14;
 	return band === '5g' ? Math.round((mhz - 5000) / 5) : Math.round((mhz - 2407) / 5);
 }
 
@@ -93,6 +95,8 @@ function channelWidth(entry) {
 }
 
 function channelFrequency(channel, band) {
+	if (band !== '5g' && Number(channel) === 14)
+		return 2484;
 	return band === '5g' ? 5000 + Number(channel) * 5 : 2407 + Number(channel) * 5;
 }
 
@@ -108,7 +112,7 @@ function configuredChannelWidth(radio) {
 
 function scoreChannel(candidate, networks) {
 	return networks.reduce((score, network) => {
-		const halfSpan = 10 + channelWidth(network) / 2;
+		const halfSpan = (Number(candidate.width) || 20) / 2 + channelWidth(network) / 2;
 		const overlap = Math.max(0, halfSpan - Math.abs(candidate.mhz - Number(network.mhz))) / halfSpan;
 		const strength = Math.max(0.05, Math.min(1, (Number(network.signal) + 100) / 55));
 		return score + overlap * strength * strength;
@@ -125,10 +129,12 @@ function recommendChannel(radio, frequencies, networks) {
 	if (!candidates.length)
 		return null;
 
+	const width = configuredChannelWidth(radio);
 	return candidates.map(candidate => ({
 		channel: Number(candidate.channel),
 		mhz: Number(candidate.mhz),
-		score: scoreChannel(candidate, networks)
+		width: width,
+		score: scoreChannel({ mhz: Number(candidate.mhz), width: width }, networks)
 	})).sort((a, b) => a.score - b.score || a.channel - b.channel)[0];
 }
 
@@ -416,7 +422,7 @@ return view.extend({
 		const currentFrequency = Number(data.info.frequency) || 0;
 		const broadcasting = currentChannel > 0 && currentFrequency > 0;
 		const width = broadcasting ? activeChannelWidth(data.info) : configuredChannelWidth(radio);
-		const currentScore = broadcasting ? scoreChannel({ mhz: currentFrequency }, data.networks) : 0;
+		const currentScore = broadcasting ? scoreChannel({ mhz: currentFrequency, width: width }, data.networks) : 0;
 		let recommendationNote = _('Based on signal strength and channel overlap.');
 		if (!broadcasting)
 			recommendationNote = _('The radio is not broadcasting. The recommendation is based on the latest scan.');
@@ -521,8 +527,8 @@ return view.extend({
 		});
 
 		if (recommendation) {
-			const recLeft = x(recommendation.mhz - 10);
-			const recRight = x(recommendation.mhz + 10);
+			const recLeft = x(recommendation.mhz - recommendation.width / 2);
+			const recRight = x(recommendation.mhz + recommendation.width / 2);
 			svg.appendChild(svgNode('rect', {
 				x: recLeft, y: margin.top, width: Math.max(2, recRight - recLeft),
 				height: baseline - margin.top, class: 'fn-air-recommended-band'

@@ -6,6 +6,67 @@ which they became user-visible.
 
 ## [Unreleased]
 
+## [0.3.0-alpha.2] — 2026-09-15
+
+### Security
+
+- Client blocking now targets the client's actual firewall zone, including
+  dedicated Ethernet segments, instead of silently falling back to the Home
+  network zone.
+- VPN policy application now fails visibly when Policy-Based Routing cannot be
+  restarted; the interface no longer reports a policy as active after a
+  structured backend failure.
+- Dedicated Ethernet segments deny access to router services by default while
+  retaining narrow DHCP and DNS input exceptions.
+- Root helpers and the release installer now use unpredictable private
+  temporary paths instead of PID-derived filenames.
+- APK packages are verified with a release public key pinned by the generated
+  installer. Every published asset receives GitHub/Sigstore build provenance.
+- The optional AmneziaWG repository key is bundled with the signed Freenetic
+  application package and pinned by digest; it is no longer downloaded from
+  the same origin as the repository it authenticates.
+- Network and per-device Internet blocks are placed before pre-existing
+  firewall rules, preventing an earlier broad ACCEPT from bypassing the UI's
+  reported policy.
+- Guest firewall hardening refuses to adopt or rewrite an operator-owned or
+  shared zone. Freenetic also changes global PBR state only when it previously
+  enabled that state itself.
+
+### Fixed
+
+- Selecting Automatic transmit power now removes a previous explicit wireless
+  power limit.
+- Adaptive Ethernet probing recognizes both `device` and `ports` board layouts
+  used by LuCI and translates structured helper errors instead of exposing raw
+  backend messages.
+- Release publication no longer moves the version tag after CI. Static checks
+  and package builds now validate the same immutable source object that the tag
+  continues to reference.
+- Release installer generation is idempotent when its template already points
+  at a GitHub Release asset.
+- WAN VLAN changes preserve Freenetic-created devices referenced by foreign
+  interfaces or bridges, and explicit dotted device names are no longer
+  mistaken for implicit VLAN notation.
+- Per-device Direct policies remain represented by a MAC-scoped firewall rule
+  when the optional PBR package is absent.
+- The installer snapshots native CLI files and Freenetic update state before
+  mutation, rolls them back on pre-commit failure, and treats post-install
+  LuCI cache invalidation as best effort.
+- The application ACL now grants the exact package-index update and guest
+  interface activation commands used by the UI.
+
+### Improved
+
+- Added behavioral tests for dedicated-segment firewall state, per-zone client
+  blocking and Policy-Based Routing failure propagation.
+- Added ordered firewall/PBR, guest ownership, shared WAN-device, implicit VLAN
+  and installer transaction regression coverage from the independent Strix
+  security/correctness audit.
+- Improved model-name contrast on the login banner without changing the
+  Freenetic wordmark.
+- Refined the WAN, VPN, DDNS, diagnostics and access-policy layouts, and gave
+  the stock OpenWrt package manager a compact responsive package grid.
+
 ## [0.3.0-alpha.1] — 2026-09-15
 
 ### Added

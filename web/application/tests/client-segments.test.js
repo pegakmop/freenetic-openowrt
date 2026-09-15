@@ -54,13 +54,40 @@ const rpc = {
 	}
 };
 
+const firewallWrites = [];
+let sectionSequence = 0;
+const uci = {
+	load(config) {
+		return Promise.resolve(configs[config] || {});
+	},
+	add(config, type) {
+		const name = `test_${type}_${++sectionSequence}`;
+		configs[config] ||= {};
+		configs[config][name] = { '.type': type, '.name': name };
+		return name;
+	},
+	set(config, section, option, value) {
+		configs[config][section][option] = value;
+		firewallWrites.push({ config, section, option, value });
+	},
+	sections(config, type) {
+		return Object.values(configs[config] || {}).filter(section => section['.type'] === type);
+	},
+	remove(config, section) {
+		delete configs[config][section];
+	},
+	save() {
+		return Promise.resolve();
+	}
+};
+
 const clientView = new Function('view', 'poll', 'ui', 'uci', 'rpc', 'uiHelper', '_', source)(
 	{ extend: value => value },
 	{ add() {} },
 	{},
-	{},
+	uci,
 	rpc,
-	{ empty() {}, notify() {}, applyChanges() {} },
+	{ empty() {}, notify() {}, applyChanges: () => Promise.resolve() },
 	value => value
 );
 
@@ -80,6 +107,23 @@ const clientView = new Function('view', 'poll', 'ui', 'uci', 'rpc', 'uiHelper', 
 		'Port lan2', 'dedicated clients must use their real segment label');
 	assert.equal(clientView.describeConnection('AA:BB:CC:00:00:22', live['AA:BB:CC:00:00:22']).zone,
 		'freenetic_port_lan2', 'client actions must target the segment firewall zone');
+
+	configs.firewall.alpha1_wrong_block = {
+		'.type': 'rule', '.name': 'alpha1_wrong_block', freenetic_managed: '1',
+		name: 'freenetic_block_AABBCC000022', src: 'lan',
+		src_mac: 'AA:BB:CC:00:00:22', dest: 'wan', target: 'REJECT'
+	};
+	clientView.refresh = () => Promise.resolve();
+	await clientView.blockClient('AA:BB:CC:00:00:22', 'freenetic_port_lan2');
+	assert.equal(configs.firewall.alpha1_wrong_block, undefined,
+		'reblocking must remove the ineffective alpha.1 Freenetic rule');
+	const sourceWrite = firewallWrites.find(write => write.option === 'src');
+	assert.equal(sourceWrite && sourceWrite.value, 'freenetic_port_lan2',
+		'blocking a dedicated Ethernet client must write its actual firewall zone');
+	const createdRule = configs.firewall[sourceWrite.section];
+	assert.equal(createdRule.src_mac, 'AA:BB:CC:00:00:22');
+	assert.equal(createdRule.dest, 'wan');
+	assert.equal(createdRule.target, 'REJECT');
 	console.log('Client segment discovery: ok');
 })().catch(error => {
 	console.error(error);

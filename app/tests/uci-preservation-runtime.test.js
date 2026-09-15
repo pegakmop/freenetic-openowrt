@@ -86,6 +86,7 @@ function makeElement() {
 	return {
 		children: [],
 		appendChild(child) { this.children.push(child); },
+		addEventListener() {},
 		classList: { add() {}, remove() {} },
 		setAttribute() {},
 		removeAttribute() {}
@@ -348,6 +349,76 @@ async function testWanPreservation() {
 	assert.equal(managedUci.get('network', 'managed_vlan', 'unknown_foo'), 'keep');
 }
 
+async function testWanImplicitAndSharedDevicePreservation() {
+	for (const [ device, expectedBase, expectedVid ] of [
+		[ 'eth0.2', 'eth0', '2' ],
+		[ 'br-wan.100.200', 'br-wan.100', '200' ]
+	]) {
+		const uci = new FakeUci(baseWanConfig());
+		uci.set('network', 'wan', 'device', device);
+		uci.set('network', 'wan6', 'device', device);
+		const view = evaluateView('network/freenetic-wan.js', uci);
+		view.render([ null, {}, {} ]);
+		assert.equal(view.baseIfname, expectedBase);
+		assert.equal(view.vlanInfo.vid, expectedVid);
+		view.fillStatus = () => {};
+		view.fillStatus6 = () => {};
+		await call(view, 'save', {
+			enabled: true, proto: 'dhcp', username: '', password: '', ipaddr: '',
+			netmask: '', gateway: '', vlan: expectedVid, dns1: '', dns2: ''
+		}, button());
+		assert.equal(uci.get('network', 'wan', 'device'), device);
+		assert.equal(uci.get('network', 'wan6', 'device'), device);
+		assert.equal(uci.sections('network', 'device').length, 0,
+			'an unchanged implicit VLAN must not be converted into a nested explicit device');
+	}
+
+	const explicitUci = new FakeUci(baseWanConfig({
+		named_bridge: { '.name': 'named_bridge', '.type': 'device', type: 'bridge', name: 'eth0.2' }
+	}));
+	explicitUci.set('network', 'wan', 'device', 'eth0.2');
+	const explicitView = evaluateView('network/freenetic-wan.js', explicitUci);
+	explicitView.render([ null, {}, {} ]);
+	assert.equal(explicitView.baseIfname, 'eth0.2');
+	assert.equal(explicitView.vlanInfo.vid, '',
+		'an explicit non-8021q device name must remain authoritative');
+
+	for (const vlan of [ '100', '' ]) {
+		const sharedUci = new FakeUci(baseWanConfig({
+			managed_uplink: {
+				'.name': 'managed_uplink', '.type': 'device', type: '8021q', ifname: 'eth0',
+				vid: '99', name: 'mgmt-uplink', freenetic_managed: '1'
+			},
+			operator_interface: { '.name': 'operator_interface', '.type': 'interface', device: 'mgmt-uplink', proto: 'static' },
+			operator_bridge: { '.name': 'operator_bridge', '.type': 'device', type: 'bridge', name: 'br-operator', ports: [ 'mgmt-uplink' ] }
+		}));
+		sharedUci.set('network', 'wan', 'device', 'mgmt-uplink');
+		sharedUci.set('network', 'wan6', 'device', 'mgmt-uplink');
+		const sharedView = evaluateView('network/freenetic-wan.js', sharedUci);
+		sharedView.baseIfname = 'eth0';
+		sharedView.vlanSectionName = 'managed_uplink';
+		sharedView.vlanInfo = { sectionName: 'managed_uplink', deviceName: 'mgmt-uplink', managed: true };
+		sharedView.fillStatus = () => {};
+		sharedView.fillStatus6 = () => {};
+		await call(sharedView, 'save', {
+			enabled: true, proto: 'dhcp', username: '', password: '', ipaddr: '',
+			netmask: '', gateway: '', vlan, dns1: '', dns2: ''
+		}, button());
+		assert.equal(sharedUci.get('network', 'managed_uplink', 'name'), 'mgmt-uplink');
+		assert.equal(sharedUci.get('network', 'managed_uplink', 'freenetic_managed'), undefined,
+			'a shared old device must be relinquished rather than renamed or removed');
+		assert.equal(sharedUci.get('network', 'operator_interface', 'device'), 'mgmt-uplink');
+		assert.deepEqual(sharedUci.get('network', 'operator_bridge', 'ports'), [ 'mgmt-uplink' ]);
+		assert.equal(sharedUci.get('network', 'wan', 'device'), vlan ? 'eth0.100' : 'eth0');
+		if (vlan) {
+			const replacement = sharedUci.sections('network', 'device').find(section =>
+				section.name === 'eth0.100');
+			assert.equal(replacement && replacement.freenetic_managed, '1',
+				'a changed WAN VLAN must use a new managed device when the old one is shared');
+		}
+	}
+}
+
 async function testUnsupportedWanPreservation() {
 	const uci = new FakeUci({ network: {
 		wan: {
@@ -469,6 +540,7 @@ async function testIpsecOwnership() {
 	await testDdnsPreservation();
 	await testDhcpHostPreservation();
 	await testWanPreservation();
+	await testWanImplicitAndSharedDevicePreservation();
 	await testUnsupportedWanPreservation();
 	await testGuestClientBlockZone();
 	await testLastDnsRouteDeletion();

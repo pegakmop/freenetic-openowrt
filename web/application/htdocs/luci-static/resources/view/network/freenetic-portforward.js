@@ -23,6 +23,51 @@ function getDhcpLeases() {
 	return ubusCall('luci-rpc', 'getDHCPLeases').then(r => r.dhcp_leases || []).catch(() => []);
 }
 
+function getNetworkConfig() {
+	return ubusCall('uci', 'get', { config: 'network' }).then(r => r.values || {}).catch(() => ({}));
+}
+
+function listValue(value) {
+	return Array.isArray(value) ? value.slice() : (value ? String(value).split(/[\s,]+/).filter(Boolean) : []);
+}
+
+function ipv4ToUint(address) {
+	const parts = String(address || '').split('.');
+	if (parts.length !== 4 || !parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255))
+		return null;
+	return parts.reduce((value, part) => (value * 256 + Number(part)) >>> 0, 0);
+}
+
+function prefixFromNetmask(netmask) {
+	const value = ipv4ToUint(netmask);
+	if (value == null)
+		return null;
+	let prefix = 0, zeroSeen = false;
+	for (let bit = 31; bit >= 0; bit--) {
+		const set = (value & (1 << bit)) !== 0;
+		if (set && zeroSeen)
+			return null;
+		if (set) prefix++;
+		else zeroSeen = true;
+	}
+	return prefix;
+}
+
+function addressInInterface(address, iface) {
+	const target = ipv4ToUint(address);
+	if (target == null)
+		return false;
+	return listValue(iface && iface.ipaddr).some(raw => {
+		const parts = String(raw).split('/');
+		const local = ipv4ToUint(parts[0]);
+		const prefix = parts.length > 1 ? Number(parts[1]) : prefixFromNetmask(iface.netmask || '255.255.255.0');
+		if (local == null || !Number.isInteger(prefix) || prefix < 0 || prefix > 32)
+			return false;
+		const size = Math.pow(2, 32 - prefix);
+		return Math.floor(local / size) === Math.floor(target / size);
+	});
+}
+
 /* "WAN"/"LAN" zone names aren't hardcoded — same masq-zone detection idea as
    the dashboard's Internet card, plus whichever zone actually carries the
    'lan' network, so this keeps working on a re-zoned or renamed setup. */
@@ -56,12 +101,13 @@ function protoLabel(protos) {
 
 return view.extend({
 	load() {
-		return Promise.all([ getFirewallConfig(), getDhcpLeases(), uci.load('network') ]);
+		return Promise.all([ getFirewallConfig(), getDhcpLeases(), uci.load('network'), getNetworkConfig() ]);
 	},
 
 	render(data) {
 		this.firewall = data[0];
 		this.leases = data[1];
+		this.network = data[3];
 		this.zones = detectZones(this.firewall);
 		this.activeFamily = 'ipv4';
 
@@ -94,6 +140,18 @@ return view.extend({
 				this.upnpTable
 			])
 		]);
+	},
+
+	destinationZoneForAddress(address, fallback) {
+		const ifaceName = Object.keys(this.network || {}).find(name => {
+			const iface = this.network[name];
+			return iface && iface['.type'] === 'interface' && addressInInterface(address, iface);
+		});
+		if (!ifaceName)
+			return fallback || this.zones.lan;
+		const zone = Object.keys(this.firewall || {}).map(name => this.firewall[name]).find(section =>
+			section && section['.type'] === 'zone' && listValue(section.network).indexOf(ifaceName) !== -1);
+		return zone && zone.name || fallback || this.zones.lan;
 	},
 
 	refresh() {
@@ -223,6 +281,7 @@ return view.extend({
 		const portParts = existingPort.split('-');
 		const isRange = portParts.length === 2;
 		const inputNetwork = rule ? (rule.src || this.zones.wan) : this.zones.wan;
+		const existingDestination = rule ? (rule.dest || this.zones.lan) : this.zones.lan;
 
 		const nameInput = E('input', { type: 'text', class: 'fn-input', placeholder: _('Description'), value: rule ? (rule.name || '') : '' });
 		const enabledInput = E('input', { type: 'checkbox' });
@@ -253,10 +312,16 @@ return view.extend({
 			if (!lease.ipaddr || knownAddresses[lease.ipaddr])
 				return;
 			knownAddresses[lease.ipaddr] = true;
-			outputSelect.appendChild(E('option', { value: lease.ipaddr }, lease.hostname ? lease.hostname + ' (' + lease.ipaddr + ')' : lease.ipaddr));
+			outputSelect.appendChild(E('option', {
+				value: lease.ipaddr,
+				'data-destination-zone': this.destinationZoneForAddress(lease.ipaddr, this.zones.lan)
+			}, lease.hostname ? lease.hostname + ' (' + lease.ipaddr + ')' : lease.ipaddr));
 		});
 		if (rule && rule.dest_ip && !knownAddresses[rule.dest_ip])
-			outputSelect.appendChild(E('option', { value: rule.dest_ip }, rule.dest_ip));
+			outputSelect.appendChild(E('option', {
+				value: rule.dest_ip,
+				'data-destination-zone': existingDestination
+			}, rule.dest_ip));
 		outputSelect.appendChild(E('option', { value: '__custom__' }, _('Enter address manually')));
 		outputSelect.value = rule && rule.dest_ip ? rule.dest_ip : '';
 		const customOutputInput = E('input', { type: 'text', class: 'fn-input', placeholder: isV6 ? '2001:db8::10' : '192.168.1.100', value: '' });
@@ -375,6 +440,9 @@ return view.extend({
 				proto: protoSelect.value,
 				extPort: extPort,
 				ip: getOutputAddress(),
+				destZone: outputSelect.value === '__custom__'
+					? this.destinationZoneForAddress(getOutputAddress(), existingDestination)
+					: (outputSelect.options[outputSelect.selectedIndex].getAttribute('data-destination-zone') || existingDestination),
 				intPort: singleRadio.checked ? intPortInput.value.trim() : ''
 			}, saveBtn);
 		});
@@ -447,7 +515,7 @@ return view.extend({
 				uci.set('firewall', section, 'freenetic_managed', '1');
 			uci.set('firewall', section, 'target', 'DNAT');
 			uci.set('firewall', section, 'src', fields.inputNetwork || this.zones.wan);
-			uci.set('firewall', section, 'dest', this.zones.lan);
+			uci.set('firewall', section, 'dest', fields.destZone || this.destinationZoneForAddress(fields.ip, this.zones.lan));
 			uci.set('firewall', section, 'name', fields.name || '');
 			uci.set('firewall', section, 'proto', fields.proto.split(' '));
 			uci.set('firewall', section, 'src_dport', fields.extPort);

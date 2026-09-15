@@ -2,10 +2,10 @@
 
 ## Supported versions
 
-Security fixes are developed on the `testing` branch first and are released
-to the shared `0.2.x` service line after verification. The stable and legacy
-OpenWrt release lines use the same Freenetic source, but their package formats
-are different:
+Security fixes are developed on the active release branch and are published
+only after the complete verification matrix passes. The stable `0.2.x` line
+and the `0.3.x` alpha line use the same package boundaries, while their
+OpenWrt release targets use different package formats:
 
 - `v0.2.x-Stable.25.12.x` — OpenWrt 25.12.x / APK;
 - `v0.2.x-Legacy.24.10.x` — OpenWrt 24.10.x / IPK and `opkg`.
@@ -13,6 +13,9 @@ are different:
 The current stable patch release is the version shown in the repository
 release list. Older releases may be useful for reproducing a problem, but
 should be upgraded before deployment.
+
+Alpha releases are intended for test routers with a recovery path. They do
+not become production-supported merely because their build matrix is green.
 
 ## Reporting a vulnerability
 
@@ -45,3 +48,18 @@ configuration.
 
 When in doubt, the safe behavior is to preserve an unknown UCI section or
 option and report that the compact Freenetic form does not understand it.
+
+## Package trust and key rotation
+
+Freenetic release APKs are verified with the release key whose digest is
+pinned in the generated installer. Release assets also receive GitHub/Sigstore
+provenance. IPK payloads remain protected by installer-pinned SHA-256 hashes.
+
+The optional AmneziaWG feed has a separate trust anchor bundled under
+`/usr/share/freenetic/keys/`. The privileged feed helper imports only those
+package-owned bytes; it never bootstraps a public key from the feed origin.
+Changing either bundled key requires an explicit source review, verification
+against the upstream maintainer's GitHub-controlled publication and an
+independent fingerprint confirmation. The new bytes and SHA-256 regression
+pins must land in a reviewed Freenetic release before the feed starts using
+the rotated key. A runtime download must never be used as key rotation.

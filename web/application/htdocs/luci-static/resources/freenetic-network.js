@@ -61,6 +61,19 @@ function adoptLegacySection(config, sectionName, type, predicate) {
 	return true;
 }
 
+function isExactLegacyGuestZone(section) {
+	return !!section && section['.type'] === 'zone' && section.name === 'guest' &&
+		(Array.isArray(section.network)
+			? section.network.length === 1 && section.network[0] === 'guest'
+			: section.network === 'guest');
+}
+
+function assertGuestFirewallOwnership() {
+	const zone = uci.get('firewall', 'guest');
+	if (zone != null && !isManaged(zone) && !isExactLegacyGuestZone(zone))
+		throw new Error('firewall.guest exists but is not a Freenetic guest zone');
+}
+
 /* Guest objects created before freenetic_managed was introduced can be
  * adopted only during an explicit guest-network save. The shape checks keep
  * a random section named guest_* from becoming deletable by accident. */
@@ -89,8 +102,7 @@ function adoptLegacyGuest() {
 	adoptLegacySection('dhcp', 'guest', 'dhcp', section =>
 		section.interface === 'guest');
 	adoptLegacySection('firewall', 'guest', 'zone', section =>
-		section.name === 'guest' && (Array.isArray(section.network)
-			? section.network.includes('guest') : section.network === 'guest'));
+		isExactLegacyGuestZone(section));
 	adoptLegacySection('firewall', 'guest_wan_fwd', 'forwarding', section =>
 		section.src === 'guest' && section.dest === 'wan');
 	GUEST_INPUT_RULES.forEach(rule => adoptLegacySection('firewall', rule.section, 'rule', section =>
@@ -295,6 +307,7 @@ return baseclass.extend({
 	validAddress,
 	validPort,
 	isManaged,
+	assertGuestFirewallOwnership,
 	adoptLegacyGuest,
 	ensureGuestWifi,
 
@@ -303,6 +316,8 @@ return baseclass.extend({
 
 		if (zone == null || zone['.type'] !== 'zone')
 			throw new Error('firewall.guest zone must exist before it is secured');
+		if (!isManaged(zone))
+			throw new Error('firewall.guest exists but is not Freenetic-managed');
 
 		uci.set('firewall', 'guest', 'input', 'REJECT');
 		GUEST_INPUT_RULES.forEach(ensureRule);

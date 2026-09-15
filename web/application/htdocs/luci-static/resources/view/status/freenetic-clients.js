@@ -346,7 +346,11 @@ return view.extend({
 			blockedByMac: blocksByMac
 		});
 
-		const blockedRows = this.blocks.map(b => ({
+		const blockedRows = this.blocks.filter(block => {
+			const mac = macKey(block.src_mac);
+			const client = live[mac];
+			return !client || block.src === this.describeConnection(mac, client).zone;
+		}).map(b => ({
 			mac: macKey(b.src_mac), name: hostsByMac[macKey(b.src_mac)] ? hostsByMac[macKey(b.src_mac)].name : b.src_mac,
 			live: live[macKey(b.src_mac)], sectionName: b['.name']
 		}));
@@ -379,7 +383,10 @@ return view.extend({
 			const { segment, connection, zone } = this.describeConnection(row.mac, row.live);
 			const online = !!(row.live && row.live.online);
 			const ip = row.live ? row.live.ip : (row.ip || '–');
-			const isBlocked = opts.blockedByMac && opts.blockedByMac[row.mac];
+			const block = opts.blockedByMac && opts.blockedByMac[row.mac];
+			/* An alpha.1 rule may point at lan even when the client belongs to a
+			 * dedicated zone. Never present such an ineffective rule as blocked. */
+			const isBlocked = !!block && (!row.live || block.src === zone);
 
 			const actions = E('div', { class: 'fn-table-actions' }, [ opts.rowAction(row) ]);
 			if (opts.blockedByMac && !isBlocked) {
@@ -435,10 +442,23 @@ return view.extend({
 
 	blockClient(mac, sourceZone) {
 		return uci.load('firewall').then(() => {
+			if (!sourceZone)
+				throw new Error(_('The client firewall zone could not be determined.'));
+			/* Replace only Freenetic-owned rules for this MAC. This repairs the
+			 * incorrect alpha.1 source zone without touching native user rules. */
+			uci.sections('firewall', 'rule').forEach(rule => {
+				if (rule.freenetic_managed === '1' &&
+				    (rule.name || '').indexOf('freenetic_block_') === 0 &&
+				    macKey(rule.src_mac) === macKey(mac))
+					uci.remove('firewall', rule['.name']);
+			});
 			const section = uci.add('firewall', 'rule');
 			uci.set('firewall', section, 'freenetic_managed', '1');
 			uci.set('firewall', section, 'name', 'freenetic_block_' + mac.replace(/:/g, ''));
-			uci.set('firewall', section, 'src', sourceZone === 'guest' ? 'guest' : 'lan');
+			/* sourceZone comes from the firewall zone which owns the client's
+			 * DHCP-backed network. Preserve it verbatim: dedicated Ethernet
+			 * segments do not belong to either the lan or guest zone. */
+			uci.set('firewall', section, 'src', sourceZone);
 			uci.set('firewall', section, 'dest', 'wan');
 			uci.set('firewall', section, 'src_mac', mac);
 			uci.set('firewall', section, 'target', 'REJECT');

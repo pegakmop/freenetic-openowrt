@@ -32,6 +32,8 @@ assert.match(helper, /\$RELEASES_BASE_URL\/\$installer_tag\/install\.sh/,
 	'updates must prefer the installer generated beside release assets');
 assert.match(helper, /\$RAW_BASE_URL\/\$installer_tag\/install\.sh/,
 	'updates must retain a raw-tag fallback for older releases');
+assert.match(helper, /0\\\.2\\\.\[0-5\]/,
+	'the raw-tag fallback must be limited to releases which predate installer assets');
 assert.match(helper, /\^v\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+/,
 	'release tags must be constrained to Freenetic semver tags');
 assert.match(helper, /mktemp -d \/tmp\/freenetic-self-update\.XXXXXX/,
@@ -70,10 +72,18 @@ assert.match(helper, /fail_after_mutation\(\)/,
 	'package and post-install failures must pass through rollback handling');
 assert.match(installer, /stage preflight/,
 	'the release installer must report the preflight stage');
+assert.match(installer, /mktemp -d "\$\{TMPDIR:-\/tmp\}\/freenetic-install\.XXXXXX"/,
+	'the release installer must use an unpredictable private staging directory');
+assert.doesNotMatch(installer, /freenetic-install\.\$\$/,
+	'the release installer must not use a PID-derived staging path');
 assert.match(installer, /stage package_verification/,
 	'the release installer must report package verification failures');
 assert.match(installer, /stage package_install/,
 	'the release installer must report package installation failures');
+assert.match(installer, /apk --keys-dir "\$APK_KEYS_DIR" add/,
+	'APK installation must verify packages with the pinned release key');
+assert.doesNotMatch(installer, /apk add --allow-untrusted/,
+	'APK installation must not bypass package signatures');
 assert.match(installer, /stage post_install/,
 	'the release installer must report post-install failures');
 assert.match(installer, /stage smoke_test/,

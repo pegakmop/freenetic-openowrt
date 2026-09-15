@@ -95,7 +95,7 @@ return view.extend({
 			'aria-live': 'polite'
 		}, _('Run a check to see its output here.'));
 
-		return E('div', { class: 'fn-dash' }, [
+		return E('div', { class: 'fn-dash fn-diag-page' }, [
 			E('div', { class: 'fn-card', style: 'grid-column: 1 / -1' }, [
 				E('div', { class: 'fn-card-head' }, [
 					E('h3', {}, _('Internet diagnostics'))

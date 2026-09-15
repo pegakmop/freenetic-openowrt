@@ -55,9 +55,14 @@ Check the concrete release assets and the router preflight before installing.
 - `fnc` still uses the private SONAME compatibility shim where the two
   supported OpenWrt lines expose different library dates. The shim does not
   replace or alter system libraries; broader ABI coverage remains future work.
-- The installer retains `apk add --allow-untrusted` for OpenWrt's normal
-  package-feed integration. Release SHA-256 verification and package-index
-  checks remain required; independent manifest signing is future hardening.
+- APK release packages are checked against a release-specific public key whose
+  digest is pinned in the generated installer. OpenWrt's system keys remain in
+  scope for dependencies. IPK payloads are still authenticated by installer-
+  pinned SHA-256 rather than an independent package signature.
+- GitHub Actions publishes keyless Sigstore/SLSA provenance for every release
+  asset. This attests the manifest and payloads without storing a long-lived
+  signing secret in the repository; signed Git tags still require a separately
+  managed maintainer key.
 - There is no QEMU/OpenWrt virtual smoke environment yet. SDK/buildroot checks
   catch packaging and ABI regressions, while real-device reports catch runtime
   differences.

@@ -29,6 +29,10 @@ assert.match(networks, /\[ 'HE80', 'VHT80',[\s\S]*?\[ 'HE20', 'HT20'/,
 	'5 GHz and 2.4 GHz must not share the same default channel-width policy');
 assert.match(networks, /original: \{ channel: currentChannel, htmode: configuredHtmode/,
 	'a generated channel-width default must be persisted on Save');
+assert.match(networks, /writeOptionalRadioSetting\(card\.radioName, 'txpower'/,
+	'transmit power Automatic must remove an existing UCI override');
+assert.match(networks, /const currentTxpower = radio\.txpower != null \? String\(radio\.txpower\) : ''/,
+	'live transmit power must not masquerade as an explicit UCI override');
 assert.match(networks, /Channel settings remain independent/,
 	'the credentials link must explicitly keep radio settings independent');
 assert.match(networks, /uci\.set\('network', ifaceName, 'proto', 'none'\)/,
@@ -39,13 +43,19 @@ assert.match(apps, /removablePackages\(item\)/,
 	'application removal must account for shared packages');
 assert.match(apps, /operationPackages\.length && item\.restartNetifdOnInstall/,
 	'network protocol removals must restart netifd too');
-const flashHandler = system.slice(system.indexOf('\thandleSysupgrade()'));
-assert.ok(flashHandler.lastIndexOf("fs.exec('/sbin/sysupgrade'") < flashHandler.lastIndexOf('awaitReconnectToDashboard('),
-	'reconnect polling must be started without waiting for sysupgrade to return');
+const flashHandler = system.slice(system.indexOf('\tflashUploadedFirmware()'), system.indexOf('\thandleSysupgrade()'));
+assert.match(flashHandler, /const reconnectTimer = window\.setTimeout\(startReconnect, 1500\)/,
+	'a successful sysupgrade that drops rpcd must still start reconnect polling');
+assert.match(flashHandler, /result && result\.code !== 0[\s\S]*?clearTimeout\(reconnectTimer\)[\s\S]*?showFailure/,
+	'a local sysupgrade failure must cancel reconnect polling and remain visible in the modal');
+assert.match(flashHandler, /if \(error && \/network\|connection\|request\/[\s\S]*?startReconnect\(\)[\s\S]*?clearTimeout\(reconnectTimer\)[\s\S]*?showFailure/,
+	'only an expected connection loss may transition from flashing to reconnect polling');
 assert.match(clients, /this\.blockClient\(row\.mac, zone\)/,
 	'client blocking must pass the detected firewall zone');
-assert.match(clients, /sourceZone === 'guest' \? 'guest' : 'lan'/,
-	'guest clients must be blocked from the guest zone');
+assert.match(clients, /uci\.set\('firewall', section, 'src', sourceZone\)/,
+	'client blocking must preserve every detected firewall zone');
+assert.doesNotMatch(clients, /sourceZone === 'guest'/,
+	'dedicated Ethernet segments must not be collapsed into the LAN zone');
 assert.match(routing, /section\.disabled !== '1'/,
 	'route automatic state must use netifd disabled semantics');
 assert.match(routing, /uci\.unset\('dhcp', dns\.section, 'server'\)/,

@@ -11,6 +11,8 @@ set -u
 
 FEED_ROOT="https://2grey.github.io/awg-openwrt"
 LEGACY_FEED_PATTERN="slava-shchipunov.github.io/awg-openwrt"
+BUNDLED_APK_KEY="/usr/share/freenetic/keys/awg-openwrt-feed.pem"
+BUNDLED_OPKG_KEY="/usr/share/freenetic/keys/awg-openwrt-feed.pub"
 APK_REPOSITORIES_DIR="/etc/apk/repositories.d"
 APK_REPOSITORY_FILE="$APK_REPOSITORIES_DIR/freenetic-amneziawg.list"
 APK_KEY_DIR="/etc/apk/keys"
@@ -187,14 +189,9 @@ detect_state() {
 
 install_apk() {
 	command -v wget >/dev/null 2>&1 || fail "wget is required to add the signed AWG feed."
+	[ -s "$BUNDLED_APK_KEY" ] || fail "The bundled AWG feed signing key is missing."
 	mkdir -p "$APK_KEY_DIR" "$APK_REPOSITORIES_DIR" || fail "Unable to create APK feed directories."
-	TEMP_KEY="/tmp/freenetic-awg-feed.$$.pem"
-	wget -q -O "$TEMP_KEY" "$FEED_ROOT/keys/awg-openwrt-feed.pem" >/dev/null 2>&1 || {
-		rm -f "$TEMP_KEY"
-		fail "Unable to download the AWG feed signing key."
-	}
-	[ -s "$TEMP_KEY" ] || { rm -f "$TEMP_KEY"; fail "The AWG feed signing key is empty."; }
-	mv "$TEMP_KEY" "$APK_KEY_FILE" || { rm -f "$TEMP_KEY"; fail "Unable to install the AWG feed signing key."; }
+	cp "$BUNDLED_APK_KEY" "$APK_KEY_FILE" || fail "Unable to install the bundled AWG feed signing key."
 
 	touch "$APK_REPOSITORY_FILE" || fail "Unable to create the APK feed file."
 	# Replace the feed's previous line while leaving all other repositories
@@ -212,15 +209,10 @@ install_apk() {
 install_opkg() {
 	command -v wget >/dev/null 2>&1 || fail "wget is required to add the signed AWG feed."
 	command -v opkg-key >/dev/null 2>&1 || fail "opkg-key is required to add the signed AWG feed."
+	[ -s "$BUNDLED_OPKG_KEY" ] || fail "The bundled AWG feed signing key is missing."
 	mkdir -p /etc/opkg/keys "${OPKG_FEED_FILE%/*}" || fail "Unable to create the opkg feed directories."
-	TEMP_KEY="/tmp/freenetic-awg-feed.$$.pub"
-	wget -q -O "$TEMP_KEY" "$FEED_ROOT/keys/awg-openwrt-feed.pub" >/dev/null 2>&1 || {
-		rm -f "$TEMP_KEY"
-		fail "Unable to download the AWG feed signing key."
-	}
-	[ -s "$TEMP_KEY" ] || { rm -f "$TEMP_KEY"; fail "The AWG feed signing key is empty."; }
-	cp "$TEMP_KEY" "$OPKG_KEY_FILE" || { rm -f "$TEMP_KEY"; fail "Unable to store the AWG feed signing key."; }
-	opkg-key add "$TEMP_KEY" >/dev/null 2>&1 || { rm -f "$TEMP_KEY"; fail "Unable to install the AWG feed signing key."; }
+	cp "$BUNDLED_OPKG_KEY" "$OPKG_KEY_FILE" || fail "Unable to store the bundled AWG feed signing key."
+	opkg-key add "$BUNDLED_OPKG_KEY" >/dev/null 2>&1 || fail "Unable to install the bundled AWG feed signing key."
 
 	touch "$OPKG_FEED_FILE" || fail "Unable to create the opkg feed file."
 	sed -i "\\|^[[:space:]]*src/gz[[:space:]].*$FEED_ROOT/|d" "$OPKG_FEED_FILE" 2>/dev/null || true
@@ -259,6 +251,4 @@ main() {
 	esac
 }
 
-TEMP_KEY=""
-trap 'rm -f "$TEMP_KEY" 2>/dev/null || true' EXIT
 main "$@"

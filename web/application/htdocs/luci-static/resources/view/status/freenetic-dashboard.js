@@ -650,6 +650,7 @@ return view.extend({
 			/* This is an explicit guest-network save. It is the safe point to
 			   adopt sections created by older Freenetic versions; deletion uses
 			   the marker only and never relies on a guest_* name. */
+			networkHelper.assertGuestFirewallOwnership();
 			networkHelper.adoptLegacyGuest();
 			const radios = uci.sections('wireless', 'wifi-device');
 
@@ -700,7 +701,7 @@ return view.extend({
 			}
 			uci.set('dhcp', 'guest', 'dhcpv4', 'server');
 
-			if (uci.get('firewall', 'guest', 'name') == null) {
+			if (uci.get('firewall', 'guest') == null) {
 				uci.add('firewall', 'zone', 'guest');
 				uci.set('firewall', 'guest', 'name', 'guest');
 				uci.set('firewall', 'guest', 'network', 'guest');
@@ -710,7 +711,7 @@ return view.extend({
 			}
 			networkHelper.ensureGuestFirewall();
 
-			if (uci.get('firewall', 'guest_wan_fwd', 'src') == null) {
+			if (uci.get('firewall', 'guest_wan_fwd') == null) {
 				uci.add('firewall', 'forwarding', 'guest_wan_fwd');
 				uci.set('firewall', 'guest_wan_fwd', 'src', 'guest');
 				uci.set('firewall', 'guest_wan_fwd', 'dest', 'wan');
