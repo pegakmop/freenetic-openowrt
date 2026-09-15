@@ -26,10 +26,16 @@ const OPENVPN_PROFILE_HELPER = '/usr/libexec/freenetic-openvpn-profile';
 const OPENVPN_PROFILE_MAX = 512 * 1024;
 const IPSEC_RESTART_HELPER = '/usr/libexec/freenetic-ipsec-restart';
 const IPSEC_STATUS_HELPER = '/usr/libexec/freenetic-ipsec-status';
+const PACKAGE_STATUS_HELPER = '/usr/libexec/freenetic-package-status';
 const L2TP_IPSEC_PACKAGES = [ 'xl2tpd', 'ppp-mod-pppol2tp', 'kmod-l2tp', 'kmod-pppol2tp', 'strongswan-default', 'luci-proto-ppp' ];
 const IKEV2_PACKAGES = [ 'strongswan-default', 'strongswan-mod-eap-identity', 'strongswan-mod-eap-mschapv2', 'xfrm', 'kmod-xfrm-interface', 'luci-proto-xfrm' ];
 
 const OPENVPN_VARIANTS = [ 'openvpn-openssl', 'openvpn-mbedtls', 'openvpn-wolfssl', 'openvpn' ];
+const CONNECTION_PACKAGE_NAMES = Array.from(new Set([
+	'wireguard-tools', 'kmod-wireguard', 'amneziawg-tools', 'kmod-amneziawg',
+	'luci-proto-amneziawg', ...L2TP_IPSEC_PACKAGES, ...IKEV2_PACKAGES,
+	...OPENVPN_VARIANTS
+]));
 
 const AWG_OPTIONS = [
 	[ 'awg_jc', 'Jc', 0, 65535 ],
@@ -305,8 +311,12 @@ function generatePresharedKey() {
 }
 
 function getInstalledPackages() {
-	return fs.exec_direct('/usr/libexec/package-manager-call', [ 'list-installed' ], 'json')
-		.then(list => Array.isArray(list) ? list : []).catch(() => []);
+	return fs.exec_direct(PACKAGE_STATUS_HELPER, CONNECTION_PACKAGE_NAMES, 'json')
+		.then(result => result && result.ok !== false && result.packages
+			? Object.entries(result.packages).filter(([, state]) => state && state.installed)
+				.map(([ name ]) => ({ name }))
+			: [])
+		.catch(() => []);
 }
 
 function openvpnAvailable(packages) {

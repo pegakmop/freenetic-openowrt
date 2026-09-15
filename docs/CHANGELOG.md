@@ -11,6 +11,12 @@ which they became user-visible.
 - Other Connections protocol modules now export valid LuCI constructors;
   WireGuard, OpenVPN and IPsec editors load correctly instead of failing with
   `factory yields invalid constructor` on supported OpenWrt releases.
+- The Applications catalog now refreshes repository indexes before checking
+  availability or installing a feature, so one-click installs work on fresh
+  initramfs boots where `opkg` or `apk` has no local package lists yet.
+- Installed-package detection now uses Freenetic's structured status helper
+  and accepts OpenWrt 24.10 `install user installed` records, so Applications
+  and Other Connections retain the correct state after navigation.
 
 ### Improved
 

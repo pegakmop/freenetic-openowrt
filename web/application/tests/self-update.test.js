@@ -13,6 +13,8 @@ const css = fs.readFileSync(path.join(root, 'web', 'theme', 'htdocs', 'luci-stat
 	'freenetic', 'cascade.css'), 'utf8');
 assert.match(dashboardData, /updaterPackages\.length \? state\(updaterPackages\)\s*:\s*\n?\s*getFreeneticInstalledPackages\(\)\.then\(state\)/,
 	'dashboard must avoid a full package listing when the status helper returned package versions');
+assert.match(dashboardData, /freenetic-package-status', FREENETIC_PACKAGE_NAMES, 'json'/,
+	'legacy dashboard fallback must use structured package status data');
 assert.doesNotMatch(dashboard, /disabled:\s*!updaterReady/,
 	'LuCI E() must not render disabled="false", which still disables the check button');
 assert.match(dashboard, /checkButton\.disabled = !updaterReady/,

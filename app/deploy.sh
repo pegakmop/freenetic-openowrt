@@ -59,7 +59,8 @@ $SSH_CMD "$ROUTER" '
             apk add luci-app-package-manager
         fi
     elif command -v opkg >/dev/null 2>&1; then
-        if ! opkg status luci-app-package-manager 2>/dev/null | grep -q "^Status:.* install ok installed"; then
+        if ! opkg status luci-app-package-manager 2>/dev/null |
+                grep -Eq "^Status:[[:space:]]+install[[:space:]]+(ok|user|hold)[[:space:]]+installed$"; then
             opkg update
             opkg install luci-app-package-manager
         fi

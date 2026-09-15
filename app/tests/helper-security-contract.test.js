@@ -46,6 +46,8 @@ assert.ok(packageStatus.includes("''|-*|*[!A-Za-z0-9+_.:@/-]*"),
 	'package status must reject option-like and metacharacter package names');
 assert.ok(packageStatus.indexOf('for package in "$@"; do') < packageStatus.indexOf('available=$(apk search'),
 	'package names must be validated before invoking apk search');
+assert.match(packageStatus, /\$1 == "Status:" && \$NF == "installed"/,
+	'legacy opkg detection must accept current user-installed status records');
 
 const openvpn = read(applicationHelpers, 'freenetic-openvpn-profile');
 assert.ok(openvpn.includes('[ "$#" -eq 2 ]'), 'OpenVPN helper must require action and name');

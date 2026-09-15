@@ -65,7 +65,8 @@ for package in "$@"; do
 	if [ "$manager" = 'apk' ]; then
 		apk info -e "$package" >/dev/null 2>&1 && installed=true
 	else
-		opkg status "$package" 2>/dev/null | grep -q '^Status:.*[[:space:]]install[[:space:]]ok[[:space:]]installed' && installed=true
+		opkg status "$package" 2>/dev/null |
+			awk '$1 == "Status:" && $NF == "installed" { found = 1 } END { exit !found }' && installed=true
 	fi
 
 	available_flag=false

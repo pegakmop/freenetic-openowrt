@@ -18,6 +18,7 @@ const dom_content = uiHelper.content;
 const notify = uiHelper.notifyLong;
 
 const NETWORK_RESTART_HELPER = '/usr/libexec/freenetic-network-restart';
+const PACKAGE_MANAGER_HELPER = '/usr/libexec/package-manager-call';
 
 /* Keep the catalog universal: "recommended" means safe for a normal router
  * setup, while "advanced" marks tools which can alter routing, firewall, DNS
@@ -186,9 +187,20 @@ GROUPS.forEach(group => group.items.forEach(item => item.packages.forEach(name =
 })));
 
 function getInstalled() {
-	return fs.exec_direct('/usr/libexec/package-manager-call', [ 'list-installed' ], 'json')
-		.then(list => Array.isArray(list) ? list : [])
+	return getPackageStatus()
+		.then(status => status ? Object.entries(status).filter(([, state]) => state && state.installed)
+			.map(([ name ]) => ({ name })) : [])
 		.catch(() => []);
+}
+
+function updatePackageIndexes() {
+	return fs.exec_direct(PACKAGE_MANAGER_HELPER, [ 'update' ], 'json').then(result => {
+		if (!result || result.code !== 0) {
+			const detail = result && (result.stderr || result.stdout) || _('unknown error');
+			throw new Error(_('Failed to update package lists: %s').format(detail));
+		}
+		return result;
+	});
 }
 
 function getPackageStatus() {
@@ -220,6 +232,7 @@ return view.extend({
 		this.packageAvailabilityKnown = false;
 		this.packageOperationInProgress = 0;
 		this.packageStatusRefreshPending = false;
+		this.packageIndexRefresh = null;
 		this.installedNames = {};
 		installed.forEach(p => { if (p && p.name) this.installedNames[p.name] = true; });
 		this.activeFilter = 'recommended';
@@ -251,7 +264,7 @@ return view.extend({
 	},
 
 	refreshPackageStatus() {
-		return getPackageStatus().then(status => {
+		return this.ensurePackageIndexes().then(() => getPackageStatus()).then(status => {
 			if (!status)
 				return;
 
@@ -261,7 +274,17 @@ return view.extend({
 				this.packageStatusRefreshPending = true;
 			else
 				this.renderCatalog();
-		});
+		}).catch(() => null);
+	},
+
+	ensurePackageIndexes() {
+		if (!this.packageIndexRefresh) {
+			this.packageIndexRefresh = updatePackageIndexes().catch(error => {
+				this.packageIndexRefresh = null;
+				throw error;
+			});
+		}
+		return this.packageIndexRefresh;
 	},
 
 	renderTabs() {
@@ -439,7 +462,10 @@ return view.extend({
 		btn.disabled = true;
 		dom_content(btn, wasInstalled ? _('Removing…') : _('Installing…'));
 
-		return fs.exec_direct('/usr/libexec/package-manager-call', [ action ].concat(item.packages), 'json').then(res => {
+		const run = () => fs.exec_direct(PACKAGE_MANAGER_HELPER, [ action ].concat(item.packages), 'json');
+		const operation = wasInstalled ? run() : this.ensurePackageIndexes().then(run);
+
+		return operation.then(res => {
 			if (!res || res.code !== 0) {
 				const detail = (res && (res.stderr || res.stdout)) || _('unknown error');
 				notify(_('Failed to %s %s: %s').format(wasInstalled ? _('remove') : _('install'), item.name, detail), 'danger');

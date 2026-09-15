@@ -55,6 +55,10 @@ assert.match(view, /reconnectIpsec\(connection, reconnect\)/, 'IPsec cards must 
 assert.match(apps, /id: 'l2tp_ipsec',[\s\S]*restartNetifdOnInstall:\s*true/, 'L2TP/IPsec package install must restart netifd');
 assert.match(apps, /id: 'ikev2_ipsec',[\s\S]*restartNetifdOnInstall:\s*true/, 'IKEv2 package install must restart netifd');
 assert.match(apps, /xl2tpd.*ppp-mod-pppol2tp.*strongswan-default/, 'L2TP/IPsec catalog must install xl2tpd, PPP and strongSwan');
+assert.match(apps, /ensurePackageIndexes\(\)[\s\S]*updatePackageIndexes/,
+	'Applications must refresh package indexes before probing or installing packages');
+assert.match(apps, /wasInstalled \? run\(\) : this\.ensurePackageIndexes\(\)\.then\(run\)/,
+	'new package installs must wait for the package index refresh');
 assert.match(apps, /strongswan-mod-eap-mschapv2.*xfrm.*luci-proto-xfrm/, 'IKEv2 catalog must install EAP and XFRM support');
 assert.match(wifi, /proto === 'l2tp' \|\| proto === 'xfrm'/, 'Access & Routing Policy must recognize IPsec interfaces');
 assert.ok(acl.read.uci.includes('ipsec'), 'IPsec UCI reads must be covered by the rpcd ACL');

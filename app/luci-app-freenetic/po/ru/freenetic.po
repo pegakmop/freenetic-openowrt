@@ -830,6 +830,10 @@ msgid "unknown error"
 msgstr "неизвестная ошибка"
 
 #, javascript-format
+msgid "Failed to update package lists: %s"
+msgstr "Не удалось обновить списки пакетов: %s"
+
+#, javascript-format
 msgid "Failed to %s %s: %s"
 msgstr "Не удалось %s %s: %s"
 

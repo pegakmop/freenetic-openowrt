@@ -349,9 +349,11 @@ function getSysupgradeConfig() {
 }
 
 function getFreeneticInstalledPackages() {
-	return fs.exec_direct('/usr/libexec/package-manager-call', [ 'list-installed' ], 'json')
-		.then(list => (Array.isArray(list) ? list : []).filter(pkg =>
-			pkg && FREENETIC_PACKAGE_NAMES.indexOf(pkg.name) !== -1))
+	return fs.exec_direct('/usr/libexec/freenetic-package-status', FREENETIC_PACKAGE_NAMES, 'json')
+		.then(result => result && result.ok !== false && result.packages
+			? Object.entries(result.packages).filter(([, state]) => state && state.installed)
+				.map(([ name, state ]) => ({ name, version: state.version || '' }))
+			: [])
 		.catch(() => []);
 }
 
