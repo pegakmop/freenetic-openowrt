@@ -398,8 +398,20 @@ else
 	rm -f /tmp/luci-indexcache* 2>/dev/null || true
 	rm -rf /tmp/luci-modulecache 2>/dev/null || true
 fi
+# Ask the first post-install login response to clear the browser's HTTP cache.
+# An unpredictable marker avoids writing through a root-owned predictable /tmp
+# path; the Freenetic login template consumes every matching marker once.
+cache_marker="$(mktemp /tmp/freenetic-clear-site-data.XXXXXX 2>/dev/null || true)"
+if [ -n "$cache_marker" ]; then
+	chmod 0600 "$cache_marker" >/dev/null 2>&1 || true
+fi
 if [ -x /etc/init.d/rpcd ]; then
-	/etc/init.d/rpcd reload >/dev/null 2>&1 || true
+	# Installing a theme while LuCI is open leaves the authenticated browser on
+	# an old page assembled from the previous theme. Restart rpcd only after the
+	# installer has returned its result: this invalidates existing LuCI sessions
+	# for shell installs without cutting off the self-update RPC response. The
+	# dashboard also clears browser CacheStorage and follows the logout route.
+	( sleep 5; /etc/init.d/rpcd restart ) </dev/null >/dev/null 2>&1 &
 fi
 
 stage complete

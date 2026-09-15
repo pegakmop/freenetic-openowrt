@@ -39,6 +39,18 @@ function svgIcon(d, size) {
 	return span;
 }
 
+function clearBrowserCacheAndLogout() {
+	const cacheCleanup = window.caches && typeof window.caches.keys === 'function'
+		? window.caches.keys()
+			.then(keys => Promise.all(keys.map(key => window.caches.delete(key))))
+			.catch(() => null)
+		: Promise.resolve();
+
+	return cacheCleanup.finally(() => {
+		window.location.replace('/cgi-bin/luci/admin/logout?_=' + Date.now());
+	});
+}
+
 function qrGlyph(size) {
 	size = size || 16;
 	const span = E('span', { class: 'fn-icon' });
@@ -1345,14 +1357,15 @@ return view.extend({
 										throw error;
 									}
 									ui.showModal(_('Freenetic was updated'), [
-										E('p', {}, _('The interface update was installed successfully. Reload the page to use the new version.')),
+										E('p', {}, _('The interface update was installed successfully. The browser cache is being cleared and you will be signed out to load the new theme cleanly.')),
 										E('div', { class: 'button-row' }, [
 											E('button', {
 												class: 'btn cbi-button-positive',
-												click: () => window.location.reload()
-											}, _('Reload interface'))
+												click: clearBrowserCacheAndLogout
+											}, _('Sign in again'))
 										])
 									]);
+									window.setTimeout(clearBrowserCacheAndLogout, 1200);
 								})
 								.catch(error => {
 									const confirmed = error && error.freeneticConfirmedFailure;

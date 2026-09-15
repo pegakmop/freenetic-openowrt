@@ -73,6 +73,12 @@ const afterPackageCommit = installer.slice(installer.indexOf('INSTALL_COMMITTED=
 	installer.indexOf('stage package_install')));
 assert.doesNotMatch(afterPackageCommit, /\bfail\s+"/,
 	'post-commit maintenance must be best-effort and cannot turn success into partial-install failure');
+assert.match(afterPackageCommit, /\( sleep 5; \/etc\/init\.d\/rpcd restart \) <\/dev\/null >\/dev\/null 2>&1 &/,
+	'theme installation must invalidate existing LuCI sessions only after the installer can return');
+assert.doesNotMatch(afterPackageCommit, /\/etc\/init\.d\/rpcd reload/,
+	'a cache-only rpcd reload must not leave the pre-install LuCI session alive');
+assert.match(afterPackageCommit, /mktemp \/tmp\/freenetic-clear-site-data\.XXXXXX/,
+	'the browser-cache handoff must use an unpredictable root-owned marker');
 
 for (const name of [
 	'fnc_ubus_lib_apk="libubus.so.20251202"',

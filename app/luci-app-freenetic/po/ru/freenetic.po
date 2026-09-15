@@ -675,11 +675,11 @@ msgstr "Установщик выпуска завершился с ошибко
 msgid "Freenetic was updated"
 msgstr "Freenetic обновлён"
 
-msgid "The interface update was installed successfully. Reload the page to use the new version."
-msgstr "Обновление интерфейса успешно установлено. Перезагрузите страницу, чтобы использовать новую версию."
+msgid "The interface update was installed successfully. The browser cache is being cleared and you will be signed out to load the new theme cleanly."
+msgstr "Обновление интерфейса успешно установлено. Кеш браузера очищается, после чего вы выйдете из системы, чтобы новая тема загрузилась без старых ресурсов."
 
-msgid "Reload interface"
-msgstr "Перезагрузить интерфейс"
+msgid "Sign in again"
+msgstr "Войти снова"
 
 msgid "Freenetic update failed"
 msgstr "Не удалось обновить Freenetic"

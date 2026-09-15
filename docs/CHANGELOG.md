@@ -6,6 +6,14 @@ which they became user-visible.
 
 ## [Unreleased]
 
+### Fixed
+
+- Completing a theme install or self-update now clears LuCI's server cache,
+  invalidates the previous authenticated session and returns the browser to
+  the login page. Browser CacheStorage is cleared by the update view, while a
+  one-time `Clear-Site-Data: "cache"` response also covers installs launched
+  from SSH without erasing saved Freenetic preferences.
+
 ## [0.3.0-beta.2] — 2026-09-15
 
 ### Added

@@ -16,6 +16,8 @@ const acl = JSON.parse(fs.readFileSync(path.join(root, 'app', 'luci-app-freeneti
 const preflight = fs.readFileSync(path.join(root, 'app', 'freenetic-preflight.mk'), 'utf8');
 const appMakefile = fs.readFileSync(path.join(root, 'app', 'luci-app-freenetic', 'Makefile'), 'utf8');
 const themeMakefile = fs.readFileSync(path.join(root, 'app', 'luci-theme-freenetic', 'Makefile'), 'utf8');
+const themeLogin = fs.readFileSync(path.join(root, 'app', 'luci-theme-freenetic', 'ucode',
+	'template', 'themes', 'freenetic', 'sysauth.ut'), 'utf8');
 const rootMakefile = fs.readFileSync(path.join(root, 'Makefile'), 'utf8');
 
 assert.ok(fs.statSync(helperPath).mode & 0o111, 'self-update helper must be executable');
@@ -94,6 +96,16 @@ assert.match(dashboard, /Update failed during %s: %s/,
 	'dashboard must show the failing update stage');
 assert.match(dashboard, /Automatic rollback failed; check the router before retrying\./,
 	'dashboard must surface a failed rollback clearly');
+assert.match(dashboard, /window\.caches\.keys\(\)[\s\S]*window\.caches\.delete\(key\)/,
+	'a successful update must clear browser CacheStorage before loading the new theme');
+assert.match(dashboard, /window\.location\.replace\('\/cgi-bin\/luci\/admin\/logout\?_='/,
+	'a successful update must end the current LuCI session through the real logout route');
+assert.match(dashboard, /window\.setTimeout\(clearBrowserCacheAndLogout, 1200\)/,
+	'the successful update must perform cache cleanup and logout without another click');
+assert.match(themeLogin, /glob\('\/tmp\/freenetic-clear-site-data\.\*'\)[\s\S]*unlink\(path\)/,
+	'the first post-install login must consume the browser-cache marker once');
+assert.match(themeLogin, /http\.header\('Clear-Site-Data', '"cache"'\)/,
+	'the first post-install login must clear the browser HTTP cache without erasing settings');
 
 assert.deepEqual(acl.read.file['/usr/libexec/freenetic-self-update status'], [ 'exec' ]);
 assert.deepEqual(acl.write.file['/usr/libexec/freenetic-self-update install *'], [ 'exec' ]);
