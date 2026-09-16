@@ -3188,7 +3188,29 @@ body[data-page="admin-system-package-manager"] #maincontent #view > .controls > 
 }
 .fn-update-repository:hover { text-decoration: underline; }
 .fn-update-external { font-size: .85em; }
+.fn-update-control {
+	display: inline-flex;
+	flex: 0 1 auto;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 3px;
+	min-width: 0;
+}
+.fn-update-control-label {
+	color: var(--fn-text-secondary);
+	font-size: .7rem;
+	letter-spacing: .03em;
+	line-height: 1.2;
+}
 .fn-update-channel { min-width: 130px; }
+.fn-update-line { min-width: 190px; }
+.fn-update-version { min-width: 245px; }
+.fn-update-downgrade-warning {
+	padding: 8px 10px;
+	border-left: 3px solid var(--fn-warning);
+	background: color-mix(in srgb, var(--fn-warning) 10%, transparent);
+	color: var(--fn-text);
+}
 .fn-update-actions {
 	display: flex;
 	align-items: center;
@@ -3236,7 +3258,9 @@ body[data-page="admin-system-package-manager"] #maincontent #view > .controls > 
 	font-size: 1.125rem;
 	line-height: 1.35;
 }
-.fn-system-card .fn-update-channel { font-size: 1rem; min-height: 38px; }
+.fn-system-card .fn-update-channel,
+.fn-system-card .fn-update-line,
+.fn-system-card .fn-update-version { font-size: 1rem; min-height: 38px; }
 .fn-system-card .fn-update-channel:disabled {
 	appearance: none;
 	-webkit-appearance: none;
@@ -3259,7 +3283,10 @@ body[data-page="admin-system-package-manager"] #maincontent #view > .controls > 
 @media (max-width: 640px) {
 	.fn-update-overview { flex-wrap: wrap; }
 	.fn-update-actions { align-items: stretch; flex-direction: column; width: 100%; }
-	.fn-system-card .fn-update-channel { width: 100%; }
+	.fn-update-control,
+	.fn-system-card .fn-update-channel,
+	.fn-system-card .fn-update-line,
+	.fn-system-card .fn-update-version { width: 100%; }
 	.fn-update-actions .fn-settings-btn { width: 100%; }
 }
 

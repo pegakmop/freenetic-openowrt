@@ -590,6 +590,21 @@ msgstr "Стабильный"
 msgid "Beta"
 msgstr "Бета"
 
+msgid "Automatic (latest compatible)"
+msgstr "Автоматически (последняя совместимая)"
+
+msgid "Release line"
+msgstr "Линия выпуска"
+
+msgid "Release version"
+msgstr "Версия выпуска"
+
+msgid "Check for releases to choose a version"
+msgstr "Сначала проверьте выпуски, чтобы выбрать версию"
+
+msgid "installed"
+msgstr "установлена"
+
 msgid "Not checked yet."
 msgstr "Проверка ещё не выполнялась."
 
@@ -602,6 +617,16 @@ msgstr "Сохранение канала…"
 msgid "Channel saved."
 msgstr "Канал сохранён."
 
+msgid "Saving release line…"
+msgstr "Сохранение линии выпуска…"
+
+msgid "Release line saved."
+msgstr "Линия выпуска сохранена."
+
+#, javascript-format
+msgid "Failed to save release line: %s"
+msgstr "Не удалось сохранить линию выпуска: %s"
+
 #, javascript-format
 msgid "Failed to save channel: %s"
 msgstr "Не удалось сохранить канал: %s"
@@ -610,8 +635,8 @@ msgid "Checking…"
 msgstr "Проверка…"
 
 #, javascript-format
-msgid "Looking for a %s release…"
-msgstr "Поиск выпуска %s…"
+msgid "Looking for compatible %s releases…"
+msgstr "Поиск совместимых выпусков %s…"
 
 msgid "beta"
 msgstr "бета"
@@ -619,8 +644,8 @@ msgstr "бета"
 msgid "stable"
 msgstr "стабильного"
 
-msgid "No release is available for this channel."
-msgstr "Для этого канала нет доступного выпуска."
+msgid "No compatible release is available for this router."
+msgstr "Для этого роутера нет совместимого выпуска."
 
 msgid "Unnamed release"
 msgstr "Выпуск без названия"
@@ -652,6 +677,15 @@ msgstr "Доступен совместимый выпуск Freenetic:"
 
 msgid "Freenetic update is available:"
 msgstr "Доступно обновление Freenetic:"
+
+msgid "The selected release is older than the installed build:"
+msgstr "Выбранный выпуск старше установленной сборки:"
+
+msgid "Install older release"
+msgstr "Установить старый выпуск"
+
+msgid "This release is older than the one currently installed. Use it only when you need to roll back; a configuration backup is recommended."
+msgstr "Этот выпуск старше установленного. Используйте его только для отката; рекомендуется сохранить резервную копию конфигурации."
 
 msgid "Install Freenetic update?"
 msgstr "Установить обновление Freenetic?"

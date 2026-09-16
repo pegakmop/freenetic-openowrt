@@ -28,7 +28,7 @@
  */
 const ubusCall = rpc.call;
 
-const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, getIwinfoDevices, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, freeneticReleaseCodename, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
+const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, freeneticReleaseLine, freeneticReleaseCandidates, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, getIwinfoDevices, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, freeneticReleaseCodename, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
 const TRAFFIC_COLORS = [ 'fn-tc-0', 'fn-tc-1', 'fn-tc-2', 'fn-tc-3', 'fn-tc-4', 'fn-tc-other' ];
 function svgIcon(d, size) {
 	size = size || 18;
@@ -1202,12 +1202,33 @@ return view.extend({
 		const updater = state.updater || {};
 		const updaterReady = updater.can_update === true;
 		const channel = state.channel === 'beta' ? 'beta' : 'stable';
+		const releaseLine = /^\d+\.\d+$/.test(String(state.release_line || ''))
+			? String(state.release_line) : 'auto';
+		const control = (label, input) => E('label', { class: 'fn-update-control' }, [
+			E('span', { class: 'fn-update-control-label' }, label),
+			input
+		]);
 		const channelSelect = E('select', { class: 'fn-update-channel' }, [
 			E('option', { value: 'stable' }, _('Stable')),
 			E('option', { value: 'beta' }, _('Beta'))
 		]);
 		channelSelect.setAttribute('aria-label', _('Channel'));
 		channelSelect.value = channel;
+		const lineLabel = line => {
+			const codename = freeneticReleaseCodename('v' + line + '.0');
+			return line + '.x' + (codename ? ' — ' + codename : '');
+		};
+		const lineSelect = E('select', { class: 'fn-update-line' }, [
+			E('option', { value: 'auto' }, _('Automatic (latest compatible)')),
+			E('option', { value: '0.3' }, lineLabel('0.3')),
+			E('option', { value: '0.2' }, lineLabel('0.2'))
+		]);
+		lineSelect.setAttribute('aria-label', _('Release line'));
+		lineSelect.value = releaseLine;
+		const versionSelect = E('select', { class: 'fn-update-version', disabled: true }, [
+			E('option', { value: '' }, _('Check for releases to choose a version'))
+		]);
+		versionSelect.setAttribute('aria-label', _('Release version'));
 
 		const status = E('div', {
 			class: 'fn-update-status',
@@ -1229,6 +1250,8 @@ return view.extend({
 			style: 'display:none'
 		}, _('Install update'));
 		let pendingPlan = null;
+		let releaseCandidates = [];
+		let versionsReady = false;
 
 		const setStatus = (message, kind) => {
 			status.className = 'fn-update-status' + (kind ? ' fn-update-status-' + kind : '');
@@ -1245,44 +1268,112 @@ return view.extend({
 			status.appendChild(link);
 			status.className = 'fn-update-status fn-update-status-' + kind;
 		};
-		const resetPlan = () => {
+		const resetVersions = () => {
+			releaseCandidates = [];
+			versionsReady = false;
+			dom_empty(versionSelect);
+			versionSelect.appendChild(E('option', { value: '' }, _('Check for releases to choose a version')));
+			versionSelect.value = '';
+			versionSelect.disabled = true;
+		};
+		const resetPlan = clearVersions => {
 			pendingPlan = null;
 			installButton.hidden = true;
 			installButton.style.display = 'none';
+			dom_content(installButton, _('Install update'));
+			if (clearVersions)
+				resetVersions();
 		};
 		const setBusy = busy => {
 			channelSelect.disabled = busy;
+			lineSelect.disabled = busy;
+			versionSelect.disabled = busy || !versionsReady;
 			checkButton.disabled = busy || !updaterReady;
 			installButton.disabled = busy;
 		};
+		const selectedCandidate = () => releaseCandidates.find(candidate =>
+			candidate.release.tag_name === versionSelect.value) || null;
+		const updateSelectedRelease = () => {
+			const candidate = selectedCandidate();
+			if (!candidate) {
+				resetPlan(false);
+				return;
+			}
 
-		channelSelect.addEventListener('change', () => {
-			resetPlan();
-			const previous = state.channel === 'beta' ? 'beta' : 'stable';
-			const next = channelSelect.value;
-			channelSelect.disabled = true;
-			setStatus(_('Saving channel…'), 'pending');
+			pendingPlan = Object.assign({ release: candidate.release }, candidate.plan);
+			const comparison = candidate.plan.comparison;
+			if (comparison === 0) {
+				resetPlan(false);
+				setReleaseStatus(_('Freenetic is up to date:'), candidate.release, 'success');
+				return;
+			}
 
+			installButton.hidden = false;
+			installButton.style.display = '';
+			dom_content(installButton, comparison < 0 ? _('Install older release') : _('Install update'));
+			setReleaseStatus(comparison < 0
+				? _('The selected release is older than the installed build:')
+				: (comparison == null
+					? _('A compatible Freenetic release is available:')
+					: _('Freenetic update is available:')), candidate.release,
+				comparison < 0 ? 'info' : 'success');
+		};
+		const populateReleaseCandidates = candidates => {
+			releaseCandidates = candidates;
+			versionsReady = candidates.length > 0;
+			dom_empty(versionSelect);
+			candidates.forEach(candidate => {
+				const release = candidate.release;
+				const codename = freeneticReleaseCodename(release.tag_name);
+				const suffix = candidate.plan.comparison === 0 ? ' — ' + _('installed') : '';
+				versionSelect.appendChild(E('option', { value: release.tag_name },
+					release.tag_name + (codename ? ' · ' + codename : '') + suffix));
+			});
+			versionSelect.disabled = false;
+			versionSelect.value = candidates[0].release.tag_name;
+			updateSelectedRelease();
+		};
+		const savePreference = (key, next, previous, select, saving, saved, failed) => {
+			resetPlan(true);
+			select.disabled = true;
+			setStatus(saving, 'pending');
 			if (!uci.get('freenetic', 'updates'))
 				uci.add('freenetic', 'freenetic', 'updates');
-			uci.set('freenetic', 'updates', 'channel', next);
-
+			uci.set('freenetic', 'updates', key, next);
 			uci.save().then(() => applyChanges()).then(() => {
-				state.channel = next;
-				setStatus(_('Channel saved.'), 'success');
+				state[key] = next;
+				setStatus(saved, 'success');
 			}).catch(error => {
-				channelSelect.value = previous;
-				setStatus(_('Failed to save channel: %s').format(error.message || error), 'error');
+				select.value = previous;
+				setStatus(failed.format(error.message || error), 'error');
 			}).finally(() => {
-				channelSelect.disabled = false;
+				select.disabled = false;
+				setBusy(false);
 			});
+		};
+
+		channelSelect.addEventListener('change', () => {
+			const previous = state.channel === 'beta' ? 'beta' : 'stable';
+			savePreference('channel', channelSelect.value, previous, channelSelect,
+				_('Saving channel…'), _('Channel saved.'), _('Failed to save channel: %s'));
+		});
+
+		lineSelect.addEventListener('change', () => {
+			const previous = /^\d+\.\d+$/.test(String(state.release_line || ''))
+				? String(state.release_line) : 'auto';
+			savePreference('release_line', lineSelect.value, previous, lineSelect,
+				_('Saving release line…'), _('Release line saved.'), _('Failed to save release line: %s'));
+		});
+
+		versionSelect.addEventListener('change', () => {
+			updateSelectedRelease();
 		});
 
 		checkButton.addEventListener('click', () => {
-			resetPlan();
+			resetPlan(true);
 			setBusy(true);
 			dom_content(checkButton, _('Checking…'));
-			setStatus(_('Looking for a %s release…').format(channelSelect.value === 'beta' ? _('beta') : _('stable')), 'pending');
+			setStatus(_('Looking for compatible %s releases…').format(channelSelect.value === 'beta' ? _('beta') : _('stable')), 'pending');
 
 			fetch(FREENETIC_RELEASES_API, {
 				headers: { Accept: 'application/vnd.github+json' }
@@ -1291,37 +1382,13 @@ return view.extend({
 					throw new Error('GitHub HTTP ' + response.status);
 				return response.json();
 			}).then(releases => {
-				const candidates = (Array.isArray(releases) ? releases : [])
-					.filter(release => !release.draft && (channelSelect.value === 'beta' ? release.prerelease : !release.prerelease))
-					.sort((a, b) => String(b.published_at || b.created_at || '').localeCompare(String(a.published_at || a.created_at || '')));
-				const latest = candidates[0];
-
-				if (!latest) {
-					setStatus(_('No release is available for this channel.'), 'info');
+				const candidates = freeneticReleaseCandidates(releases, updater, state.packages || [],
+					channelSelect.value, lineSelect.value);
+				if (!candidates.length) {
+					setStatus(_('No compatible release is available for this router.'), 'info');
 					return;
 				}
-
-				const plan = freeneticReleasePlan(latest, updater, state.packages || []);
-				if (!plan.compatible) {
-					setReleaseStatus(_('The latest release has no complete update for this router:'), latest, 'error');
-					return;
-				}
-
-				if (plan.comparison === 0) {
-					setReleaseStatus(_('Freenetic is up to date:'), latest, 'success');
-					return;
-				}
-				if (plan.comparison < 0) {
-					setReleaseStatus(_('The installed build is newer than:'), latest, 'info');
-					return;
-				}
-
-				pendingPlan = Object.assign({ release: latest }, plan);
-				installButton.hidden = false;
-				installButton.style.display = '';
-				setReleaseStatus(plan.comparison == null
-					? _('A compatible Freenetic release is available:')
-					: _('Freenetic update is available:'), latest, 'success');
+				populateReleaseCandidates(candidates);
 			}).catch(error => {
 				setStatus(_('Update check failed: %s').format(error.message || error), 'error');
 			}).finally(() => {
@@ -1334,9 +1401,11 @@ return view.extend({
 			const plan = pendingPlan;
 			if (!plan)
 				return;
+			const isDowngrade = plan.comparison < 0;
 
 			ui.showModal(_('Install Freenetic update?'), [
 				E('p', {}, _('The theme, interface, Russian translations and fnc will be updated together to %s. Router settings will be preserved.').format(plan.tag)),
+				...(isDowngrade ? [ E('p', { class: 'fn-update-downgrade-warning' }, _('This release is older than the one currently installed. Use it only when you need to roll back; a configuration backup is recommended.')) ] : []),
 				E('p', {}, _('Do not power off the router while packages are being installed.')),
 				E('div', { class: 'button-row' }, [
 					E('button', { class: 'btn', click: ui.hideModal }, _('Cancel')),
@@ -1397,7 +1466,7 @@ return view.extend({
 								})
 								.finally(() => setBusy(false));
 						})
-					}, _('Install'))
+					}, isDowngrade ? _('Install older release') : _('Install'))
 				])
 			]);
 		});
@@ -1430,7 +1499,13 @@ return view.extend({
 			buildIdentity,
 			sourceLink
 		]);
-		const actions = E('div', { class: 'fn-update-actions' }, [ channelSelect, checkButton, installButton ]);
+		const actions = E('div', { class: 'fn-update-actions' }, [
+			control(_('Channel'), channelSelect),
+			control(_('Release line'), lineSelect),
+			control(_('Release version'), versionSelect),
+			checkButton,
+			installButton
+		]);
 		const panel = E('div', { class: 'fn-freenetic-update-panel' }, [
 			overview,
 			actions,

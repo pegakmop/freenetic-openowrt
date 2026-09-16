@@ -12,7 +12,7 @@ const HISTORY_LEN = 40;
 const POLL_INTERVAL = 3; /* seconds */
 const MIN_CPU_SAMPLE_INTERVAL = 1000; /* milliseconds */
 const FREENETIC_REPOSITORY = 'https://github.com/unisequence/freenetic';
-const FREENETIC_RELEASES_API = 'https://api.github.com/repos/unisequence/freenetic/releases?per_page=30';
+const FREENETIC_RELEASES_API = 'https://api.github.com/repos/unisequence/freenetic/releases?per_page=100';
 const FREENETIC_UPDATE_HELPER = '/usr/libexec/freenetic-self-update';
 const FREENETIC_PACKAGE_NAMES = [ 'luci-theme-freenetic', 'luci-app-freenetic' ];
 const FREENETIC_DISPLAY_VERSION = 'v0.2.x-dev';
@@ -87,6 +87,85 @@ function freeneticReleasePlan(release, updater, installedPackages) {
 	}
 
 	return { compatible: true, tag, version, comparison, required };
+}
+
+function freeneticReleaseLine(value) {
+	const tag = freeneticReleaseTag(value);
+	const match = tag.match(/^v(\d+\.\d+)\./);
+	return match ? match[1] : '';
+}
+
+function releaseTagParts(value) {
+	const tag = freeneticReleaseTag(value);
+	const match = tag.match(/^v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/);
+	if (!match)
+		return null;
+	return {
+		major: Number(match[1]),
+		minor: Number(match[2]),
+		patch: Number(match[3]),
+		pre: match[4] || ''
+	};
+}
+
+/* Compare release tags instead of publication timestamps. GitHub can return
+ * releases in an order affected by a re-upload or an edited release note;
+ * users should still see v0.3.2 above v0.3.1. Stable tags sort above their
+ * prerelease siblings, and numeric prerelease suffixes sort naturally. */
+function compareFreeneticReleaseTags(left, right) {
+	const a = releaseTagParts(left);
+	const b = releaseTagParts(right);
+	if (!a || !b)
+		return 0;
+	for (const key of [ 'major', 'minor', 'patch' ]) {
+		if (a[key] !== b[key])
+			return a[key] > b[key] ? 1 : -1;
+	}
+	if (!a.pre && b.pre)
+		return 1;
+	if (a.pre && !b.pre)
+		return -1;
+	if (a.pre === b.pre)
+		return 0;
+	const aParts = a.pre.split('.');
+	const bParts = b.pre.split('.');
+	for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+		const av = aParts[i];
+		const bv = bParts[i];
+		if (av === undefined)
+			return -1;
+		if (bv === undefined)
+			return 1;
+		if (av === bv)
+			continue;
+		const an = /^\d+$/.test(av);
+		const bn = /^\d+$/.test(bv);
+		if (an && bn)
+			return Number(av) > Number(bv) ? 1 : -1;
+		if (an !== bn)
+			return an ? -1 : 1;
+		return av > bv ? 1 : -1;
+	}
+	return 0;
+}
+
+/* Return only releases that are complete for this router. The view can then
+ * present a real version picker without ever offering a tag whose package
+ * set would leave theme, app, translations or fnc out of sync. */
+function freeneticReleaseCandidates(releases, updater, installedPackages, channel, line) {
+	const selectedChannel = channel === 'beta' ? 'beta' : 'stable';
+	const selectedLine = /^\d+\.\d+$/.test(String(line || '')) ? String(line) : '';
+	return (Array.isArray(releases) ? releases : [])
+		.filter(release => release && !release.draft &&
+			(selectedChannel === 'beta' ? release.prerelease === true : release.prerelease !== true) &&
+			(!selectedLine || freeneticReleaseLine(release.tag_name) === selectedLine))
+		.map(release => {
+			const plan = freeneticReleasePlan(release, updater, installedPackages);
+			return plan.compatible ? { release, plan } : null;
+		})
+		.filter(Boolean)
+		.sort((a, b) => compareFreeneticReleaseTags(b.release.tag_name, a.release.tag_name) ||
+			String(b.release.published_at || b.release.created_at || '').localeCompare(String(a.release.published_at || a.release.created_at || '')));
 }
 
 function upperString(value) {
@@ -375,6 +454,8 @@ function getFreeneticUpdateState() {
 		const updaterPackages = updater && Array.isArray(updater.packages) ? updater.packages : [];
 		const state = packages => ({
 			channel: uci.get('freenetic', 'updates', 'channel') || 'stable',
+			release_line: /^\d+\.\d+$/.test(uci.get('freenetic', 'updates', 'release_line') || '')
+				? uci.get('freenetic', 'updates', 'release_line') : 'auto',
 			packages,
 			updater
 		});
@@ -563,6 +644,9 @@ return baseclass.extend({
 	freeneticBuildVersion,
 	compareFreeneticBuilds,
 	freeneticReleasePlan,
+	freeneticReleaseLine,
+	compareFreeneticReleaseTags,
+	freeneticReleaseCandidates,
 	upperString,
 	getFirewallConfig,
 	getInterfaceDump,

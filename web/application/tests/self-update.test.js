@@ -43,6 +43,16 @@ assert.match(dashboard, /class: 'fn-freenetic-update-panel'/,
 	'the dashboard must group Freenetic build details and update controls in one panel');
 assert.match(dashboard, /class: 'fn-update-codename fn-update-codename-' \+ codename\.toLowerCase\(\)/,
 	'the dashboard must render a stable release codename beside its version');
+assert.match(dashboard, /class: 'fn-update-line'/,
+	'the dashboard must offer a release-line selector');
+assert.match(dashboard, /class: 'fn-update-version'/,
+	'the dashboard must offer a concrete release-version selector');
+assert.match(dashboard, /freeneticReleaseCandidates\(/,
+	'the dashboard must install only a selected compatible release candidate');
+assert.match(dashboard, /Install older release/,
+	'a selected older release must be explicitly identified as a downgrade');
+assert.match(dashboardData, /releases\?per_page=100/,
+	'the release query must fetch enough history for both supported release lines');
 assert.match(css, /\.fn-freenetic-update-panel\s*\{[\s\S]*?\.fn-update-status-info::before/,
 	'the Freenetic update panel must style its overview, controls and status states');
 assert.match(css, /@font-face\s*\{[\s\S]*?font-family: "Anta";[\s\S]*?Anta-Regular\.woff2/,
@@ -108,6 +118,12 @@ assert.equal(freeneticReleaseCodename('v0.3.1'), 'Noxium',
 	'patch releases in the stable 0.3 line must retain the Noxium codename');
 assert.equal(freeneticReleaseCodename('v0.4.0'), '',
 	'unrevealed release lines must not expose a codename');
+assert.equal(helpers.freeneticReleaseLine('v0.3.1'), '0.3');
+assert.equal(helpers.freeneticReleaseLine('v0.3.0-beta.2'), '0.3');
+assert.equal(helpers.freeneticReleaseLine('not-a-release'), '');
+assert.equal(helpers.compareFreeneticReleaseTags('v0.3.1', 'v0.3.0'), 1);
+assert.equal(helpers.compareFreeneticReleaseTags('v0.3.0', 'v0.3.0-beta.2'), 1);
+assert.equal(helpers.compareFreeneticReleaseTags('v0.3.0-beta.2', 'v0.3.0-beta.1'), 1);
 assert.equal(formatFreeneticVersion(installed(version), 'not-a-release'), 'v0.2.x-dev · abc1234',
 	'an invalid persisted release value must not replace the development build identity');
 assert.match(formatFreeneticVersion([
@@ -161,5 +177,32 @@ malformedTag.tag_name = 'v0.2.2;reboot';
 assert.equal(helpers.freeneticReleasePlan(malformedTag, updater('apk', 'aarch64_cortex-a53'), []).reason, 'tag');
 assert.equal(helpers.freeneticReleasePlan(release('apk', 'aarch64_cortex-a53'),
 	{ can_update: false }, []).reason, 'updater');
+
+const newer = release('apk', 'aarch64_cortex-a53', '26.301.00001.new1234');
+newer.tag_name = 'v0.3.1';
+newer.published_at = '2026-09-15T00:00:00Z';
+const olderSameLine = release('apk', 'aarch64_cortex-a53', '26.300.00001.old1234');
+olderSameLine.tag_name = 'v0.3.0';
+olderSameLine.published_at = '2026-09-16T00:00:00Z';
+const onyx = release('apk', 'aarch64_cortex-a53', '26.299.00001.onyx123');
+onyx.tag_name = 'v0.2.8';
+const beta = release('apk', 'aarch64_cortex-a53', '26.302.00001.beta123');
+beta.tag_name = 'v0.3.2-beta.1';
+beta.prerelease = true;
+const releaseList = [ olderSameLine, beta, onyx, newer ];
+const stableAuto = helpers.freeneticReleaseCandidates(releaseList,
+	updater('apk', 'aarch64_cortex-a53'), installed('26.300.12345~abc1234'), 'stable', 'auto');
+assert.deepEqual(stableAuto.map(candidate => candidate.release.tag_name), [ 'v0.3.1', 'v0.3.0', 'v0.2.8' ],
+	'compatible stable releases must be semver-sorted independently of publication timestamps');
+assert.equal(stableAuto[0].plan.comparison, 1);
+assert.equal(stableAuto[1].plan.comparison, -1);
+assert.deepEqual(helpers.freeneticReleaseCandidates(releaseList,
+	updater('apk', 'aarch64_cortex-a53'), installed('26.300.12345~abc1234'), 'stable', '0.2')
+	.map(candidate => candidate.release.tag_name), [ 'v0.2.8' ],
+	'an explicit release line must exclude other stable lines');
+assert.deepEqual(helpers.freeneticReleaseCandidates(releaseList,
+	updater('apk', 'aarch64_cortex-a53'), installed('26.300.12345~abc1234'), 'beta', '0.3')
+	.map(candidate => candidate.release.tag_name), [ 'v0.3.2-beta.1' ],
+	'beta selection must include prereleases only from the selected line');
 
 console.log('Freenetic dashboard self-update planning: ok');
