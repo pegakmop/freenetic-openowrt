@@ -6,6 +6,13 @@ which they became user-visible.
 
 ## [Unreleased]
 
+### Signal
+
+The surface remains familiar.
+
+Beneath it, packets are learning new habits:
+split, reorder, and take a different route.
+
 ## [0.3.2] — 2026-09-16
 
 ### Added
