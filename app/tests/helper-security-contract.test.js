@@ -121,6 +121,20 @@ for (const name of [ 'freenetic-backup-call' ]) {
 	const result = run(applicationHelpers, name, [ '-unexpected' ]);
 	assert.notEqual(result.status, 0, `${name} must reject unexpected arguments`);
 }
+const backup = read(applicationHelpers, 'freenetic-backup-call');
+assert.match(backup, /chmod 600 "\$out"/,
+	'configuration backups must be private while waiting for browser download');
+
+const diagnosticsBundle = read(applicationHelpers, 'freenetic-diagnostics-bundle');
+assert.ok(diagnosticsBundle.includes('[ "$#" -eq 0 ]'),
+	'diagnostic bundle must not accept browser-controlled arguments');
+assert.match(diagnosticsBundle, /mktemp -d \/tmp\/freenetic-diagnostics\.XXXXXX/,
+	'diagnostic bundle must isolate root-owned temporary files');
+assert.doesNotMatch(diagnosticsBundle, /uci\s+-q\s+show|\/etc\/shadow|private.?key/i,
+	'diagnostic bundle must not collect router secrets');
+const diagnosticsBundleArgs = run(applicationHelpers, 'freenetic-diagnostics-bundle', [ '-unexpected' ]);
+assert.notEqual(diagnosticsBundleArgs.status, 0,
+	'diagnostic bundle must reject unexpected arguments');
 
 const clearCache = run(themeHelpers, 'freenetic-clear-luci-cache', [ '-unexpected' ]);
 assert.notEqual(clearCache.status, 0, 'cache helper must reject unexpected arguments');

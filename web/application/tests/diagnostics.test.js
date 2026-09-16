@@ -9,6 +9,11 @@ const repositoryRoot = path.join(__dirname, '..', '..', '..');
 const resourcesPath = path.join(__dirname, '..', 'htdocs', 'luci-static', 'resources');
 const moduleSource = fs.readFileSync(path.join(resourcesPath, 'freenetic-diagnostics.js'), 'utf8');
 const diagnostics = new Function('baseclass', moduleSource)({ extend: value => value });
+const viewSource = fs.readFileSync(path.join(resourcesPath, 'view', 'system', 'freenetic-diagnostics.js'), 'utf8');
+assert.match(viewSource, /freenetic-diagnostics-bundle/,
+	'diagnostics view must expose the sanitized support bundle action');
+assert.match(viewSource, /cgi-download/,
+	'diagnostics view must download the generated bundle through LuCI cgi-io');
 
 const summary = diagnostics.summarizeInterfaces({
 	interface: [

@@ -38,6 +38,21 @@ function humanInterface(device) {
 	return value && value !== '–' ? value.toUpperCase() : '–';
 }
 
+function downloadFile(path, filename) {
+	const form = E('form', {
+		method: 'post',
+		action: L.env.cgi_base + '/cgi-download',
+		enctype: 'application/x-www-form-urlencoded'
+	}, [
+		E('input', { type: 'hidden', name: 'sessionid', value: L.env.sessionid }),
+		E('input', { type: 'hidden', name: 'path', value: path }),
+		E('input', { type: 'hidden', name: 'filename', value: filename })
+	]);
+	document.body.appendChild(form);
+	form.submit();
+	form.parentNode.removeChild(form);
+}
+
 function renderUplink(uplink) {
 	return E('div', { class: 'fn-diag-uplink' }, [
 		E('div', { class: 'fn-info-group-title' }, humanUplinkName(uplink.name)),
@@ -63,6 +78,11 @@ return view.extend({
 		const networkBody = this.uplinks.length
 			? this.uplinks.map(renderUplink)
 			: [ E('div', { class: 'fn-info-empty' }, _('No WAN interface or default route was found.')) ];
+		this.bundleButton = E('button', {
+			type: 'button',
+			class: 'fn-settings-btn fn-diag-bundle-button',
+			click: () => this.downloadBundle()
+		}, _('Download diagnostic report'));
 
 		this.targetInput = E('input', {
 			type: 'text',
@@ -98,7 +118,8 @@ return view.extend({
 		return E('div', { class: 'fn-dash fn-diag-page' }, [
 			E('div', { class: 'fn-card', style: 'grid-column: 1 / -1' }, [
 				E('div', { class: 'fn-card-head' }, [
-					E('h3', {}, _('Internet diagnostics'))
+					E('h3', {}, _('Internet diagnostics')),
+					this.bundleButton
 				]),
 				E('div', { class: 'fn-card-body fn-info-list' }, networkBody)
 			]),
@@ -120,6 +141,21 @@ return view.extend({
 				])
 			])
 		]);
+	},
+
+	downloadBundle() {
+		this.bundleButton.disabled = true;
+		return fs.exec('/usr/libexec/freenetic-diagnostics-bundle', [])
+			.then(result => {
+				const path = (result.stdout || '').trim();
+				if (result.code !== 0 || !path) {
+					notify(result.stderr || _('Failed to build the diagnostic report.'), 'danger');
+					return;
+				}
+				downloadFile(path, 'freenetic-diagnostics.tar.gz');
+			})
+			.catch(error => notify(error.message || String(error), 'danger'))
+			.finally(() => { this.bundleButton.disabled = false; });
 	},
 
 	runDiagnostic(operation) {

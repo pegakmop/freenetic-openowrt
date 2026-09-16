@@ -31,6 +31,7 @@ const EXPECTED_FILES = {
 		'etc/config/freenetic',
 		'usr/libexec/freenetic-awg-feed',
 		'usr/libexec/freenetic-backup-call',
+		'usr/libexec/freenetic-diagnostics-bundle',
 		'usr/libexec/freenetic-diagnostics-call',
 		'usr/libexec/freenetic-ipsec-restart',
 		'usr/libexec/freenetic-ipsec-status',

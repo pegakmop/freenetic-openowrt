@@ -158,6 +158,7 @@ $SSH_CMD "$ROUTER" '
              /usr/share/rpcd/acl.d/luci-app-freenetic.json \
              /usr/share/freenetic/keys \
              /usr/libexec/freenetic-backup-call /usr/libexec/freenetic-clear-luci-cache \
+             /usr/libexec/freenetic-diagnostics-bundle \
              /usr/libexec/freenetic-diagnostics-call /usr/libexec/freenetic-awg-feed \
              /etc/openvpn/freenetic /usr/libexec/freenetic-openvpn-profile \
              /usr/libexec/freenetic-package-status \

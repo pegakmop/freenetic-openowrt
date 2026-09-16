@@ -64,6 +64,20 @@ assert.match(helper, /last_installer_stage\(\)/,
 	'self-update must identify the last installer stage on failure');
 assert.match(helper, /rollback_release\(\)/,
 	'self-update must have an automatic rollback path');
+assert.match(helper, /preflight_overlay\(\)/,
+	'self-update status must expose the same overlay preflight used before installation');
+assert.match(helper, /preflight_resources\(\)/,
+	'self-update status must expose the same resource preflight used before installation');
+assert.match(helper, /json_add_boolean preflight_ok/,
+	'self-update status must report whether the read-only preflight passed');
+assert.match(helper, /json_add_string overlay_free_mib/,
+	'self-update status must report available overlay space');
+assert.match(helper, /json_add_string overlay_min_mib/,
+	'self-update status must report the target-specific overlay reserve');
+assert.match(helper, /json_add_string ram_mib/,
+	'self-update status must report available RAM');
+assert.match(helper, /json_add_string cpu_cores/,
+	'self-update status must report available CPU cores');
 assert.match(helper, /previous_tag="\$\(uci -q get freenetic\.updates\.installed_release/,
 	'self-update must capture the previous release before changing packages');
 assert.match(helper, /json_add_boolean rollback_attempted/,
@@ -92,6 +106,12 @@ assert.match(installer, /stage smoke_test/,
 	'the release installer must report smoke-test failures');
 assert.match(dashboard, /freeneticUpdateResult/,
 	'dashboard update errors must retain structured helper diagnostics');
+assert.match(dashboard, /freenetic-backup-call/,
+	'dashboard updates must offer a configuration backup before installation');
+assert.match(dashboard, /freenetic-startup-config\.tar\.gz/,
+	'pre-update configuration backups must be downloaded to the browser');
+assert.match(dashboard, /preflight_ok !== false/,
+	'dashboard must not start an update after a failed read-only preflight');
 assert.match(dashboard, /Update failed during %s: %s/,
 	'dashboard must show the failing update stage');
 assert.match(dashboard, /Automatic rollback failed; check the router before retrying\./,
@@ -109,6 +129,7 @@ assert.match(themeLogin, /http\.header\('Clear-Site-Data', '"cache"'\)/,
 
 assert.deepEqual(acl.read.file['/usr/libexec/freenetic-self-update status'], [ 'exec' ]);
 assert.deepEqual(acl.write.file['/usr/libexec/freenetic-self-update install *'], [ 'exec' ]);
+assert.deepEqual(acl.write.file['/usr/libexec/freenetic-backup-call'], [ 'exec' ]);
 assert.match(preflight, /FREENETIC_VERSION_PATHS:=.*app\/luci-app-freenetic.*app\/luci-theme-freenetic.*web\/application.*web\/theme/,
 	'theme and application versions must cover both source trees');
 assert.match(appMakefile, /-- \$\(FREENETIC_VERSION_PATHS\)/,

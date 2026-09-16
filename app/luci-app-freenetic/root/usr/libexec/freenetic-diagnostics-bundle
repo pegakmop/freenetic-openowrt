@@ -1,0 +1,57 @@
+#!/bin/sh
+# Build a bounded, sanitized support archive for the Freenetic diagnostics page.
+# Do not include UCI dumps, credentials, or key material: the archive is meant
+# to be safe to attach to a bug report.
+set -u
+
+[ "$#" -eq 0 ] || {
+	echo "Usage: $0" >&2
+	exit 2
+}
+
+umask 077
+work_dir="$(mktemp -d /tmp/freenetic-diagnostics.XXXXXX 2>/dev/null || true)"
+[ -n "$work_dir" ] && [ -d "$work_dir" ] || {
+	echo "Could not create a secure diagnostics directory" >&2
+	exit 1
+}
+
+output=/tmp/freenetic-diagnostics.tar.gz
+cleanup() {
+	rm -rf "$work_dir"
+}
+trap cleanup EXIT
+
+capture() {
+	name="$1"
+	shift
+	"$@" >"$work_dir/$name.txt" 2>&1 || {
+		printf 'command failed (exit %s)\n' "$?" >>"$work_dir/$name.txt"
+	}
+}
+
+capture board ubus call system board
+capture system-info ubus call system info
+capture interfaces ubus call network.interface dump
+capture addresses ip -brief address
+capture routes ip route
+capture routes-ipv6 ip -6 route
+capture storage df -h
+capture packages /usr/libexec/freenetic-self-update status
+capture logs logread -e freenetic
+
+if command -v apk >/dev/null 2>&1; then
+	capture installed-packages apk list -I
+elif command -v opkg >/dev/null 2>&1; then
+	capture installed-packages opkg list-installed
+else
+	printf '%s\n' 'No supported package manager found.' >"$work_dir/installed-packages.txt"
+fi
+
+rm -f "$output"
+tar -czf "$output" -C "$work_dir" . >/dev/null 2>&1 || {
+	echo "Could not create diagnostics archive" >&2
+	exit 1
+}
+chmod 600 "$output" 2>/dev/null || true
+printf '%s\n' "$output"

@@ -28,7 +28,7 @@
  */
 const ubusCall = rpc.call;
 
-const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, freeneticReleaseLine, freeneticReleaseCandidates, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, getIwinfoDevices, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, freeneticReleaseCodename, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
+const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, freeneticReleaseLine, freeneticReleaseCandidates, formatFreeneticReleaseDate, freeneticReleaseNotes, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, getIwinfoDevices, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, freeneticReleaseCodename, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
 const TRAFFIC_COLORS = [ 'fn-tc-0', 'fn-tc-1', 'fn-tc-2', 'fn-tc-3', 'fn-tc-4', 'fn-tc-other' ];
 function svgIcon(d, size) {
 	size = size || 18;
@@ -49,6 +49,72 @@ function clearBrowserCacheAndLogout() {
 	return cacheCleanup.finally(() => {
 		window.location.replace('/cgi-bin/luci/admin/logout?_=' + Date.now());
 	});
+}
+
+function downloadFile(path, filename) {
+	const form = E('form', {
+		method: 'post',
+		action: L.env.cgi_base + '/cgi-download',
+		enctype: 'application/x-www-form-urlencoded'
+	}, [
+		E('input', { type: 'hidden', name: 'sessionid', value: L.env.sessionid }),
+		E('input', { type: 'hidden', name: 'path', value: path }),
+		E('input', { type: 'hidden', name: 'filename', value: filename })
+	]);
+	document.body.appendChild(form);
+	form.submit();
+	form.parentNode.removeChild(form);
+}
+
+/* GitHub release bodies are untrusted input. Render only the small Markdown
+ * subset that makes a changelog readable (headings and unordered lists),
+ * building every node through E() so markup in a release cannot become DOM. */
+function renderFreeneticReleaseNotes(notes) {
+	const content = E('div', { class: 'fn-update-release-notes-content' });
+	const lines = String(notes || '').split('\n');
+	let paragraph = [];
+	let list = null;
+
+	const flushParagraph = () => {
+		if (!paragraph.length)
+			return;
+		content.appendChild(E('p', {}, paragraph.join('\n')));
+		paragraph = [];
+	};
+	const closeList = () => { list = null; };
+
+	lines.forEach(line => {
+		const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+		if (heading) {
+			flushParagraph();
+			closeList();
+			const tag = heading[1].length <= 2 ? 'h4' : 'h5';
+			content.appendChild(E(tag, { class: 'fn-update-release-note-heading' }, heading[2]));
+			return;
+		}
+
+		const item = line.match(/^\s*[-*]\s+(.+?)\s*$/);
+		if (item) {
+			flushParagraph();
+			if (!list) {
+				list = E('ul', {});
+				content.appendChild(list);
+			}
+			list.appendChild(E('li', {}, item[1]));
+			return;
+		}
+
+		if (!line.trim()) {
+			flushParagraph();
+			closeList();
+			return;
+		}
+
+		closeList();
+		paragraph.push(line.trim());
+	});
+	flushParagraph();
+	return content;
 }
 
 function qrGlyph(size) {
@@ -1236,6 +1302,10 @@ return view.extend({
 			'aria-live': 'polite'
 		},
 			pending ? _('Loading view…') : (updaterReady ? _('Not checked yet.') : _('Updates are unavailable on this router.')));
+		const releaseDetails = E('details', {
+			class: 'fn-update-release-details',
+			hidden: true
+		});
 		const checkButton = E('button', {
 			type: 'button',
 			class: 'fn-settings-btn'
@@ -1268,9 +1338,47 @@ return view.extend({
 			status.appendChild(link);
 			status.className = 'fn-update-status fn-update-status-' + kind;
 		};
+		const setReleaseDetails = candidate => {
+			dom_empty(releaseDetails);
+			if (!candidate || !candidate.release) {
+				releaseDetails.hidden = true;
+				return;
+			}
+
+			const release = candidate.release;
+			const codename = freeneticReleaseCodename(release.tag_name);
+			const date = formatFreeneticReleaseDate(release.published_at || release.created_at);
+			const notes = freeneticReleaseNotes(release.body);
+			const totalAssets = Array.isArray(release.assets) ? release.assets.length : 0;
+			const requiredAssets = Array.isArray(candidate.plan && candidate.plan.required)
+				? candidate.plan.required.length : 0;
+			const summaryParts = [
+				E('strong', {}, release.tag_name),
+				codename ? E('span', { class: 'fn-update-release-codename' }, codename) : null,
+				date ? E('span', { class: 'fn-update-release-date' }, _('Published: %s').format(date)) : null
+			];
+
+			releaseDetails.append(E('summary', {}, summaryParts));
+			if (requiredAssets || totalAssets)
+				releaseDetails.append(E('div', { class: 'fn-update-release-meta' }, [
+					E('span', {}, _('Compatible assets: %s of %s').format(requiredAssets, totalAssets))
+				]));
+			releaseDetails.append(E('div', { class: 'fn-update-release-notes' }, [
+				E('div', { class: 'fn-update-release-notes-title' }, _('Release notes')),
+				notes ? renderFreeneticReleaseNotes(notes) : E('p', {}, _('No release notes provided.'))
+			]));
+			if (release.html_url)
+				releaseDetails.append(E('a', {
+					href: release.html_url,
+					target: '_blank',
+					rel: 'noopener'
+				}, _('Open release on GitHub')));
+			releaseDetails.hidden = false;
+		};
 		const resetVersions = () => {
 			releaseCandidates = [];
 			versionsReady = false;
+			setReleaseDetails(null);
 			dom_empty(versionSelect);
 			versionSelect.appendChild(E('option', { value: '' }, _('Check for releases to choose a version')));
 			versionSelect.value = '';
@@ -1296,10 +1404,12 @@ return view.extend({
 		const updateSelectedRelease = () => {
 			const candidate = selectedCandidate();
 			if (!candidate) {
+				setReleaseDetails(null);
 				resetPlan(false);
 				return;
 			}
 
+			setReleaseDetails(candidate);
 			pendingPlan = Object.assign({ release: candidate.release }, candidate.plan);
 			const comparison = candidate.plan.comparison;
 			if (comparison === 0) {
@@ -1402,73 +1512,145 @@ return view.extend({
 			if (!plan)
 				return;
 			const isDowngrade = plan.comparison < 0;
+			const preflightOk = updater.preflight_ok !== false;
+			const overlayFreeMib = Number(updater.overlay_free_mib);
+			const overlayMinMib = Number(updater.overlay_min_mib);
+			const resourceText = updater.ram_mib && updater.cpu_cores
+				? _('Resources: %s MiB RAM · %s CPU cores').format(updater.ram_mib, updater.cpu_cores)
+				: _('Resource information is unavailable.');
+			const overlayText = Number.isFinite(overlayFreeMib) && Number.isFinite(overlayMinMib)
+				? _('Available overlay space: %s MiB (minimum %s MiB)').format(overlayFreeMib, overlayMinMib)
+				: _('Overlay space could not be read.');
+			const preflightText = preflightOk
+				? _('Ready')
+				: _('The preflight check failed: %s').format(updater.preflight_error || _('Updates are unavailable on this router.'));
+			const preflightBody = E('div', {
+				class: 'fn-update-preflight fn-update-preflight-' + (preflightOk ? 'ok' : 'error')
+			}, [
+				E('div', { class: 'fn-update-preflight-title' }, _('Preflight check')),
+				E('div', { class: 'fn-update-preflight-meta' }, _('Target: %s · package manager: %s').format(
+					updater.target || '–', updater.package_manager ? String(updater.package_manager).toUpperCase() : '–')),
+				E('div', { class: 'fn-update-preflight-resources' }, resourceText),
+				E('div', { class: 'fn-update-preflight-space' }, overlayText),
+				E('div', { class: 'fn-update-preflight-status' }, preflightText)
+			]);
+			const backupInput = E('input', { type: 'checkbox' });
+			backupInput.checked = true;
+			const backupOption = E('label', { class: 'fn-update-backup-option' }, [
+				backupInput,
+				E('span', {}, [
+					E('span', { class: 'fn-update-backup-title' }, _('Create and download a configuration backup')),
+					E('small', { class: 'fn-update-backup-hint' }, _('The backup is downloaded only to your browser and is not uploaded.'))
+				])
+			]);
+			const runInstall = () => {
+				setBusy(true);
+				ui.showModal(_('Updating Freenetic…'), [
+					E('p', { class: 'spinning' }, _('Downloading and verifying the release. Do not power off the router.'))
+				], 'fn-update-install-modal');
+
+				return fs.exec_direct(FREENETIC_UPDATE_HELPER, [ 'install', plan.tag ], 'json')
+					.then(result => {
+						if (!result || result.ok !== true) {
+							const error = new Error(result && result.error || _('The release installer failed.'));
+							error.freeneticConfirmedFailure = true;
+							error.freeneticUpdateResult = result;
+							throw error;
+						}
+						ui.showModal(_('Freenetic was updated'), [
+							E('p', {}, _('The interface update was installed successfully. The browser cache is being cleared and you will be signed out to load the new theme cleanly.')),
+							E('div', { class: 'button-row' }, [
+								E('button', {
+									class: 'btn cbi-button-positive',
+									click: clearBrowserCacheAndLogout
+								}, _('Sign in again'))
+							])
+						], 'fn-update-install-modal');
+						window.setTimeout(clearBrowserCacheAndLogout, 1200);
+					})
+					.catch(error => {
+						const confirmed = error && error.freeneticConfirmedFailure;
+						const result = error && error.freeneticUpdateResult;
+						const stage = result && result.stage ? String(result.stage).replace(/_/g, ' ') : '';
+						const failureMessage = confirmed
+							? (result && result.stage
+								? _('Update failed during %s: %s').format(stage, result.error || error.message)
+								: _('The update was not installed: %s').format(error.message || error))
+							: _('rpcd may have restarted while applying the update. Reload the interface and check the installed version.');
+						const recoveryMessage = result && result.rollback_attempted
+							? (result.rollback_ok
+								? _('The previous Freenetic release was restored automatically.')
+								: _('Automatic rollback failed; check the router before retrying.'))
+							: '';
+						const failureBody = [ E('p', {}, failureMessage) ];
+						if (recoveryMessage)
+							failureBody.push(E('p', {}, recoveryMessage));
+						ui.showModal(confirmed ? _('Freenetic update failed') : _('Update connection was interrupted'), [
+							...failureBody,
+							E('div', { class: 'button-row' }, [
+								E('button', { class: 'btn', click: ui.hideModal }, _('Close')),
+								E('button', {
+									class: 'btn cbi-button-positive',
+									click: () => window.location.reload()
+								}, _('Reload interface'))
+							])
+						], 'fn-update-install-modal');
+					})
+					.finally(() => setBusy(false));
+			};
+			const startInstall = () => {
+				if (!preflightOk)
+					return;
+				if (!backupInput.checked)
+					return runInstall();
+
+				ui.showModal(_('Creating configuration backup…'), [
+					E('p', { class: 'spinning' }, _('Saving router settings before the update.'))
+				], 'fn-update-install-modal');
+				return fs.exec('/usr/libexec/freenetic-backup-call', [])
+					.then(result => {
+						const path = (result.stdout || '').trim();
+						if (result.code !== 0 || !path) {
+							const error = new Error(result.stderr || _('Failed to build the backup archive.'));
+							error.freeneticBackupFailure = true;
+							throw error;
+						}
+						downloadFile(path, 'freenetic-startup-config.tar.gz');
+						return runInstall();
+					}, error => {
+						const backupError = new Error(error.message || String(error));
+						backupError.freeneticBackupFailure = true;
+						throw backupError;
+					})
+					.catch(error => {
+						if (!error.freeneticBackupFailure)
+							throw error;
+						setBusy(false);
+						ui.showModal(_('Update not started'), [
+							E('p', {}, _('The configuration backup could not be created: %s').format(error.message || error)),
+							E('div', { class: 'button-row' }, [
+								E('button', { class: 'btn', click: ui.hideModal }, _('Close'))
+							])
+						], 'fn-update-install-modal');
+					});
+			};
+			const confirmButton = E('button', {
+				class: 'btn cbi-button-positive',
+				click: ui.createHandlerFn(this, startInstall)
+			}, isDowngrade ? _('Install older release') : _('Install'));
+			confirmButton.disabled = !preflightOk;
 
 			ui.showModal(_('Install Freenetic update?'), [
 				E('p', {}, _('The theme, interface, Russian translations and fnc will be updated together to %s. Router settings will be preserved.').format(plan.tag)),
 				...(isDowngrade ? [ E('p', { class: 'fn-update-downgrade-warning' }, _('This release is older than the one currently installed. Use it only when you need to roll back; a configuration backup is recommended.')) ] : []),
+				preflightBody,
+				backupOption,
 				E('p', {}, _('Do not power off the router while packages are being installed.')),
 				E('div', { class: 'button-row' }, [
 					E('button', { class: 'btn', click: ui.hideModal }, _('Cancel')),
-					E('button', {
-						class: 'btn cbi-button-positive',
-						click: ui.createHandlerFn(this, () => {
-							setBusy(true);
-							ui.showModal(_('Updating Freenetic…'), [
-								E('p', { class: 'spinning' }, _('Downloading and verifying the release. Do not power off the router.'))
-							]);
-
-							return fs.exec_direct(FREENETIC_UPDATE_HELPER, [ 'install', plan.tag ], 'json')
-								.then(result => {
-									if (!result || result.ok !== true) {
-										const error = new Error(result && result.error || _('The release installer failed.'));
-										error.freeneticConfirmedFailure = true;
-										error.freeneticUpdateResult = result;
-										throw error;
-									}
-									ui.showModal(_('Freenetic was updated'), [
-										E('p', {}, _('The interface update was installed successfully. The browser cache is being cleared and you will be signed out to load the new theme cleanly.')),
-										E('div', { class: 'button-row' }, [
-											E('button', {
-												class: 'btn cbi-button-positive',
-												click: clearBrowserCacheAndLogout
-											}, _('Sign in again'))
-										])
-									]);
-									window.setTimeout(clearBrowserCacheAndLogout, 1200);
-								})
-								.catch(error => {
-									const confirmed = error && error.freeneticConfirmedFailure;
-									const result = error && error.freeneticUpdateResult;
-									const stage = result && result.stage ? String(result.stage).replace(/_/g, ' ') : '';
-									const failureMessage = confirmed
-										? (result && result.stage
-											? _('Update failed during %s: %s').format(stage, result.error || error.message)
-											: _('The update was not installed: %s').format(error.message || error))
-										: _('rpcd may have restarted while applying the update. Reload the interface and check the installed version.');
-									const recoveryMessage = result && result.rollback_attempted
-										? (result.rollback_ok
-											? _('The previous Freenetic release was restored automatically.')
-											: _('Automatic rollback failed; check the router before retrying.'))
-										: '';
-									const failureBody = [ E('p', {}, failureMessage) ];
-									if (recoveryMessage)
-										failureBody.push(E('p', {}, recoveryMessage));
-									ui.showModal(confirmed ? _('Freenetic update failed') : _('Update connection was interrupted'), [
-										...failureBody,
-										E('div', { class: 'button-row' }, [
-											E('button', { class: 'btn', click: ui.hideModal }, _('Close')),
-											E('button', {
-												class: 'btn cbi-button-positive',
-												click: () => window.location.reload()
-											}, _('Reload interface'))
-										])
-									]);
-								})
-								.finally(() => setBusy(false));
-						})
-					}, isDowngrade ? _('Install older release') : _('Install'))
+					confirmButton
 				])
-			]);
+			], 'fn-update-install-modal');
 		});
 
 		const sourceLink = E('a', {
@@ -1509,6 +1691,7 @@ return view.extend({
 		const panel = E('div', { class: 'fn-freenetic-update-panel' }, [
 			overview,
 			actions,
+			releaseDetails,
 			status
 		]);
 

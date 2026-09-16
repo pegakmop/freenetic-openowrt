@@ -6,6 +6,33 @@ which they became user-visible.
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-09-16
+
+### Added
+
+- Added release details to the dashboard update center: published date,
+  codename, compatible asset count, bounded release notes and a link to the
+  upstream release page. Headings and unordered lists receive lightweight
+  formatting; notes are rendered as text and never interpreted as HTML.
+- Added a one-click sanitized diagnostic archive from System → Diagnostics.
+  The bundle contains bounded board, network, route, storage, package and
+  Freenetic log data, uses a private temporary directory and excludes UCI
+  dumps, credentials and key material.
+- Added a preflight summary to Freenetic self-updates with target, package
+  manager, RAM/CPU and overlay-space checks. The install confirmation can
+  create and download a private startup-config backup before starting the
+  package transaction.
+
+### Fixed
+
+- Disabled release selectors no longer inherit the browser's patterned
+  disabled background while an update check is running.
+
+### Improved
+
+- Increased the readability of the update confirmation dialog without
+  changing the scale of other LuCI modals.
+
 ## [0.3.1] — 2026-09-15
 
 ### Added

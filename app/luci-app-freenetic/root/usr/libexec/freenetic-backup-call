@@ -28,4 +28,5 @@ grep -qxF /etc/freenetic /etc/sysupgrade.conf || echo /etc/freenetic >> /etc/sys
 out=/tmp/freenetic-startup-config.tar.gz
 rm -f "$out"
 sysupgrade --create-backup "$out" >/dev/null 2>&1
+chmod 600 "$out" 2>/dev/null || true
 echo "$out"

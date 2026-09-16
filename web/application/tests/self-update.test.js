@@ -27,6 +27,8 @@ assert.match(dashboardData, /freenetic-package-status', FREENETIC_PACKAGE_NAMES,
 	'legacy dashboard fallback must use structured package status data');
 assert.doesNotMatch(dashboard, /disabled:\s*!updaterReady/,
 	'LuCI E() must not render disabled="false", which still disables the check button');
+assert.doesNotMatch(dashboard, /disabled:\s*!preflightOk/,
+	'LuCI E() must not render disabled="false", which would disable the update confirmation');
 assert.match(dashboard, /checkButton\.disabled = !updaterReady/,
 	'initial updater availability must be applied through the DOM boolean property');
 assert.match(dashboard, /installButton\.style\.display = 'none'/,
@@ -49,6 +51,28 @@ assert.match(dashboard, /class: 'fn-update-version'/,
 	'the dashboard must offer a concrete release-version selector');
 assert.match(dashboard, /freeneticReleaseCandidates\(/,
 	'the dashboard must install only a selected compatible release candidate');
+assert.match(dashboard, /class: 'fn-update-release-details'/,
+	'the dashboard must expose release notes without replacing the compact update controls');
+assert.match(dashboard, /class: 'fn-update-preflight fn-update-preflight-'/,
+	'the update confirmation must show a read-only preflight summary');
+assert.match(dashboard, /Resources: %s MiB RAM · %s CPU cores/,
+	'the update confirmation must show the resource preflight summary');
+assert.match(dashboard, /class: 'fn-update-backup-option'/,
+	'the update confirmation must offer a configuration backup');
+assert.match(dashboard, /freenetic-backup-call/,
+	'the update flow must create the optional configuration backup before installing');
+assert.match(dashboard, /function renderFreeneticReleaseNotes\(/,
+	'release notes must have a bounded Markdown-lite renderer');
+assert.match(dashboard, /class: 'fn-update-release-note-heading'/,
+	'release note headings must be rendered as semantic text elements');
+assert.match(css, /\.fn-update-release-notes-content\s*\{[\s\S]*?max-height:\s*160px[\s\S]*?overflow:\s*auto/,
+	'release notes must remain bounded when formatted');
+assert.match(css, /\.fn-update-release-details\s*\{[\s\S]*?background:\s*var\(--fn-surface\)/,
+	'release notes must use the quiet update-card surface instead of the alert fill');
+assert.match(dashboardData, /function formatFreeneticReleaseDate\(/,
+	'release metadata must format publication dates safely');
+assert.match(dashboardData, /function freeneticReleaseNotes\(/,
+	'release notes must be truncated before being shown in the dashboard');
 assert.match(dashboard, /Install older release/,
 	'a selected older release must be explicitly identified as a downgrade');
 assert.match(dashboardData, /releases\?per_page=100/,
@@ -61,6 +85,8 @@ assert.match(css, /@font-face\s*\{[\s\S]*?font-family: "CherryBombOne";[\s\S]*?C
 	'the Onyx display font must be bundled with the theme');
 assert.match(css, /\.fn-update-codename-noxium\s*\{[\s\S]*?transform: skewX\(-8deg\)/,
 	'the regular-only Anta font must receive the intentional codename slant');
+assert.match(css, /\.fn-update-version:disabled[\s\S]*?background-image: none/,
+	'a disabled release selector must not tile the native chevron background');
 const helpers = new Function('baseclass', 'fs', 'uci', 'rpc', '_', dashboardData)(
 	{ extend: value => value },
 	{ exec_direct() { return Promise.resolve([]); } },
@@ -76,6 +102,13 @@ const displayVersion = dashboardData.match(/const FREENETIC_DISPLAY_VERSION = '(
 const formatFreeneticVersion = new Function('_', 'FREENETIC_DISPLAY_VERSION', formatterSource +
 	'\nreturn formatFreeneticVersion;')(value => value, displayVersion);
 const freeneticReleaseCodename = helpers.freeneticReleaseCodename;
+assert.ok(helpers.formatFreeneticReleaseDate('2026-09-15T00:00:00Z'),
+	'a valid release timestamp must produce a readable date');
+assert.equal(helpers.formatFreeneticReleaseDate('not-a-date'), '',
+	'an invalid release timestamp must not render a bogus date');
+assert.equal(helpers.freeneticReleaseNotes('  first line\r\nsecond line  '), 'first line\nsecond line');
+assert.match(helpers.freeneticReleaseNotes('one two three four', 10), /…$/,
+	'long release notes must be compacted for the dashboard card');
 
 const version = '26.300.12345.abc1234';
 const packageNames = [

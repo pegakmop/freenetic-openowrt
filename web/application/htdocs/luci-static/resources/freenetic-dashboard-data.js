@@ -168,6 +168,37 @@ function freeneticReleaseCandidates(releases, updater, installedPackages, channe
 			String(b.release.published_at || b.release.created_at || '').localeCompare(String(a.release.published_at || a.release.created_at || '')));
 }
 
+function formatFreeneticReleaseDate(value) {
+	const timestamp = Date.parse(String(value || ''));
+	if (!Number.isFinite(timestamp))
+		return '';
+
+	try {
+		return new Intl.DateTimeFormat(undefined, {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric'
+		}).format(new Date(timestamp));
+	}
+	catch (e) {
+		return new Date(timestamp).toISOString().slice(0, 10);
+	}
+}
+
+/* Release notes come from GitHub and are displayed as text, never as HTML.
+ * Keep the dashboard card compact while preserving line breaks from short
+ * changelogs. The full text remains available through the release link. */
+function freeneticReleaseNotes(value, limit) {
+	const max = Number.isFinite(Number(limit)) ? Number(limit) : 720;
+	const notes = String(value || '').replace(/\r\n?/g, '\n').trim();
+	if (!notes)
+		return '';
+	if (notes.length <= max)
+		return notes;
+
+	return notes.slice(0, Math.max(0, max - 1)).replace(/\s+\S*$/, '').trimEnd() + '…';
+}
+
 function upperString(value) {
 	if (Array.isArray(value))
 		value = value[0];
@@ -647,6 +678,8 @@ return baseclass.extend({
 	freeneticReleaseLine,
 	compareFreeneticReleaseTags,
 	freeneticReleaseCandidates,
+	formatFreeneticReleaseDate,
+	freeneticReleaseNotes,
 	upperString,
 	getFirewallConfig,
 	getInterfaceDump,

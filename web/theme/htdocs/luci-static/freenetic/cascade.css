@@ -1651,6 +1651,33 @@ body.modal-overlay-active { overflow: hidden; }
 .modal > pre, .modal > textarea { white-space: pre-wrap; overflow: auto; width: 100%; }
 .modal > .button-row { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* The update confirmation contains several safety details.  Keep the
+   standard compact LuCI modal scale elsewhere, but give this flow a little
+   more reading room so the warning and backup choice are easy to scan. */
+.modal.fn-update-install-modal {
+	font-size: 1.0625rem;
+	line-height: 1.45;
+}
+.modal.fn-update-install-modal > h4:first-child {
+	font-size: 1rem;
+}
+.modal.fn-update-install-modal > p {
+	line-height: 1.45;
+}
+.modal.fn-update-install-modal .fn-update-preflight {
+	font-size: .875rem;
+	line-height: 1.4;
+}
+.modal.fn-update-install-modal .fn-update-preflight-title {
+	font-size: .9375rem;
+}
+.modal.fn-update-install-modal .fn-update-backup-title {
+	font-size: .9375rem;
+}
+.modal.fn-update-install-modal .fn-update-backup-hint {
+	font-size: .8125rem;
+}
+
 /* ---------- login page ---------- */
 
 .fn-login-page {
@@ -2276,6 +2303,12 @@ body[data-page="admin-system-package-manager"] #maincontent #view > .controls > 
 	letter-spacing: .03em;
 }
 .fn-card-head .fn-icon { color: var(--fn-accent); }
+.fn-card-head .fn-diag-bundle-button {
+	width: auto;
+	min-height: 34px;
+	padding: 5px 10px;
+	font-size: .8125rem;
+}
 .fn-card-link {
 	display: inline-flex;
 	align-items: center;
@@ -3211,6 +3244,96 @@ body[data-page="admin-system-package-manager"] #maincontent #view > .controls > 
 	background: color-mix(in srgb, var(--fn-warning) 10%, transparent);
 	color: var(--fn-text);
 }
+.fn-update-preflight {
+	display: grid;
+	gap: 3px;
+	margin: 10px 0;
+	padding: 9px 11px;
+	border: 1px solid var(--fn-border-strong);
+	border-left: 3px solid var(--fn-status-ok);
+	border-radius: var(--fn-radius-sm);
+	background: var(--fn-surface);
+	color: var(--fn-text-secondary);
+	font-size: .8125rem;
+}
+.fn-update-preflight-error {
+	border-left-color: var(--fn-danger);
+	background: var(--fn-danger-soft);
+}
+.fn-update-preflight-title { color: var(--fn-text); font-weight: 600; }
+.fn-update-preflight-meta,
+.fn-update-preflight-resources,
+.fn-update-preflight-space { color: var(--fn-text-secondary); }
+.fn-update-preflight-status { color: var(--fn-status-ok); }
+.fn-update-preflight-error .fn-update-preflight-status { color: var(--fn-danger); }
+.fn-update-backup-option {
+	display: flex;
+	align-items: flex-start;
+	gap: 9px;
+	margin: 10px 0;
+	color: var(--fn-text);
+	cursor: pointer;
+}
+.fn-update-backup-option input { flex: 0 0 auto; margin-top: 3px; }
+.fn-update-backup-option > span { display: flex; flex-direction: column; gap: 2px; }
+.fn-update-backup-title { font-size: .875rem; }
+.fn-update-backup-hint { color: var(--fn-text-secondary); font-size: .75rem; line-height: 1.35; }
+.fn-update-release-details {
+	border: 1px solid var(--fn-border);
+	border-left: 3px solid var(--fn-accent-brand);
+	border-radius: var(--fn-radius-sm);
+	/* Keep the expanded notes quiet and anchored to the update card.  The
+	 * stronger blue surface used by alerts made this compact disclosure look
+	 * like a separate banner, especially in the dark theme. */
+	background: var(--fn-surface);
+	color: var(--fn-text-secondary);
+	font-size: .8125rem;
+}
+.fn-update-release-details[hidden] { display: none; }
+.fn-update-release-details > summary {
+	padding: 8px 10px;
+	color: var(--fn-text);
+	cursor: pointer;
+	list-style-position: inside;
+}
+.fn-update-release-details > summary:hover { color: var(--fn-accent); }
+.fn-update-release-details > summary strong { margin-right: 8px; }
+.fn-update-release-codename,
+.fn-update-release-date { margin-right: 8px; color: var(--fn-text-secondary); }
+.fn-update-release-meta,
+.fn-update-release-notes,
+.fn-update-release-details > a { margin: 0 10px 8px; }
+.fn-update-release-meta { color: var(--fn-text-secondary); }
+.fn-update-release-notes-title { color: var(--fn-text); font-weight: 600; }
+.fn-update-release-notes-content {
+	max-height: 160px;
+	overflow: auto;
+	margin-top: 4px;
+	padding-right: 4px;
+	color: var(--fn-text-secondary);
+	word-break: break-word;
+}
+.fn-update-release-notes-content p {
+	margin: 0 0 7px;
+	white-space: pre-line;
+}
+.fn-update-release-notes-content p:last-child { margin-bottom: 0; }
+.fn-update-release-note-heading {
+	margin: 0 0 5px;
+	color: var(--fn-text);
+	font-size: .8125rem;
+	line-height: 1.35;
+}
+.fn-update-release-notes-content h5 { margin-top: 8px; }
+.fn-update-release-notes-content ul {
+	margin: 0 0 7px;
+	padding-left: 18px;
+}
+.fn-update-release-notes-content li { margin: 2px 0; }
+.fn-update-release-details > a {
+	display: inline-block;
+	color: var(--fn-accent);
+}
 .fn-update-actions {
 	display: flex;
 	align-items: center;
@@ -3261,7 +3384,9 @@ body[data-page="admin-system-package-manager"] #maincontent #view > .controls > 
 .fn-system-card .fn-update-channel,
 .fn-system-card .fn-update-line,
 .fn-system-card .fn-update-version { font-size: 1rem; min-height: 38px; }
-.fn-system-card .fn-update-channel:disabled {
+.fn-system-card .fn-update-channel:disabled,
+.fn-system-card .fn-update-line:disabled,
+.fn-system-card .fn-update-version:disabled {
 	appearance: none;
 	-webkit-appearance: none;
 	-moz-appearance: none;

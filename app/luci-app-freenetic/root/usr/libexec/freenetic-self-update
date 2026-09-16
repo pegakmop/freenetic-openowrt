@@ -146,6 +146,34 @@ installed_package_version() {
 	esac
 }
 
+# Keep the dashboard's preflight summary aligned with the release installer.
+# The installer remains the final authority; this read-only check only gives
+# the user an early warning before starting a package transaction.
+preflight_overlay() {
+	overlay_path=/overlay
+	overlay_free_kib="$(df -Pk "$overlay_path" 2>/dev/null | awk 'NR == 2 { print $4; exit }' || true)"
+	if [ -z "$overlay_free_kib" ]; then
+		overlay_path=/
+		overlay_free_kib="$(df -Pk "$overlay_path" 2>/dev/null | awk 'NR == 2 { print $4; exit }' || true)"
+	fi
+	case "$overlay_free_kib" in
+		''|*[!0-9]*) overlay_free_mib= ;;
+		*) overlay_free_mib=$((overlay_free_kib / 1024)) ;;
+	esac
+}
+
+preflight_resources() {
+	mem_kib="$(awk '$1 == "MemTotal:" { print $2; exit }' /proc/meminfo 2>/dev/null || true)"
+	case "$mem_kib" in
+		''|*[!0-9]*) preflight_ram_mib= ;;
+		*) preflight_ram_mib=$((mem_kib / 1024)) ;;
+	esac
+	preflight_cpu_cores="$(grep -c '^processor' /proc/cpuinfo 2>/dev/null || true)"
+	case "$preflight_cpu_cores" in
+		''|*[!0-9]*) preflight_cpu_cores= ;;
+	esac
+}
+
 status() {
 	package_manager=
 	if command -v apk >/dev/null 2>&1; then
@@ -165,6 +193,42 @@ status() {
 		mediatek/filogic) asset_suffix=aarch64_cortex-a53 ;;
 		ramips/mt7621) asset_suffix=mipsel_24kc ;;
 	esac
+	overlay_min_mib=
+	preflight_min_ram_mib=128
+	preflight_min_cpu_cores=2
+	case "$target" in
+		mediatek/filogic) overlay_min_mib=32 ;;
+		ramips/mt7621) overlay_min_mib=16 ;;
+	esac
+	preflight_resources
+	preflight_overlay
+	preflight_ok=1
+	preflight_error=
+	if [ -z "$package_manager" ]; then
+		preflight_ok=0
+		preflight_error="Neither apk nor opkg is installed"
+	elif [ -z "$asset_suffix" ]; then
+		preflight_ok=0
+		preflight_error="Unsupported OpenWrt target: ${target:-unknown}"
+	elif [ -z "$preflight_ram_mib" ]; then
+		preflight_ok=0
+		preflight_error="Cannot read total RAM"
+	elif [ "$preflight_ram_mib" -lt "$preflight_min_ram_mib" ]; then
+		preflight_ok=0
+		preflight_error="Only ${preflight_ram_mib} MiB RAM is available; minimum is ${preflight_min_ram_mib} MiB"
+	elif [ -z "$preflight_cpu_cores" ]; then
+		preflight_ok=0
+		preflight_error="Cannot count CPU cores"
+	elif [ "$preflight_cpu_cores" -lt "$preflight_min_cpu_cores" ]; then
+		preflight_ok=0
+		preflight_error="Only ${preflight_cpu_cores} CPU cores are available; minimum is ${preflight_min_cpu_cores}"
+	elif [ -z "$overlay_free_mib" ]; then
+		preflight_ok=0
+		preflight_error="Cannot read free space on $overlay_path"
+	elif [ -n "$overlay_min_mib" ] && [ "$overlay_free_mib" -lt "$overlay_min_mib" ]; then
+		preflight_ok=0
+		preflight_error="Only ${overlay_free_mib} MiB is free on $overlay_path; minimum is ${overlay_min_mib} MiB"
+	fi
 
 	installed_release=
 	if command -v uci >/dev/null 2>&1; then
@@ -176,6 +240,15 @@ status() {
 	json_add_string package_manager "$package_manager"
 	json_add_string target "$target"
 	json_add_string asset_suffix "$asset_suffix"
+	json_add_boolean preflight_ok "$preflight_ok"
+	json_add_string preflight_error "$preflight_error"
+	json_add_string ram_mib "$preflight_ram_mib"
+	json_add_string min_ram_mib "$preflight_min_ram_mib"
+	json_add_string cpu_cores "$preflight_cpu_cores"
+	json_add_string min_cpu_cores "$preflight_min_cpu_cores"
+	json_add_string overlay_path "$overlay_path"
+	json_add_string overlay_free_mib "$overlay_free_mib"
+	json_add_string overlay_min_mib "$overlay_min_mib"
 	json_add_string installed_release "$installed_release"
 	json_add_array packages
 	for package_name in luci-theme-freenetic luci-app-freenetic; do

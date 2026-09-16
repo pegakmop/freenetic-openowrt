@@ -370,6 +370,12 @@ msgstr "Запустите проверку, чтобы увидеть её ре
 msgid "Internet diagnostics"
 msgstr "Диагностика интернета"
 
+msgid "Download diagnostic report"
+msgstr "Скачать отчёт диагностики"
+
+msgid "Failed to build the diagnostic report."
+msgstr "Не удалось собрать отчёт диагностики."
+
 msgid "Network check"
 msgstr "Проверка сети"
 
@@ -605,6 +611,23 @@ msgstr "Сначала проверьте выпуски, чтобы выбра�
 msgid "installed"
 msgstr "установлена"
 
+#, javascript-format
+msgid "Published: %s"
+msgstr "Опубликован: %s"
+
+#, javascript-format
+msgid "Compatible assets: %s of %s"
+msgstr "Совместимые файлы: %s из %s"
+
+msgid "Release notes"
+msgstr "Примечания к выпуску"
+
+msgid "No release notes provided."
+msgstr "Примечания к выпуску не указаны."
+
+msgid "Open release on GitHub"
+msgstr "Открыть выпуск на GitHub"
+
 msgid "Not checked yet."
 msgstr "Проверка ещё не выполнялась."
 
@@ -686,6 +709,50 @@ msgstr "Установить старый выпуск"
 
 msgid "This release is older than the one currently installed. Use it only when you need to roll back; a configuration backup is recommended."
 msgstr "Этот выпуск старше установленного. Используйте его только для отката; рекомендуется сохранить резервную копию конфигурации."
+
+msgid "Preflight check"
+msgstr "Предварительная проверка"
+
+#, javascript-format
+msgid "Target: %s · package manager: %s"
+msgstr "Цель: %s · менеджер пакетов: %s"
+
+#, javascript-format
+msgid "Available overlay space: %s MiB (minimum %s MiB)"
+msgstr "Свободно в overlay: %s МиБ (минимум %s МиБ)"
+
+#, javascript-format
+msgid "Resources: %s MiB RAM · %s CPU cores"
+msgstr "Ресурсы: %s МиБ ОЗУ · %s ядер ЦП"
+
+msgid "Overlay space could not be read."
+msgstr "Не удалось определить свободное место в overlay."
+
+#, javascript-format
+msgid "The preflight check failed: %s"
+msgstr "Предварительная проверка не пройдена: %s"
+
+msgid "Resource information is unavailable."
+msgstr "Сведения о ресурсах недоступны."
+
+msgid "Create and download a configuration backup"
+msgstr "Создать и скачать резервную копию конфигурации"
+
+msgid "The backup is downloaded only to your browser and is not uploaded."
+msgstr "Копия скачивается только в браузер и никуда не отправляется."
+
+msgid "Creating configuration backup…"
+msgstr "Создание резервной копии конфигурации…"
+
+msgid "Saving router settings before the update."
+msgstr "Сохранение настроек роутера перед обновлением."
+
+msgid "Update not started"
+msgstr "Обновление не запущено"
+
+#, javascript-format
+msgid "The configuration backup could not be created: %s"
+msgstr "Не удалось создать резервную копию конфигурации: %s"
 
 msgid "Install Freenetic update?"
 msgstr "Установить обновление Freenetic?"
