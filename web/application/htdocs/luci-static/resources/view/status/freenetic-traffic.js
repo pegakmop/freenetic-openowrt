@@ -147,6 +147,8 @@ function mergeWanGroup(group) {
 }
 
 function connectionLabel(wan) {
+	if (/^(?:fn)?wwan$/i.test(wan.name || '') || /^phy\d+-sta\d+$/i.test(wan.device || wan.l3_device || ''))
+		return _('Wi-Fi connection');
 	switch (wan.proto) {
 	case 'pppoe': return _('PPPoE connection');
 	case 'pppoa': return _('PPPoA connection');

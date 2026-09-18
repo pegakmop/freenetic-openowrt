@@ -111,6 +111,22 @@
 			}
 		}
 	},
+	"admin/network/multiwan": {
+		"title": "Multi-WAN",
+		"order": 4.3,
+		"action": {
+			"type": "view",
+			"path": "network/freenetic-multiwan"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-freenetic"
+			],
+			"uci": {
+				"luci": { "main": { "mediaurlbase": "/luci-static/freenetic" } }
+			}
+		}
+	},
 	"admin/network/home_network": {
 		"title": "Home Network",
 		"order": 5,

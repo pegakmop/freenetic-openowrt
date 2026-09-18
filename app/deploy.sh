@@ -94,12 +94,19 @@ $SSH_CMD "$ROUTER" '
         cp /tmp/freenetic-pkg/root/etc/config/freenetic /etc/config/freenetic
     fi
     mkdir -p /usr/share/luci/menu.d /usr/share/rpcd/acl.d /usr/libexec /usr/share/freenetic
+    acl_changed=0
+    cmp -s /tmp/freenetic-pkg/root/usr/share/rpcd/acl.d/luci-app-freenetic.json \
+        /usr/share/rpcd/acl.d/luci-app-freenetic.json || acl_changed=1
     # Remove the menu filename used by the former monolithic theme package.
     rm -f /usr/share/luci/menu.d/luci-theme-freenetic.json
     cp /tmp/freenetic-pkg/root/usr/share/luci/menu.d/*.json /usr/share/luci/menu.d/
     cp /tmp/freenetic-pkg/root/usr/share/rpcd/acl.d/*.json /usr/share/rpcd/acl.d/
     cp /tmp/freenetic-pkg/root/usr/libexec/freenetic-* /usr/libexec/
     cp -r /tmp/freenetic-pkg/root/usr/share/freenetic/. /usr/share/freenetic/
+    # Remove the automatic recovery hook left by earlier development builds.
+    # It could bounce a healthy but offline provider interface; recovery is
+    # now an explicit diagnostic action only.
+    rm -f /etc/hotplug.d/iface/95-freenetic-mwan-recover
     chmod +x /usr/libexec/freenetic-*
 	# LuCI derives the ?v= cache key for every JS module from the installed
 	# package database mtime. A development copy bypasses apk/opkg, so advance
@@ -113,7 +120,14 @@ $SSH_CMD "$ROUTER" '
     # Live metrics now use short native /ubus batches. Remove the former
     # long-running CGI stream so it cannot retain a uhttpd script slot.
     rm -f /www/cgi-bin/freenetic-events
-    /etc/init.d/rpcd reload
+    # rpcd grants ACLs when a session is created.  Preserve active sessions
+    # for ordinary asset deployments, but invalidate them when the ACL itself
+    # changed so the browser cannot retain an obsolete permission snapshot.
+    if [ "$acl_changed" = 1 ]; then
+        /etc/init.d/rpcd restart
+    else
+        /etc/init.d/rpcd reload
+    fi
     rm -f /tmp/luci-indexcache*
     rm -rf /tmp/luci-modulecache
     # Theme files live outside /etc, so a plain sysupgrade (which only keeps
@@ -121,6 +135,7 @@ $SSH_CMD "$ROUTER" '
     # with everything deploy.sh installs above.
     touch /etc/sysupgrade.conf
     sed -i "\|^/www/cgi-bin/freenetic-events$|d" /etc/sysupgrade.conf
+    sed -i "\|^/etc/hotplug.d/iface/95-freenetic-mwan-recover$|d" /etc/sysupgrade.conf
     for p in /www/luci-static/freenetic /usr/share/ucode/luci/template/themes/freenetic \
              /www/luci-static/resources/freenetic-diagnostics.js \
              /www/luci-static/resources/freenetic-network.js \
@@ -133,6 +148,7 @@ $SSH_CMD "$ROUTER" '
              /www/luci-static/resources/freenetic-rpc.js \
              /www/luci-static/resources/freenetic-ui.js \
              /www/luci-static/resources/freenetic-view-guard.js \
+             /www/luci-static/resources/freenetic-multiwan-data.js \
              /www/luci-static/resources/menu-freenetic.js \
              /www/luci-static/resources/freenetic-navigation.js \
              /www/luci-static/resources/settings-freenetic.js \
@@ -141,6 +157,7 @@ $SSH_CMD "$ROUTER" '
              /www/luci-static/resources/view/network/freenetic-wifi-acl.js \
              /www/luci-static/resources/view/network/freenetic-other-connections.js \
              /www/luci-static/resources/view/network/freenetic-ddns.js \
+             /www/luci-static/resources/view/network/freenetic-multiwan.js \
              /www/luci-static/resources/view/network/freenetic-portforward.js \
              /www/luci-static/resources/view/network/freenetic-routing.js \
              /www/luci-static/resources/view/network/freenetic-wan.js \
@@ -166,6 +183,9 @@ $SSH_CMD "$ROUTER" '
              /usr/libexec/freenetic-ipsec-restart \
              /usr/libexec/freenetic-ipsec-status \
              /usr/libexec/freenetic-pbr-restart \
+             /usr/libexec/freenetic-multiwan \
+             /usr/libexec/freenetic-wifi-uplink \
+             /usr/libexec/freenetic-mwan-recover \
              /usr/libexec/freenetic-uninstall; do
         grep -qxF "$p" /etc/sysupgrade.conf || echo "$p" >> /etc/sysupgrade.conf
     done

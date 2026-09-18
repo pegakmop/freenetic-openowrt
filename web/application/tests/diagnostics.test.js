@@ -14,6 +14,10 @@ assert.match(viewSource, /freenetic-diagnostics-bundle/,
 	'diagnostics view must expose the sanitized support bundle action');
 assert.match(viewSource, /cgi-download/,
 	'diagnostics view must download the generated bundle through LuCI cgi-io');
+assert.match(viewSource, /MULTIWAN_HELPER[\s\S]*No Internet access/,
+	'diagnostics must load tracked Internet health instead of trusting DHCP alone');
+assert.match(viewSource, /Internet status/,
+	'diagnostics must label tracked reachability as Internet status');
 
 const summary = diagnostics.summarizeInterfaces({
 	interface: [

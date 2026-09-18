@@ -27,9 +27,16 @@
  * hand-rolling multi-step raw ubus add/set/commit calls.
  */
 const ubusCall = rpc.call;
+const MULTIWAN_HELPER = '/usr/libexec/freenetic-multiwan';
 
 const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, freeneticReleaseLine, freeneticReleaseCandidates, formatFreeneticReleaseDate, freeneticReleaseNotes, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, getIwinfoDevices, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, freeneticReleaseCodename, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
 const TRAFFIC_COLORS = [ 'fn-tc-0', 'fn-tc-1', 'fn-tc-2', 'fn-tc-3', 'fn-tc-4', 'fn-tc-other' ];
+
+function getMultiwanStatus() {
+	return fs.exec_direct(MULTIWAN_HELPER, [ 'status' ], 'json')
+		.then(result => result && result.ok ? result : null)
+		.catch(() => null);
+}
 function svgIcon(d, size) {
 	size = size || 18;
 	const span = E('span', { class: 'fn-icon' });
@@ -295,7 +302,8 @@ return view.extend({
 			getSysupgradeConfig(),
 			Promise.resolve({ pending: true }),
 			iwinfoDevices.then(getWifiStations),
-			getActiveArpMacs()
+			getActiveArpMacs(),
+			getMultiwanStatus()
 		]);
 	},
 
@@ -318,6 +326,7 @@ return view.extend({
 		const freeneticUpdateState = data[13];
 		const wifiStations = data[14];
 		const activeArpMacs = data[15];
+		const multiwanStatus = data[16];
 
 		this.lanInfo = lan;
 		this.trafficHistory = {};
@@ -328,6 +337,10 @@ return view.extend({
 		this.activeArpMacs = activeArpMacs;
 		this.clientDhcpConfig = dhcpConfig;
 		this.clientGuestInfo = guestInfo;
+		this.mwanStates = {};
+		((multiwanStatus && multiwanStatus.interfaces) || []).forEach(item => {
+			this.mwanStates[item.name] = item.state;
+		});
 
 		const container = E('div', { class: 'fn-dash' }, [
 			E('div', { class: 'fn-dash-col' }, [
@@ -436,8 +449,18 @@ return view.extend({
 	},
 
 	fillConnectionInfo(conn, wan) {
-		conn.statusPill.className = 'fn-status-pill ' + (wan.up ? 'fn-status-ok' : 'fn-status-off');
-		dom_content(conn.statusPill, wan.up ? _('Connected') : _('Not connected'));
+		const tracked = conn.ifaceNames.map(name => this.mwanStates && this.mwanStates[name]).find(Boolean);
+		const status = tracked === 'online'
+			? { className: 'fn-status-ok', label: _('Internet access') }
+			: tracked === 'checking'
+				? { className: 'fn-status-warn', label: _('Checking…') }
+				: tracked === 'offline'
+					? { className: 'fn-status-off', label: _('No Internet access') }
+					: wan.up
+						? { className: 'fn-status-warn', label: _('IP address received') }
+						: { className: 'fn-status-off', label: _('Not connected') };
+		conn.statusPill.className = 'fn-status-pill ' + status.className;
+		dom_content(conn.statusPill, status.label);
 
 		const v4addrs = (wan['ipv4-address'] || []).map(a => a.address + '/' + a.mask);
 		const v6addrs = (wan['ipv6-address'] || []).map(a => a.address + '/' + a.mask);
@@ -532,7 +555,13 @@ return view.extend({
 	pollWan() {
 		const now = Date.now();
 
-		return getWanConnections().then(L.bind(function(groups) {
+		return Promise.all([ getWanConnections(), getMultiwanStatus() ]).then(L.bind(function(results) {
+			const groups = results[0];
+			const multiwanStatus = results[1];
+			this.mwanStates = {};
+			((multiwanStatus && multiwanStatus.interfaces) || []).forEach(item => {
+				this.mwanStates[item.name] = item.state;
+			});
 			return Promise.all(groups.map(L.bind(function(group) {
 				const conn = this.connections.find(c => c.device === group.device);
 				if (!conn)

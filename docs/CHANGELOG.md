@@ -13,6 +13,37 @@ The surface remains familiar.
 Beneath it, packets are learning new habits:
 split, reorder, and take a different route.
 
+## [0.4.0-alpha.1] — 2026-09-18
+
+### Added
+
+- Added a first-user Multi-WAN interface with a visual traffic diagram and
+  simple modes for one connection, automatic failover and flow balancing.
+- Added selection of the active line in one-connection mode, including
+  persistent selection across mode changes.
+- Added guided second-provider setup through a spare Ethernet port or a nearby
+  Wi-Fi network without adopting existing user-managed WWAN sections.
+- Added clear runtime states for active, available-but-unused, checking and
+  unavailable Internet connections.
+- Added policy and traffic-diagram capacity for up to seven managed uplinks,
+  including Ethernet, Wi-Fi and modem-backed interfaces.
+
+### Safety and correctness
+
+- Multi-WAN changes use owned UCI sections, a shared mutation lock, snapshots,
+  verification and rollback while preserving unrelated mwan3 policies.
+- Wi-Fi backup setup now requires DHCP, a non-conflicting subnet and a
+  successful mwan3 Internet health check before reporting success.
+- Mode changes reload the page after both success and failure so the interface
+  always returns to authoritative router state.
+- Freenetic-managed uplinks receive distinct route metrics and reject an eighth
+  connection instead of silently replacing another provider route.
+
+### Alpha scope
+
+- This preview focuses on IPv4 Multi-WAN behavior. Further compatibility and
+  failure-injection testing will continue before beta.
+
 ## [0.3.2] — 2026-09-16
 
 ### Added

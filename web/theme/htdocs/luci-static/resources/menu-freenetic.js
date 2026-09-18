@@ -24,7 +24,7 @@ var SIDEBAR_GROUPS = [
 		'status/dashboard', 'status/traffic', 'status/wifimonitor'
 	] },
 	{ title: 'Internet', icon: 'internet', paths: [
-		'network/internet', 'network/other_connections', 'network/ddns'
+		'network/internet', 'network/other_connections', 'network/ddns', 'network/multiwan'
 	] },
 	{ title: 'My Networks & Wi-Fi', icon: 'wireless', paths: [
 		'status/clients', 'network/home_network', 'network/guest_network',

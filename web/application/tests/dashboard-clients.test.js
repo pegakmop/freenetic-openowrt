@@ -16,6 +16,9 @@ const dashboardData = new Function('baseclass', 'fs', 'uci', 'rpc', '_', dataSou
 );
 const dashboardClientRows = dashboardData.dashboardClientRows;
 
+assert.equal(dashboardData.connectionLabel({ name: 'fnwwan', device: 'phy1-sta0', proto: 'dhcp' }),
+	'Wi-Fi connection', 'a station uplink must not be labelled as Ethernet');
+
 const leases = [
 	{ macaddr: 'aa:bb:cc:00:00:02', hostname: 'Laptop', ipaddr: '192.168.1.22' },
 	{ macaddr: 'aa:bb:cc:00:00:01', hostname: 'Phone', ipaddr: '192.168.50.4' }

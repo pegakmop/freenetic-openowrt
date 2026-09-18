@@ -4,7 +4,8 @@
 		"read": {
 			"cgi-io": [ "download" ],
 			"ubus": {
-				"uci": [ "get" ],
+				"uci": [ "changes", "get" ],
+				"mwan3": [ "status" ],
 				"network.interface": [ "status", "dump" ],
 				"network.device": [ "status" ],
 				"network.wireless": [ "status" ],
@@ -35,6 +36,8 @@
 				"/usr/libexec/freenetic-awg-feed status": [ "exec" ],
 				"/usr/libexec/freenetic-avahi-reflector status": [ "exec" ],
 				"/usr/libexec/freenetic-ipsec-status": [ "exec" ],
+				"/usr/libexec/freenetic-multiwan status": [ "exec" ],
+				"/usr/libexec/freenetic-wifi-uplink status": [ "exec" ],
 				"/etc/openvpn/freenetic/*": [ "read" ],
 				"/usr/share/ddns/default": [ "list" ],
 				"/usr/share/ddns/default/*": [ "read" ],
@@ -42,12 +45,12 @@
 				"/usr/share/ddns/custom/*": [ "read" ],
 				"/usr/share/ddns/list": [ "read" ]
 			},
-			"uci": [ "network", "wireless", "dhcp", "firewall", "ddns", "attendedsysupgrade", "luci", "freenetic", "pbr", "ipsec" ]
+			"uci": [ "network", "wireless", "dhcp", "firewall", "ddns", "mwan3", "attendedsysupgrade", "luci", "freenetic", "pbr", "ipsec" ]
 		},
 		"write": {
 			"cgi-io": [ "upload" ],
 			"ubus": {
-				"uci": [ "set", "commit" ],
+				"uci": [ "add", "apply", "commit", "confirm", "delete", "order", "rename", "rollback", "set" ],
 				"network": [ "reload" ],
 				"luci.wireguard": [ "generateKeyPair", "getPublicAndPrivateKeyFromPrivate", "generatePsk" ],
 				"luci.amneziawg": [ "generateKeyPair", "getPublicAndPrivateKeyFromPrivate", "generatePsk" ],
@@ -76,12 +79,16 @@
 				"/usr/libexec/freenetic-avahi-reflector disable": [ "exec" ],
 				"/usr/libexec/freenetic-ipsec-restart": [ "exec" ],
 				"/usr/libexec/freenetic-pbr-restart": [ "exec" ],
+				"/usr/libexec/freenetic-multiwan check *": [ "exec" ],
+				"/usr/libexec/freenetic-multiwan apply *": [ "exec" ],
+				"/usr/libexec/freenetic-wifi-uplink connect *": [ "exec" ],
+				"/usr/libexec/freenetic-wifi-uplink remove": [ "exec" ],
 				"/usr/libexec/freenetic-uninstall keep-config": [ "exec" ],
 				"/usr/libexec/freenetic-uninstall purge-managed": [ "exec" ],
 				"/usr/libexec/freenetic-port-probe *": [ "exec" ],
 				"/usr/lib/ddns/dynamic_dns_lucihelper.sh": [ "exec" ]
 			},
-			"uci": [ "network", "wireless", "dhcp", "firewall", "ddns", "luci", "freenetic", "pbr", "ipsec" ]
+			"uci": [ "network", "wireless", "dhcp", "firewall", "ddns", "mwan3", "luci", "freenetic", "pbr", "ipsec" ]
 		}
 	}
 }

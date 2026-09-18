@@ -55,12 +55,23 @@ assert.deepEqual([ ...missingFiles ].sort(), [], 'literal file operations must b
 assert.ok(acl.read.uci.includes('luci'), 'theme detection requires read access to luci config');
 assert.ok(acl.write.uci.includes('luci'), 'theme settings require write access to luci config');
 assert.ok(acl.read.ubus.uci.includes('get'), 'raw UCI reads require the legacy ubus method grant');
-assert.ok(acl.write.ubus.uci.includes('set'), 'raw UCI writes require the legacy ubus method grant');
-assert.ok(acl.write.ubus.uci.includes('commit'), 'OpenWrt 24.10 requires an explicit UCI commit grant');
+assert.ok(acl.read.ubus.uci.includes('changes'), 'the unsaved changes header requires the UCI changes grant');
+for (const method of [ 'add', 'apply', 'commit', 'confirm', 'delete', 'order', 'rename', 'rollback', 'set' ])
+	assert.ok(acl.write.ubus.uci.includes(method), `UCI editing requires the ${method} ubus grant`);
 assert.ok(acl.read.file['/proc/[0-9]*/net/arp'],
 	'new rpcd releases resolve /proc/net through /proc/<pid>/net and require the resolved path grant');
 assert.ok(acl.read.file['/usr/libexec/package-manager-call update'],
 	'package index refresh must have the exact helper ACL used by the application catalog');
+assert.ok(acl.read.file['/usr/libexec/freenetic-multiwan status'],
+	'Multi-WAN status must use the controller read grant');
+assert.ok(acl.write.file['/usr/libexec/freenetic-multiwan apply *'],
+	'Multi-WAN changes must use the controller write grant');
+assert.ok(acl.read.file['/usr/libexec/freenetic-wifi-uplink status'],
+	'Wi-Fi backup status must use a read-only helper grant');
+assert.ok(acl.write.file['/usr/libexec/freenetic-wifi-uplink connect *'],
+	'Wi-Fi backup setup must use the transactional helper grant');
+assert.ok(acl.write.file['/usr/libexec/freenetic-wifi-uplink remove'],
+	'Wi-Fi backup removal must use an exact helper grant');
 assert.ok(acl.write.file['/sbin/ifup guest'],
 	'guest activation must be constrained to the only interface the UI starts');
 assert.equal(acl.write.file['/sbin/ifup'], undefined,

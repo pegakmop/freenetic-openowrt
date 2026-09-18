@@ -1,21 +1,23 @@
-# Freenetic 0.3.x release checklist
+# Freenetic release checklist
 
-The `0.3.x` line adds Wi-Fi airspace analysis, physical Ethernet port roles,
-independent routed segments and per-network or per-device traffic policies.
-Because these features can change WAN, bridge, DHCP, firewall and PBR state,
-the line stays feature-frozen after `0.3.0-alpha.4`: beta, RC and stable builds
-may contain fixes, tests, compatibility work and restrained UI polish only.
+Freenetic releases are built from immutable tagged source. Stable release lines
+remain feature-frozen, while a new alpha line may introduce guarded features
+with an explicitly documented preview scope.
 
 ## Before release
 
-- [ ] The change is a fix or release-hardening change and belongs in `0.3.x`.
-- [ ] The `0.3.0` branch contains the complete change and the worktree is clean.
+- [ ] The change belongs in the target release line and maturity stage.
+- [ ] The release commit contains the complete change and the worktree is clean.
 - [ ] `make check` passes, including both supported CLI ABIs when their
       toolchains are present.
 - [ ] `git diff --check` passes.
 - [ ] Any ownership or helper change has a regression/contract test.
 - [ ] The changelog describes the user-visible behavior and compatibility
       impact.
+- [ ] Prerelease tags use the dotted form (`vX.Y.Z-alpha.N`, `-beta.N`, or
+      `-rc.N`) so release titles remain anonymous until the stable reveal.
+- [ ] Unrevealed release names are absent from shipped assets, release notes,
+      branch names and every commit reachable from the public tag.
 
 ## Package and CLI verification
 
@@ -66,6 +68,17 @@ following is the minimum stable-release path for each relevant OpenWrt line:
 - [ ] config/package backup and the intended sysupgrade `--test` path behave
       predictably.
 
+For `0.4.x` prereleases, additionally verify that:
+
+- [ ] one-connection mode retains the explicitly selected uplink;
+- [ ] failover moves new traffic to the healthy secondary line;
+- [ ] balance mode includes every healthy owned IPv4 uplink;
+- [ ] an online but unselected line is shown as unused, not failed;
+- [ ] a Wi-Fi uplink reports success only after DHCP and mwan3 reachability;
+- [ ] simultaneous mode and Wi-Fi operations are rejected by the shared lock;
+- [ ] failed Wi-Fi setup restores network, wireless, firewall and mwan3 files;
+- [ ] removing Wi-Fi retains the previous mode when enough uplinks remain.
+
 For `0.3.0`, cover a clean install, `0.2.7 → 0.3.0` and the most recent
 prerelease → the candidate being tested. A downgrade need not be supported,
 but it must fail clearly before leaving a partial installation.
@@ -107,7 +120,7 @@ notification:
 
 ## Publishing
 
-- [ ] publish from the verified `0.3.0` branch state;
+- [ ] publish from the verified release commit;
 - [ ] create and push an annotated release tag from the clean, fully tested
       commit; never move or recreate a published release tag;
 - [ ] build artifacts from the tag, not from a local dirty tree;

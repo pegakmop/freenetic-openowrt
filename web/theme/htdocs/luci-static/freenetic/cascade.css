@@ -937,6 +937,27 @@ hr { border: none; border-top: 1px solid var(--fn-border); margin: 1em 0; }
 	max-width: 100%;
 }
 
+#fn-footer {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 9px;
+	margin: 0 40px;
+	padding: 16px 8px calc(18px + env(safe-area-inset-bottom, 0px));
+	border-top: 1px solid var(--fn-border);
+	color: var(--fn-text-secondary);
+	font-size: .85rem;
+	line-height: 1.4;
+}
+#fn-footer .fn-footer-brand {
+	color: var(--fn-text);
+	font-family: var(--fn-font-display);
+	letter-spacing: .06em;
+}
+#fn-footer .fn-footer-separator { color: var(--fn-border-strong); }
+#fn-footer a { white-space: nowrap; }
+
 
 @media (max-width: 860px) {
 	#fn-sidebar {
@@ -1356,7 +1377,11 @@ input:focus, textarea:focus, select:focus {
 	box-shadow: 0 0 0 3px var(--fn-accent-soft);
 }
 input[disabled], textarea[disabled], select[disabled] {
-	background: var(--fn-surface-alt);
+	/* Do not use the background shorthand here. In dark mode the more
+	   specific select arrow keeps its background-image, while the shorthand
+	   resets background-repeat to its initial `repeat` value and tiles the
+	   chevron across the whole disabled control. */
+	background-color: var(--fn-surface-alt);
 	color: var(--fn-text-disabled);
 }
 
@@ -2408,6 +2433,208 @@ body[data-page="admin-system-package-manager"] #maincontent #view > .controls > 
 	word-break: normal;
 }
 .fn-info-empty { color: var(--fn-text-secondary); font-size: 1.125rem; }
+
+/* Multi-WAN controls. These cards intentionally share the
+ * dashboard surfaces: the first release slice reports state without exposing
+ * live network mutations, so uplinks and policies read like a status board. */
+.fn-multiwan-page .fn-oc-notice { margin-bottom: 20px; }
+.fn-multiwan-section { grid-column: 1 / -1; }
+.fn-multiwan-dashboard {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: stretch;
+	margin-bottom: 20px;
+}
+.fn-multiwan-dashboard .fn-card { min-width: 0; }
+.fn-multiwan-summary-card { display: flex; flex-direction: column; }
+.fn-multiwan-summary-card .fn-card-body { flex: 1 1 auto; }
+.fn-multiwan-summary-body { min-height: 154px; }
+.fn-multiwan-card-status {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 14px;
+}
+.fn-multiwan-card-status strong { font-size: 1.05rem; }
+.fn-multiwan-card-primary {
+	color: var(--fn-text);
+	font-size: 1.35rem;
+	font-weight: 600;
+	line-height: 1.25;
+}
+.fn-multiwan-card-description {
+	margin: 7px 0 0;
+	color: var(--fn-text-secondary);
+	line-height: 1.45;
+}
+.fn-multiwan-card-meta {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px 20px;
+	margin-top: 18px;
+	padding-top: 14px;
+	border-top: 1px solid var(--fn-border);
+}
+.fn-multiwan-card-meta .fn-info-value { font-size: 1.05rem; }
+.fn-multiwan-card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.fn-multiwan-card-action { width: auto; margin: 0; }
+.modal.fn-wifi-uplink-modal { width: min(680px, calc(100% - 40px)); max-width: 680px; }
+.fn-wifi-uplink-wizard { display: grid; gap: 14px; }
+.fn-wifi-uplink-wizard [hidden] { display: none !important; }
+.fn-wifi-uplink-warning { margin: 0; color: var(--fn-text-secondary); font-size: .9rem; line-height: 1.45; }
+.fn-wifi-uplink-networks {
+	display: grid;
+	gap: 8px;
+	max-height: min(330px, 42vh);
+	overflow-y: auto;
+	padding: 2px;
+}
+.fn-wifi-uplink-network {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+	width: 100%;
+	padding: 12px 14px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+	color: var(--fn-text);
+	text-align: left;
+	cursor: pointer;
+}
+.fn-wifi-uplink-network:hover,
+.fn-wifi-uplink-network.selected { border-color: var(--fn-accent); }
+.fn-wifi-uplink-network.selected { box-shadow: inset 3px 0 0 var(--fn-accent); }
+.fn-wifi-uplink-network-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.fn-wifi-uplink-network-meta { flex: 0 0 auto; color: var(--fn-text-secondary); font-size: .88rem; }
+.fn-multiwan-flow-card,
+.fn-multiwan-mode-selector { margin-bottom: 20px; }
+.fn-multiwan-flow-holder { min-height: 220px; display: flex; align-items: center; }
+.fn-multiwan-flow-diagram {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(150px, 190px) minmax(130px, .65fr);
+	align-items: center;
+	gap: 22px;
+	width: 100%;
+}
+.fn-multiwan-flow-inputs { display: grid; gap: 14px; }
+.fn-multiwan-flow-lane {
+	display: grid;
+	grid-template-columns: minmax(140px, .75fr) minmax(80px, 1fr);
+	align-items: center;
+	gap: 12px;
+}
+.fn-multiwan-flow-source {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	min-width: 0;
+}
+.fn-multiwan-flow-source strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fn-multiwan-flow-source .fn-status-pill { flex: 0 0 auto; font-size: .78rem; }
+.fn-multiwan-flow-wire {
+	position: relative;
+	height: 3px;
+	border-radius: 99px;
+	background: var(--fn-border-strong);
+	overflow: hidden;
+}
+.fn-multiwan-flow-wire::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--fn-border-strong);
+}
+.fn-flow-online .fn-multiwan-flow-wire { background: var(--fn-status-ok); }
+.fn-flow-offline .fn-multiwan-flow-wire { background: var(--fn-warning); opacity: .75; }
+.fn-flow-live .fn-multiwan-flow-wire::before {
+	background: repeating-linear-gradient(90deg, transparent 0 12px, rgba(255,255,255,.8) 12px 18px, transparent 18px 30px);
+	animation: fn-multiwan-flow 1.4s linear infinite;
+}
+.fn-multiwan-flow-pulse { display: none; }
+.fn-multiwan-flow-router,
+.fn-multiwan-flow-output {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	min-height: 112px;
+	padding: 16px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius-lg);
+	background: var(--fn-surface);
+	text-align: center;
+}
+.fn-multiwan-flow-router { border-color: var(--fn-accent); box-shadow: 0 0 0 3px var(--fn-accent-soft); }
+.fn-multiwan-flow-router .fn-icon { color: var(--fn-accent); }
+.fn-multiwan-flow-output .fn-icon { color: var(--fn-accent-brand); }
+.fn-multiwan-flow-router span:last-child,
+.fn-multiwan-flow-output span:last-child { color: var(--fn-text-secondary); font-size: .9rem; }
+.fn-multiwan-mode-options {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+}
+.fn-multiwan-mode-option {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 5px;
+	min-height: 74px;
+	padding: 13px 15px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+	color: var(--fn-text);
+	text-align: left;
+	cursor: pointer;
+	transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.fn-multiwan-mode-option span { color: var(--fn-text-secondary); font-size: .9rem; line-height: 1.35; }
+.fn-multiwan-mode-option:hover { border-color: var(--fn-border-strong); background: var(--fn-surface-alt); }
+.fn-multiwan-mode-option.fn-mode-selected { border-color: var(--fn-accent); background: var(--fn-surface); box-shadow: inset 3px 0 0 var(--fn-accent); }
+.fn-multiwan-mode-option:focus-visible { outline: 2px solid var(--fn-accent); outline-offset: 2px; }
+.fn-multiwan-mode-actions {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 14px;
+	margin-top: 14px;
+}
+.fn-multiwan-mode-actions [hidden] { display: none !important; }
+.fn-multiwan-single-choice {
+	display: grid;
+	gap: 6px;
+	min-width: min(360px, 100%);
+}
+.fn-multiwan-single-choice label { color: var(--fn-text-secondary); font-size: .9rem; }
+.fn-multiwan-single-choice select { width: 100%; }
+.fn-multiwan-mode-apply { width: auto; min-width: 150px; }
+.fn-multiwan-preview-note { margin: 14px 0 0; color: var(--fn-text-secondary); font-size: .9rem; }
+@keyframes fn-multiwan-flow { from { transform: translateX(-30px); } to { transform: translateX(30px); } }
+.fn-multiwan-uplinks { display: grid; gap: 14px; }
+.fn-multiwan-uplink {
+	padding: 16px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+}
+.fn-multiwan-uplink-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 14px;
+	margin-bottom: 12px;
+}
+.fn-multiwan-uplink-head strong { font-size: 1.1rem; }
+.fn-multiwan-uplink-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 18px;
+	color: var(--fn-text-secondary);
+}
 .fn-conn-ipv6 {
 	margin-top: 14px;
 	padding-top: 10px;
@@ -5008,6 +5235,47 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 }
 .fn-port-adaptive-result .fn-settings-btn { min-height: 28px; padding: 3px 9px; font-size: .75rem; }
 .fn-port-adaptive-scan { min-width: 150px; white-space: nowrap; }
+.modal.fn-backup-wizard-modal {
+	position: relative;
+	width: min(calc(100% - 32px), 720px);
+	max-width: 720px;
+	max-height: calc(100vh - 32px);
+	margin: 16px auto;
+	overflow-y: auto;
+}
+.fn-backup-wizard { width: 100%; min-width: 0; }
+.fn-backup-wizard > p {
+	margin: 0 0 14px;
+	color: var(--fn-text-secondary);
+	line-height: 1.55;
+}
+.fn-backup-wizard-grid,
+.fn-backup-wizard-credentials {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+.fn-backup-wizard-credentials { margin-top: 12px; }
+.fn-backup-wizard-credentials[hidden] { display: none; }
+.fn-backup-wizard .fn-settings-field { min-width: 0; margin: 0; }
+.fn-backup-wizard .fn-input { min-width: 0; max-width: 100%; }
+.fn-backup-wizard-status {
+	margin-top: 14px;
+	padding: 11px 13px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius-md);
+	background: var(--fn-surface-soft);
+	color: var(--fn-text-secondary);
+	line-height: 1.45;
+}
+.fn-backup-wizard-success {
+	border-color: color-mix(in srgb, var(--fn-status-ok) 45%, var(--fn-border));
+	color: var(--fn-status-ok);
+}
+.fn-backup-wizard-error {
+	border-color: color-mix(in srgb, var(--fn-warning) 50%, var(--fn-border));
+	color: var(--fn-warning);
+}
 
 @media (max-width: 760px) {
 	.fn-port-adaptive { grid-template-columns: 36px minmax(0, 1fr); align-items: start; }
@@ -5022,6 +5290,18 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 	.fn-port-role-hint { margin: 0 0 6px; }
 	.fn-port-dedicated { grid-template-columns: minmax(0, 1fr); }
 	.fn-port-actions, .fn-port-save { width: 100%; }
+	.modal.fn-backup-wizard-modal {
+		width: calc(100% - 24px);
+		max-width: none;
+		max-height: calc(100vh - 24px);
+		margin: 12px auto;
+		padding: 20px 16px 16px;
+	}
+	.fn-backup-wizard { width: auto; }
+	.fn-backup-wizard-grid,
+	.fn-backup-wizard-credentials { grid-template-columns: minmax(0, 1fr); }
+	.modal.fn-backup-wizard-modal > .button-row { flex-direction: column-reverse; }
+	.modal.fn-backup-wizard-modal > .button-row .btn { width: 100%; }
 }
 @media (max-width: 420px) {
 	.fn-port-map { grid-template-columns: minmax(0, 1fr); }
@@ -5130,12 +5410,104 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 	.fn-wifi-acl-body-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
 	.fn-wifi-acl-settings { padding-bottom: 14px; border-bottom: 1px solid var(--fn-border); }
 	.fn-table-actions { flex-wrap: wrap; }
+	.fn-multiwan-dashboard { grid-template-columns: minmax(0, 1fr); }
+	.fn-multiwan-flow-diagram { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+	.fn-multiwan-flow-lane { grid-template-columns: minmax(120px, .8fr) minmax(80px, 1fr); }
 	/* Hover elevation is not meaningful on touch screens and can leave a
 	   tapped card visually shifted while an overlay drawer is opening. */
 	.fn-card:hover { transform: none; box-shadow: var(--fn-shadow-1); }
 }
 
 @media (max-width: 640px) {
+	.fn-multiwan-summary-body { min-height: 0; }
+	.fn-multiwan-card-actions { flex-direction: column; }
+	.fn-multiwan-card-action { width: 100%; }
+	.modal.fn-wifi-uplink-modal { width: calc(100% - 24px); max-width: none; }
+	.fn-wifi-uplink-network { align-items: flex-start; flex-direction: column; gap: 4px; }
+	.fn-wifi-uplink-network-meta { flex: 0 1 auto; }
+	.fn-multiwan-card-meta { grid-template-columns: minmax(0, 1fr); }
+	.fn-multiwan-mode-options { grid-template-columns: minmax(0, 1fr); }
+	.fn-multiwan-mode-actions { align-items: stretch; flex-direction: column; }
+	.fn-multiwan-single-choice { min-width: 0; width: 100%; }
+	.fn-multiwan-mode-apply { width: 100%; }
+	.fn-multiwan-flow-holder { min-height: 0; }
+	.fn-multiwan-flow-diagram { gap: 0; }
+	.fn-multiwan-flow-inputs {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 10px;
+	}
+	.fn-multiwan-flow-lane {
+		display: grid;
+		grid-template-rows: minmax(84px, 1fr) 24px;
+		min-width: 0;
+		gap: 0;
+	}
+	.fn-multiwan-flow-lane:last-child:nth-child(odd) { grid-column: 1 / -1; }
+	.fn-multiwan-flow-source {
+		align-items: flex-start;
+		justify-content: flex-start;
+		flex-direction: column;
+		gap: 7px;
+		height: 100%;
+		min-height: 84px;
+		padding: 10px 11px;
+		border: 1px solid var(--fn-border);
+		border-radius: var(--fn-radius);
+		background: var(--fn-surface);
+	}
+	.fn-multiwan-flow-source strong {
+		min-height: 2.5em;
+		overflow: visible;
+		white-space: normal;
+		text-overflow: clip;
+		line-height: 1.25;
+	}
+	.fn-multiwan-flow-source .fn-status-pill { font-size: .72rem; }
+	.fn-multiwan-flow-wire {
+		width: 3px;
+		height: 24px;
+		margin: 0 auto;
+	}
+	.fn-flow-live .fn-multiwan-flow-wire::before {
+		background: repeating-linear-gradient(180deg, transparent 0 7px, rgba(255,255,255,.8) 7px 12px, transparent 12px 20px);
+		animation: fn-multiwan-flow-mobile 1.2s linear infinite;
+	}
+	.fn-multiwan-flow-router,
+	.fn-multiwan-flow-output {
+		position: relative;
+		display: grid;
+		grid-template-columns: 34px minmax(0, 1fr);
+		grid-template-rows: auto auto;
+		align-items: center;
+		justify-items: start;
+		column-gap: 12px;
+		row-gap: 3px;
+		min-height: 76px;
+		padding: 12px 14px;
+		text-align: left;
+	}
+	.fn-multiwan-flow-router .fn-icon,
+	.fn-multiwan-flow-output .fn-icon {
+		grid-row: 1 / 3;
+		align-self: center;
+		justify-self: center;
+	}
+	.fn-multiwan-flow-router strong,
+	.fn-multiwan-flow-output strong,
+	.fn-multiwan-flow-router span:last-child,
+	.fn-multiwan-flow-output span:last-child { grid-column: 2; }
+	.fn-multiwan-flow-output { margin-top: 24px; }
+	.fn-multiwan-flow-output::before {
+		content: '';
+		position: absolute;
+		top: -25px;
+		left: 50%;
+		width: 3px;
+		height: 25px;
+		border-radius: 99px;
+		background: var(--fn-accent);
+		transform: translateX(-50%);
+	}
 	.fn-spark-legend { flex-wrap: wrap; gap: 8px 16px; }
 	.fn-dashboard-client-connection { max-width: 110px; }
 	.fn-survey-chart {
@@ -5213,6 +5585,11 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 	.fn-route-import-row > :nth-child(5) { display: none; }
 }
 
+@keyframes fn-multiwan-flow-mobile {
+	from { transform: translateY(-20px); }
+	to { transform: translateY(20px); }
+}
+
 @media (max-width: 420px) {
 	/* On very narrow phones there is not enough room for a useful two-column
 	   row. Fall back to the stacked layout only at that point. */
@@ -5255,6 +5632,11 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 	#fn-topbar { padding: 0 10px; }
 	.fn-brand-model { display: none; }
 	#maincontent.container { padding: 12px 10px 20px; }
+	#fn-footer {
+		flex-wrap: wrap;
+		margin: 0 10px;
+		padding: 14px 6px calc(34px + env(safe-area-inset-bottom, 0px));
+	}
 	.fn-card-head { padding: 12px; }
 	.fn-card-body { padding: 12px; }
 

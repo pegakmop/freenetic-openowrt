@@ -1,0 +1,128 @@
+#!/bin/sh
+# Recover the narrow mwan3 self-lock where netifd still owns a valid default
+# route but both the main and per-interface kernel routes disappeared while
+# the tracker is offline. Real provider outages keep their routes and are not
+# restarted by this helper.
+
+set -u
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+reply() {
+	printf '{"ok":%s,"interface":"%s","needed":%s,"recovered":%s,"reason":"%s"}\n' \
+		"$1" "$(json_escape "$interface")" "$2" "$3" "$(json_escape "$4")"
+}
+
+[ "$#" -eq 2 ] || {
+	interface=
+	reply false false false "invalid-arguments"
+	exit 0
+}
+
+action=$1
+interface=$2
+case "$action" in
+	status|repair) ;;
+	*) reply false false false "invalid-action"; exit 0 ;;
+esac
+case "$interface" in
+	''|-*|*[!A-Za-z0-9_-]*) reply false false false "invalid-interface"; exit 0 ;;
+esac
+
+uci -q get "network.$interface" >/dev/null 2>&1 || {
+	reply false false false "unknown-interface"
+	exit 0
+}
+[ "$(uci -q get "mwan3.$interface.enabled" 2>/dev/null || printf 0)" = 1 ] || {
+	reply true false false "mwan-disabled"
+	exit 0
+}
+[ "$(uci -q get "network.$interface.defaultroute" 2>/dev/null || printf 1)" != 0 ] || {
+	reply true false false "default-route-disabled"
+	exit 0
+}
+
+status=$(ubus call "network.interface.$interface" status 2>/dev/null || true)
+up=$(printf '%s' "$status" | jsonfilter -e '@.up' 2>/dev/null || true)
+device=$(printf '%s' "$status" | jsonfilter -e '@.l3_device' 2>/dev/null || true)
+advertised=$(printf '%s' "$status" | jsonfilter -e '@.route[@.mask=0].target' 2>/dev/null | sed -n '1p')
+track_status=$(sed -n '1p' "/var/run/mwan3track/$interface/STATUS" 2>/dev/null || true)
+
+[ "$up" = true ] && [ -n "$device" ] && [ "$advertised" = "0.0.0.0" ] || {
+	reply true false false "interface-not-ready"
+	exit 0
+}
+[ "$track_status" = offline ] || {
+	reply true false false "tracker-not-offline"
+	exit 0
+}
+table=$(ip -4 rule show 2>/dev/null | awk -v device="$device" '
+	{
+		for (i = 1; i <= NF - 3; i++)
+			if ($i == "iif" && $(i + 1) == device && $(i + 2) == "lookup") {
+				print $(i + 3)
+				exit
+			}
+	}')
+[ -n "$table" ] || {
+	reply true false false "route-table-unknown"
+	exit 0
+}
+ip -4 route show table "$table" default dev "$device" 2>/dev/null | grep -q '^default ' && {
+	# mwan3 deliberately removes an offline uplink from the main table while
+	# retaining its netifd route in the per-interface table. That is normal
+	# failover, not the route-loss self-lock this helper repairs.
+	reply true false false "interface-route-present"
+	exit 0
+}
+ip -4 route show table main default dev "$device" 2>/dev/null | grep -q '^default ' && {
+	reply true false false "kernel-route-present"
+	exit 0
+}
+
+if [ "$action" = status ]; then
+	reply true true false "kernel-route-missing"
+	exit 0
+fi
+
+lock="/tmp/freenetic-mwan-recover-$interface.lock"
+stamp="/tmp/freenetic-mwan-recover-$interface.stamp"
+mkdir "$lock" 2>/dev/null || {
+	reply true true false "recovery-running"
+	exit 0
+}
+trap 'rmdir "$lock" >/dev/null 2>&1 || true' EXIT HUP INT TERM
+
+now=$(date +%s)
+last=$(sed -n '1p' "$stamp" 2>/dev/null || printf 0)
+case "$last" in ''|*[!0-9]*) last=0 ;; esac
+if [ $((now - last)) -lt 300 ]; then
+	reply true true false "recovery-cooldown"
+	exit 0
+fi
+printf '%s\n' "$now" > "$stamp"
+
+logger -t freenetic "Recovering missing default route for mwan3 interface $interface"
+ifdown "$interface" >/dev/null 2>&1 || true
+sleep 1
+ifup "$interface" >/dev/null 2>&1 || true
+
+attempt=0
+while [ "$attempt" -lt 10 ]; do
+	sleep 2
+	status=$(ubus call "network.interface.$interface" status 2>/dev/null || true)
+	device=$(printf '%s' "$status" | jsonfilter -e '@.l3_device' 2>/dev/null || true)
+	if [ -n "$device" ] && \
+		ip -4 route show table main default dev "$device" 2>/dev/null | grep -q '^default ' && \
+		ip -4 route show table "$table" default dev "$device" 2>/dev/null | grep -q '^default '; then
+		mwan3 ifup "$interface" >/dev/null 2>&1 || true
+		reply true true true "route-restored"
+		exit 0
+	fi
+	attempt=$((attempt + 1))
+done
+
+reply false true false "route-not-restored"
+exit 0

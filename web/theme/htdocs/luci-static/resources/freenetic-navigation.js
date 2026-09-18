@@ -21,6 +21,7 @@ const ROUTES = {
 	'admin/network/internet':       { view: 'network/freenetic-wan', title: 'Internet' },
 	'admin/network/other_connections': { view: 'network/freenetic-other-connections', title: 'Other Connections' },
 	'admin/network/ddns':            { view: 'network/freenetic-ddns', title: 'Dynamic DNS' },
+	'admin/network/multiwan':        { view: 'network/freenetic-multiwan', title: 'Multi-WAN' },
 	'admin/network/home_network':   { view: 'network/freenetic-mynetworks', title: 'Home Network' },
 	'admin/network/guest_network':  { view: 'network/freenetic-mynetworks', title: 'Guest Network' },
 	'admin/network/ethernet_ports': { view: 'network/freenetic-ports', title: 'Ethernet Ports' },

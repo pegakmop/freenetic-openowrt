@@ -24,6 +24,9 @@ assert.equal(releases.releaseTitle('v0.3.0-alpha.4'), 'Freenetic 0.3.0a-4');
 assert.equal(releases.releaseTitle('v0.3.0-beta.1'), 'Freenetic 0.3.0b-1');
 assert.equal(releases.releaseTitle('v0.3.0-rc.1'), 'Freenetic 0.3.0rc-1');
 assert.equal(releases.releaseTitle('v0.3.0'), 'Introducing Freenetic 0.3.0 Noxium');
+assert.equal(releases.releaseTitle('v0.4.0-alpha.1'), 'Freenetic 0.4.0a-1');
+assert.throws(() => releases.releaseTitle('v0.4.0-alpha1'), /no codename configured/,
+	'nonstandard alpha tags must not bypass concealed prerelease naming');
 assert.equal(releases.concealedAlphaTitle('0.3.0-beta.1'), null);
 assert.throws(() => releases.releaseTitle('0.2.6'), /invalid release tag/);
 

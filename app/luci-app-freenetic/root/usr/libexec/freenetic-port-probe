@@ -28,8 +28,15 @@ case "${1:-}" in
 		;;
 esac
 
-[ "$#" -eq 1 ] || reply_error "invalid-arguments" "Exactly one Ethernet port is required."
+[ "$#" -ge 1 ] && [ "$#" -le 2 ] || \
+	reply_error "invalid-arguments" "An Ethernet port and optional scan mode are required."
 port=$1
+scan_mode=${2:-unassigned}
+
+case "$scan_mode" in
+	unassigned|temporary-lan) ;;
+	*) reply_error "invalid-arguments" "Unsupported Ethernet scan mode." ;;
+esac
 
 case "$port" in
 	''|-*|*[!A-Za-z0-9_-]*) reply_error "invalid-name" "Invalid Ethernet port name." ;;
@@ -49,12 +56,21 @@ builtin_ports=$(
 printf '%s\n' "$builtin_ports" | grep -Fxq -- "$port" || \
 	reply_error "not-builtin" "Only built-in Ethernet ports can be probed."
 
-# Probing a configured port could leak a DHCP request into a local segment or
-# disturb the active uplink. Both the UI and this helper therefore accept only
-# ports that are currently unassigned.
-[ ! -L "/sys/class/net/$port/master" ] || \
-	reply_error "port-assigned" "Assign the port as unused before probing it."
-if uci -q show network 2>/dev/null | grep -Fq -- "'$port'"; then
+# The guided second-provider flow may explicitly scan a LAN member. In that
+# mode only the bridge used by network.lan is accepted; custom bridges, WAN
+# and individually routed ports remain protected. The port is detached only
+# for the duration of the non-configuring probe and restored by the trap.
+original_master=
+if [ -L "/sys/class/net/$port/master" ]; then
+	original_master=$(basename "$(readlink -f "/sys/class/net/$port/master")")
+fi
+if [ -n "$original_master" ]; then
+	[ "$scan_mode" = "temporary-lan" ] || \
+		reply_error "port-assigned" "Assign the port as unused before probing it."
+	lan_device=$(uci -q get network.lan.device 2>/dev/null || true)
+	[ -n "$lan_device" ] && [ "$original_master" = "$lan_device" ] || \
+		reply_error "not-lan" "Only a Home network port can be checked by the guided setup."
+elif uci -q show network 2>/dev/null | grep -Fq -- "'$port'"; then
 	reply_error "port-assigned" "Assign the port as unused before probing it."
 fi
 
@@ -64,38 +80,70 @@ probe_dir=$(mktemp -d /tmp/freenetic-port-probe.XXXXXX 2>/dev/null) ||
 	reply_error "temporary-directory" "A secure temporary directory could not be created."
 probe_result="$probe_dir/dhcp"
 probe_pppoe="$probe_dir/pppoe"
-cleanup() {
+cleanup_files() {
 	rm -f "$probe_result" "$probe_pppoe"
 	rmdir "$probe_dir" >/dev/null 2>&1 || true
+}
+restore_port() {
+	[ -n "$original_master" ] || return 0
+	[ -d "/sys/class/net/$original_master" ] || return 1
+	ip link set dev "$port" master "$original_master" >/dev/null 2>&1 || return 1
+	restored_master=$(basename "$(readlink -f "/sys/class/net/$port/master" 2>/dev/null)")
+	[ "$restored_master" = "$original_master" ]
+}
+restore_with_fallback() {
+	restore_port && return 0
+	ubus call network reload >/dev/null 2>&1 || true
+	sleep 2
+	restored_master=$(basename "$(readlink -f "/sys/class/net/$port/master" 2>/dev/null)")
+	[ "$restored_master" = "$original_master" ]
+}
+cleanup() {
+	restore_with_fallback >/dev/null 2>&1 || true
+	cleanup_files
 	[ "$was_up" = true ] || ip link set dev "$port" down >/dev/null 2>&1 || true
 }
+finish_result() {
+	result=$1
+	if ! restore_with_fallback; then
+		result='{"ok":false,"error_code":"restore-failed","error":"The Home network port could not be restored after checking."}'
+	fi
+	original_master=
+	cleanup_files
+	[ "$was_up" = true ] || ip link set dev "$port" down >/dev/null 2>&1 || true
+	trap - EXIT HUP INT TERM
+	printf '%s\n' "$result"
+	exit 0
+}
 trap cleanup EXIT HUP INT TERM
+
+if [ -n "$original_master" ]; then
+	ip link set dev "$port" nomaster >/dev/null 2>&1 || \
+		reply_error "detach-failed" "The Home network port could not be isolated for checking."
+fi
 
 ip link set dev "$port" up >/dev/null 2>&1 || \
 	reply_error "enable-failed" "The Ethernet port could not be enabled for probing."
 
 carrier=$(cat "/sys/class/net/$port/carrier" 2>/dev/null || printf '0')
 if [ "$carrier" != '1' ]; then
-	printf '{"ok":true,"link":false,"protocol":"none"}\n'
-	exit 0
+	finish_result '{"ok":true,"link":false,"protocol":"none"}'
 fi
 
 FREENETIC_PROBE_RESULT="$probe_result" \
 	timeout 5 udhcpc -f -n -q -t 1 -T 2 -A 1 -i "$port" -s "$0" >/dev/null 2>&1 || true
 if [ -s "$probe_result" ]; then
 	address=$(sed -n '1p' "$probe_result")
-	printf '{"ok":true,"link":true,"protocol":"dhcp","address":"%s"}\n' "$(json_escape "$address")"
-	exit 0
+	finish_result "$(printf '{\"ok\":true,\"link\":true,\"protocol\":\"dhcp\",\"address\":\"%s\"}' "$(json_escape "$address")")"
 fi
 
 if command -v pppoe-discovery >/dev/null 2>&1; then
 	timeout 5 pppoe-discovery -I "$port" -U -t 2 -a 1 > "$probe_pppoe" 2>&1 || true
 	if grep -q '^Access-Concentrator:' "$probe_pppoe"; then
 		concentrator=$(sed -n 's/^Access-Concentrator:[[:space:]]*//p' "$probe_pppoe" | sed -n '1p')
-		printf '{"ok":true,"link":true,"protocol":"pppoe","access_concentrator":"%s"}\n' \
-			"$(json_escape "$concentrator")"
-		exit 0
+		finish_result "$(printf '{\"ok\":true,\"link\":true,\"protocol\":\"pppoe\",\"access_concentrator\":\"%s\"}' \
+			"$(json_escape "$concentrator")")"
 	fi
 fi
 
-printf '{"ok":true,"link":true,"protocol":"none"}\n'
+finish_result '{"ok":true,"link":true,"protocol":"none"}'

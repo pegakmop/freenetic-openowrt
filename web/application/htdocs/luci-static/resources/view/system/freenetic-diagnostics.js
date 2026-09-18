@@ -8,6 +8,7 @@
 const ubusCall = rpc.call;
 const setContent = uiHelper.content;
 const notify = uiHelper.notify;
+const MULTIWAN_HELPER = '/usr/libexec/freenetic-multiwan';
 
 function infoRow(label, value) {
 	return E('div', { class: 'fn-info-row' }, [
@@ -22,6 +23,8 @@ function humanUplinkName(name) {
 
 	if (/^wan$/i.test(value))
 		return _('Internet connection');
+	if (/^(?:fn)?wwan$/i.test(value))
+		return _('Wi-Fi connection');
 	if (match)
 		return _('Internet connection %s').format(match[1]);
 
@@ -53,12 +56,22 @@ function downloadFile(path, filename) {
 	form.parentNode.removeChild(form);
 }
 
-function renderUplink(uplink) {
+function renderUplink(uplink, mwanStates) {
+	const tracked = mwanStates[uplink.name];
+	const health = tracked === 'online'
+		? { className: 'fn-status-ok', label: _('Internet access') }
+		: tracked === 'checking'
+			? { className: 'fn-status-warn', label: _('Checking…') }
+			: tracked === 'offline'
+				? { className: 'fn-status-off', label: _('No Internet access') }
+				: uplink.up
+					? { className: 'fn-status-warn', label: _('IP address received') }
+					: { className: 'fn-status-off', label: _('Disconnected') };
 	return E('div', { class: 'fn-diag-uplink' }, [
 		E('div', { class: 'fn-info-group-title' }, humanUplinkName(uplink.name)),
-		infoRow(_('Connection status'), E('span', {
-			class: 'fn-status-pill ' + (uplink.up ? 'fn-status-ok' : 'fn-status-off')
-		}, uplink.up ? _('Connected') : _('Disconnected'))),
+		infoRow(_('Internet status'), E('span', {
+			class: 'fn-status-pill ' + health.className
+		}, health.label)),
 		infoRow(_('Connection type'), humanProtocol(uplink.protocol)),
 		infoRow(_('Interface'), humanInterface(uplink.device)),
 		infoRow(_('IP address'), uplink.addresses.join(', ')),
@@ -69,14 +82,23 @@ function renderUplink(uplink) {
 
 return view.extend({
 	load() {
-		return ubusCall('network.interface', 'dump').catch(() => ({ interface: [] }));
+		return Promise.all([
+			ubusCall('network.interface', 'dump').catch(() => ({ interface: [] })),
+			fs.exec_direct(MULTIWAN_HELPER, [ 'status' ], 'json').catch(() => null)
+		]);
 	},
 
-	render(interfaceDump) {
+	render(data) {
+		const interfaceDump = data[0];
+		const multiwanStatus = data[1];
+		const mwanStates = {};
+		((multiwanStatus && multiwanStatus.ok && multiwanStatus.interfaces) || []).forEach(item => {
+			mwanStates[item.name] = item.state;
+		});
 		this.uplinks = diagnostics.summarizeInterfaces(interfaceDump);
 		const defaultTarget = (this.uplinks.find(item => item.up && item.gateway) || {}).gateway || '1.1.1.1';
 		const networkBody = this.uplinks.length
-			? this.uplinks.map(renderUplink)
+			? this.uplinks.map(uplink => renderUplink(uplink, mwanStates))
 			: [ E('div', { class: 'fn-info-empty' }, _('No WAN interface or default route was found.')) ];
 		this.bundleButton = E('button', {
 			type: 'button',

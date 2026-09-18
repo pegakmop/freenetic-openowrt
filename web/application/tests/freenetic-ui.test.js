@@ -11,6 +11,18 @@ const timers = [];
 let applyResult = Promise.resolve();
 let changesInitCount = 0;
 let removedNotification = null;
+let replacedLocation = null;
+
+global.window = {
+	caches: {
+		keys: () => Promise.resolve([ 'old-assets' ]),
+		delete: () => Promise.resolve(true)
+	},
+	location: {
+		replace: value => { replacedLocation = value; }
+	}
+};
+global._ = value => value;
 
 const ui = {
 	addNotification(_title, body, type) {
@@ -92,6 +104,15 @@ const uiHelper = new Function('baseclass', 'ui', 'uci', 'document', 'E', 'setTim
 		'header state must refresh after a successful or empty UCI apply');
 	applyResult = Promise.reject(new Error('ubus code 7'));
 	await assert.rejects(applyChanges(), /code 7/);
+	applyResult = Promise.reject(new Error('RPC call to uci/apply failed with ubus code 6: Permission denied'));
+	await assert.rejects(applyChanges(), /session permissions changed/i);
+	await Promise.resolve();
+	await Promise.resolve();
+	const logoutTimer = timers.find(timer => timer.delay === 1800);
+	assert.ok(logoutTimer, 'stale ACL sessions must schedule a fresh login');
+	logoutTimer.callback();
+	assert.match(replacedLocation, /^\/cgi-bin\/luci\/admin\/logout\?_=/,
+		'stale ACL sessions must clear the current login instead of exposing a raw RPC error');
 
 	const expectedViews = [
 		'view/network/freenetic-firewall.js',

@@ -1,5 +1,12 @@
 {% if (!blank_page): %}
 					</main>
+					<footer id="fn-footer" aria-label="Freenetic">
+						<span class="fn-footer-brand">FREENETIC</span>
+						<span class="fn-footer-separator" aria-hidden="true">·</span>
+						<span>OpenWrt</span>
+						<span class="fn-footer-separator" aria-hidden="true">·</span>
+						<a href="https://github.com/unisequence/freenetic" target="_blank" rel="noopener noreferrer external">GitHub ↗</a>
+					</footer>
 				</div>
 				<aside id="fn-settings-panel"></aside>
 			</div>

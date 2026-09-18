@@ -3285,6 +3285,9 @@ msgstr "Ethernet-подключение"
 msgid "Internet (WAN)"
 msgstr "Интернет (WAN)"
 
+msgid "Backup Internet (WAN2)"
+msgstr "Резервный интернет (WAN2)"
+
 msgid "Found a release without APK assets:"
 msgstr "Найдена версия без APK-файлов:"
 
@@ -3604,6 +3607,9 @@ msgstr "Пользовательская конфигурация"
 msgid "WAN port"
 msgstr "Порт WAN"
 
+msgid "Backup WAN port"
+msgstr "Порт резервного WAN"
+
 #, javascript-format
 msgid "LAN port %d"
 msgstr "Порт LAN %d"
@@ -3630,6 +3636,9 @@ msgstr "Порт входит в выбранную сеть и наследуе
 msgid "This becomes the physical Internet uplink for WAN and WAN6."
 msgstr "Порт станет физическим интернет-каналом для WAN и WAN6."
 
+msgid "This becomes a second physical Internet uplink for automatic failover."
+msgstr "Порт станет вторым интернет-каналом для автоматического переключения при сбое."
+
 msgid "This port belongs to a configuration not managed by Freenetic."
 msgstr "Порт относится к конфигурации, которой Freenetic не управляет."
 
@@ -3645,6 +3654,21 @@ msgstr "Порт %s"
 
 msgid "Exactly one physical port must be assigned to Internet (WAN)."
 msgstr "Интернету (WAN) должен быть назначен ровно один физический порт."
+
+msgid "Only one physical port can be assigned as the backup Internet."
+msgstr "Резервным интернетом можно назначить только один физический порт."
+
+msgid "Install mwan3 before adding a backup Internet port."
+msgstr "Перед добавлением резервного интернет-порта установите mwan3."
+
+msgid "Install mwan3 before configuring a backup Internet port."
+msgstr "Перед настройкой резервного интернет-порта установите mwan3."
+
+msgid "The backup WAN is already configured outside Freenetic."
+msgstr "Резервный WAN уже настроен вне Freenetic."
+
+msgid "Backup Internet"
+msgstr "Резервный интернет"
 
 #, javascript-format
 msgid "The router address for %s must be a valid IPv4 address ending in .1."
@@ -3751,9 +3775,6 @@ msgstr "Сохранить настройки роутера"
 msgid "Remove the Freenetic interface and command-line files, while preserving all network, Wi-Fi, firewall and VPN settings."
 msgstr "Удалить интерфейс Freenetic и файлы командной строки, сохранив все настройки сети, Wi-Fi, межсетевого экрана и VPN."
 
-msgid "Remove"
-msgstr "Удалить"
-
 msgid "Full cleanup"
 msgstr "Полная очистка"
 
@@ -3808,3 +3829,468 @@ msgstr "Войти в стандартный LuCI"
 
 msgid "Removal failed"
 msgstr "Ошибка удаления"
+
+# Multi-WAN first-user view
+msgid "Online"
+msgstr "Подключено"
+
+msgid "Offline"
+msgstr "Нет связи"
+
+msgid "Checking…"
+msgstr "Проверяем…"
+
+msgid "Not in use"
+msgstr "Не используется"
+
+msgid "In use now"
+msgstr "Используется сейчас"
+
+msgid "The selected connection does not currently have Internet access."
+msgstr "У выбранного подключения сейчас нет доступа в интернет. Рабочее подключение сохранено."
+
+msgid "The selected Internet connection is unavailable."
+msgstr "Выбранное интернет-подключение недоступно."
+
+msgid "Internet access"
+msgstr "Интернет доступен"
+
+msgid "No Internet access"
+msgstr "Нет доступа в интернет"
+
+msgid "IP address received"
+msgstr "IP-адрес получен"
+
+msgid "Internet status"
+msgstr "Доступ в интернет"
+
+msgid "Wi-Fi connection"
+msgstr "Подключение по Wi‑Fi"
+
+msgid "Freenetic supports up to seven Internet connections."
+msgstr "Freenetic поддерживает до семи интернет-подключений."
+
+msgid "Weight"
+msgstr "Вес"
+
+msgid "Track method"
+msgstr "Проверка доступности"
+
+msgid "Track IPs"
+msgstr "Адреса для проверки"
+
+msgid "Technical details"
+msgstr "Технические подробности"
+
+msgid "Multi-WAN"
+msgstr "Резервный интернет"
+
+msgid "Multi-WAN is not installed"
+msgstr "Multi-WAN не установлен"
+
+msgid "No mwan3 member"
+msgstr "Нет участника mwan3"
+
+#, javascript-format
+msgid "Members: %s"
+msgstr "Участники: %s"
+
+#, javascript-format
+msgid "Initial state: %s"
+msgstr "Начальное состояние: %s"
+
+msgid "No members"
+msgstr "Нет участников"
+
+#, javascript-format
+msgid "%d rule(s)"
+msgstr "Правил: %d"
+
+#, javascript-format
+msgid "Last resort: %s"
+msgstr "Последний вариант: %s"
+
+#, javascript-format
+msgid "Internet works through %s."
+msgstr "Интернет работает через %s."
+
+msgid "No active Internet connection. Check the connection settings."
+msgstr "Нет активного подключения к интернету. Проверьте настройки подключения."
+
+#, javascript-format
+msgid "Ready — %s"
+msgstr "Готово — %s"
+
+msgid "Configured, but not available"
+msgstr "Настроено, но недоступно"
+
+msgid "Not configured"
+msgstr "Не настроено"
+
+msgid "Automatic switching"
+msgstr "Автоматическое переключение"
+
+msgid "One connection"
+msgstr "Одно подключение"
+
+msgid "Use connection"
+msgstr "Использовать подключение"
+
+msgid "Applying…"
+msgstr "Применяем…"
+
+msgid "Available, but not selected in this mode."
+msgstr "Доступно, но не выбрано в этом режиме."
+
+#, javascript-format
+msgid "Traffic is distributed across %d connections."
+msgstr "Активных подключений: %d. Трафик распределяется между ними."
+
+msgid "Connections"
+msgstr "Подключения"
+
+msgid "Participates in load balancing"
+msgstr "Участвует в балансировке"
+
+#, javascript-format
+msgid "Traffic is also using %s."
+msgstr "Трафик также идёт через %s."
+
+msgid "Internet is working"
+msgstr "Интернет работает"
+
+msgid "Internet is unavailable"
+msgstr "Интернет недоступен"
+
+msgid "Checking Internet access"
+msgstr "Проверяем доступ в интернет"
+
+msgid "Checking whether this connection has Internet access."
+msgstr "Проверяем, есть ли через это подключение доступ в интернет."
+
+msgid "Waiting for the connection check to finish."
+msgstr "Ожидаем завершения проверки подключения."
+
+msgid "The Wi-Fi network connected, but Internet access could not be confirmed."
+msgstr "Wi-Fi подключился, но доступ в интернет подтвердить не удалось."
+
+msgid "Current connection"
+msgstr "Текущее подключение"
+
+msgid "None"
+msgstr "Нет"
+
+msgid "Backup connection"
+msgstr "Резервное подключение"
+
+msgid "Mode"
+msgstr "Режим"
+
+msgid "If the current connection fails, Freenetic can use the backup connection."
+msgstr "Если текущее подключение пропадёт, Freenetic использует резервное."
+
+msgid "Add a second Internet connection to keep access online if the main one fails."
+msgstr "Добавьте второе подключение, чтобы интернет работал при сбое основного."
+
+msgid "Open connection settings"
+msgstr "Открыть настройки подключений"
+
+msgid "Add a backup connection"
+msgstr "Добавить резервное подключение"
+
+#, javascript-format
+msgid "%d disabled connection(s) are hidden from the overview."
+msgstr "Отключённых подключений скрыто: %d."
+
+msgid "Routing policies"
+msgstr "Правила маршрутизации"
+
+msgid "No additional Multi-WAN details are available."
+msgstr "Дополнительных сведений Multi-WAN нет."
+
+msgid "No mwan3 uplinks are configured yet. Install mwan3, then the editor will let you define failover and balancing members."
+msgstr "Подключения mwan3 ещё не настроены. Установите mwan3, чтобы настроить резервирование и балансировку."
+
+msgid "Connect a second Internet line and keep access online if the main one fails."
+msgstr "Подключите второй канал, чтобы интернет оставался доступен при сбое основного."
+
+msgid "Internet connections"
+msgstr "Подключения к интернету"
+
+msgid "Backup is ready"
+msgstr "Резерв готов"
+
+msgid "Backup needs attention"
+msgstr "Резерв требует внимания"
+
+msgid "Backup is not configured"
+msgstr "Резерв не настроен"
+
+msgid "Routing mode"
+msgstr "Режим работы"
+
+msgid "Freenetic will use another connection if the current one fails."
+msgstr "Freenetic переключится на другое подключение при сбое текущего."
+
+msgid "Add a backup connection to enable automatic switching."
+msgstr "Добавьте резервное подключение для автоматического переключения."
+
+msgid "Main connection"
+msgstr "Основное подключение"
+
+msgid "IPv6 backup connection"
+msgstr "Резервное IPv6-подключение"
+
+msgid "Traffic flow"
+msgstr "Схема трафика"
+
+msgid "Freenetic router"
+msgstr "Роутер Freenetic"
+
+msgid "Traffic control"
+msgstr "Управление трафиком"
+
+msgid "Your devices"
+msgstr "Ваши устройства"
+
+msgid "Waiting for connection"
+msgstr "Ожидание подключения"
+
+msgid "No Internet connection is available for the diagram."
+msgstr "Нет подключений для отображения на схеме."
+
+msgid "How traffic works"
+msgstr "Как работает трафик"
+
+msgid "Backup"
+msgstr "Резервирование"
+
+msgid "Use one Internet connection."
+msgstr "Использовать одно интернет-подключение."
+
+msgid "Switch to backup if the main connection fails."
+msgstr "Переключаться на резерв при сбое основного."
+
+msgid "Load balancing"
+msgstr "Балансировка потоков"
+
+msgid "Distribute new connections across available lines."
+msgstr "Распределять новые соединения между доступными линиями."
+
+msgid "Preview changes immediately. Applying the mode updates default Internet traffic; custom routing rules stay unchanged."
+msgstr "Схема меняется сразу. Применение режима обновляет обычный интернет-трафик; пользовательские правила маршрутизации не меняются."
+
+msgid "Apply mode"
+msgstr "Применить режим"
+
+#, javascript-format
+msgid "Multi-WAN mode applied: %s"
+msgstr "Режим резервного интернета применён: %s"
+
+#, javascript-format
+msgid "Could not apply Multi-WAN mode: %s"
+msgstr "Не удалось применить режим резервного интернета: %s"
+
+msgid "No active Internet connection is available."
+msgstr "Нет активного интернет-подключения."
+
+#, javascript-format
+msgid "Connection %s is not configured in the network."
+msgstr "Подключение %s не настроено в сети."
+
+msgid "The selected connection has no network interface name."
+msgstr "У выбранного подключения нет имени сетевого интерфейса."
+
+#, javascript-format
+msgid "Refusing to replace existing mwan3 section: %s"
+msgstr "Существующий раздел mwan3 не будет перезаписан: %s"
+
+#, javascript-format
+msgid "A Multi-WAN section named %s is already managed outside Freenetic."
+msgstr "Раздел Multi-WAN с именем %s уже управляется вне Freenetic."
+
+msgid "Add second provider"
+msgstr "Добавить второго провайдера"
+
+msgid "Automatic address (DHCP)"
+msgstr "Автоматический адрес (DHCP)"
+
+msgid "Applying backup Internet. Internet access may pause for up to 30 seconds."
+msgstr "Применяем резервный интернет. Доступ в интернет может прерваться на время до 30 секунд."
+
+msgid "Cable connected"
+msgstr "Кабель подключён"
+
+msgid "Check connection"
+msgstr "Проверить подключение"
+
+msgid "Checking DHCP and PPPoE…"
+msgstr "Проверяем DHCP и PPPoE…"
+
+msgid "Choose a port and let Freenetic check the connection."
+msgstr "Выберите порт — Freenetic сам проверит подключение."
+
+msgid "Configure backup Internet"
+msgstr "Настроить резервный интернет"
+
+msgid "Connect backup Internet"
+msgstr "Подключить резервный интернет"
+
+msgid "Connect the provider cable to a free LAN port. Freenetic will detect DHCP or PPPoE and configure it as the backup Internet connection."
+msgstr "Подключите кабель провайдера к свободному LAN-порту. Freenetic определит DHCP или PPPoE и настроит резервный интернет."
+
+msgid "Connect the second provider cable to the selected port. Devices connected to that port will be disconnected from the Home network."
+msgstr "Подключите кабель второго провайдера к выбранному порту. Устройства в этом порту будут отключены от домашней сети."
+
+msgid "DHCP detected. The connection can be configured automatically."
+msgstr "Обнаружен DHCP. Подключение можно настроить автоматически."
+
+msgid "DHCP is already configured for this connection."
+msgstr "Для этого подключения уже настроен DHCP."
+
+msgid "Detect automatically (recommended)"
+msgstr "Определить автоматически (рекомендуется)"
+
+msgid "Enter the PPPoE login and password supplied by the provider."
+msgstr "Введите логин и пароль PPPoE, выданные провайдером."
+
+msgid "Ethernet port"
+msgstr "Порт Ethernet"
+
+msgid "Guided setup"
+msgstr "Пошаговая настройка"
+
+msgid "No Ethernet port is available for a second provider."
+msgstr "Нет свободного Ethernet-порта для второго провайдера."
+
+msgid "No Internet service was detected. Check the cable or choose the connection type manually."
+msgstr "Интернет не обнаружен. Проверьте кабель или выберите тип подключения вручную."
+
+msgid "No cable"
+msgstr "Кабель не подключён"
+
+msgid "Only a Home network port can be checked here."
+msgstr "Здесь можно проверить только порт домашней сети."
+
+msgid "PPPoE detected. Enter the login and password supplied by the provider."
+msgstr "Обнаружен PPPoE. Введите логин и пароль, выданные провайдером."
+
+msgid "PPPoE is already configured for this connection."
+msgstr "Для этого подключения уже настроен PPPoE."
+
+msgid "Provider login"
+msgstr "Логин провайдера"
+
+msgid "Provider password"
+msgstr "Пароль провайдера"
+
+msgid "Save backup Internet"
+msgstr "Сохранить резервный интернет"
+
+msgid "Second Internet connection"
+msgstr "Второе подключение к интернету"
+
+msgid "The backup Internet connection is configured."
+msgstr "Резервное подключение к интернету настроено."
+
+msgid "The WAN firewall zone is missing. Restore it before adding a second provider."
+msgstr "Зона межсетевого экрана WAN отсутствует. Восстановите её перед добавлением второго провайдера."
+
+msgid "The mwan3 backup interface is already managed outside Freenetic."
+msgstr "Резервный интерфейс mwan3 уже настроен вне Freenetic."
+
+msgid "The primary mwan3 interface is disabled and managed outside Freenetic."
+msgstr "Основной интерфейс mwan3 отключён и управляется вне Freenetic."
+
+msgid "The selected port will leave the Home network and become the second Internet connection."
+msgstr "Выбранный порт выйдет из домашней сети и станет вторым подключением к интернету."
+
+msgid "The administrator session permissions changed. You will be signed out; sign in again and repeat the action."
+msgstr "Права сессии администратора изменились. Сейчас будет выполнен выход; войдите снова и повторите действие."
+
+msgid "The Multi-WAN controller did not return a valid response."
+msgstr "Контроллер Multi-WAN вернул некорректный ответ."
+
+msgid "Open network"
+msgstr "Открытая сеть"
+
+msgid "Enterprise Wi-Fi is not supported"
+msgstr "Корпоративный Wi-Fi не поддерживается"
+
+msgid "Connect Ethernet cable"
+msgstr "Подключить кабелем"
+
+msgid "Remove Wi-Fi backup"
+msgstr "Удалить резервный Wi-Fi"
+
+msgid "Connect nearby Wi-Fi"
+msgstr "Подключиться к Wi-Fi"
+
+msgid "The selected Wi-Fi radio is unavailable."
+msgstr "Выбранный радиомодуль Wi-Fi недоступен."
+
+msgid "The selected Wi-Fi name is invalid."
+msgstr "Некорректное имя сети Wi-Fi."
+
+msgid "Enter the correct Wi-Fi password."
+msgstr "Введите правильный пароль Wi-Fi."
+
+msgid "The Wi-Fi network did not provide an IP address. Check its password and DHCP settings."
+msgstr "Сеть Wi-Fi не выдала IP-адрес. Проверьте пароль и настройки DHCP."
+
+msgid "This Wi-Fi network uses the same subnet as the Home network."
+msgstr "Эта сеть Wi-Fi использует ту же подсеть, что и домашняя сеть."
+
+msgid "The Wi-Fi uplink configuration is managed outside Freenetic."
+msgstr "Конфигурация подключения Wi-Fi управляется вне Freenetic."
+
+msgid "Another network operation is still running."
+msgstr "Другая сетевая операция ещё выполняется."
+
+msgid "The Wi-Fi uplink controller did not return a valid response."
+msgstr "Контроллер подключения Wi-Fi вернул некорректный ответ."
+
+msgid "No enabled Wi-Fi radio is available for scanning."
+msgstr "Нет включённого радиомодуля Wi-Fi для поиска сетей."
+
+msgid "Wi-Fi password"
+msgstr "Пароль Wi-Fi"
+
+msgid "Connect as backup"
+msgstr "Подключить как резерв"
+
+msgid "Select the Wi-Fi network to use as backup."
+msgstr "Выберите сеть Wi-Fi для резервного подключения."
+
+msgid "No nearby Wi-Fi networks were found."
+msgstr "Поблизости не найдено сетей Wi-Fi."
+
+msgid "Enter the Wi-Fi password."
+msgstr "Введите пароль Wi-Fi."
+
+msgid "Connecting and checking Internet access…"
+msgstr "Подключаемся и проверяем доступ в интернет…"
+
+msgid "Wi-Fi backup connected: %s"
+msgstr "Резервный Wi-Fi подключён: %s"
+
+msgid "Connect backup through Wi-Fi"
+msgstr "Резервное подключение через Wi-Fi"
+
+msgid "Choose a nearby Wi-Fi network. Freenetic will connect to it as a separate Internet line."
+msgstr "Выберите сеть поблизости. Freenetic подключится к ней как к отдельной линии интернета."
+
+msgid "The Home Wi-Fi on this radio may briefly reconnect and will use the same channel as the selected network."
+msgstr "Домашний Wi-Fi на этом радиомодуле может кратковременно переподключиться и будет использовать канал выбранной сети."
+
+msgid "Remove the Freenetic Wi-Fi backup connection?"
+msgstr "Удалить резервное подключение Wi-Fi, созданное Freenetic?"
+
+msgid "Removing the Wi-Fi backup…"
+msgstr "Удаляем резервный Wi-Fi…"
+
+msgid "Wi-Fi backup removed."
+msgstr "Резервный Wi-Fi удалён."
+
+msgid "Could not remove Wi-Fi backup: %s"
+msgstr "Не удалось удалить резервный Wi-Fi: %s"

@@ -1,0 +1,424 @@
+#!/bin/sh
+# Owns a Wi-Fi station uplink as one transaction across wireless, network,
+# firewall and mwan3. Existing user WWAN/STA sections are never adopted.
+
+JSHN=/usr/share/libubox/jshn.sh
+SCOPE=wifi-uplink
+
+fallback_error() {
+	message=$(printf '%s' "$2" | sed 's/\\/\\\\/g; s/"/\\"/g')
+	printf '{"ok":false,"error_code":"%s","error":"%s","rolled_back":false}\n' "$1" "$message"
+}
+
+[ -r "$JSHN" ] || { fallback_error json-unavailable "JSON support is unavailable."; exit 0; }
+# shellcheck disable=SC1090
+. "$JSHN"
+
+snapshot_dir=
+lock_dir=
+lock_owned=0
+mutation_started=0
+completed=0
+
+json_error() {
+	code=$1
+	shift
+	json_init
+	json_add_boolean ok 0
+	json_add_string error_code "$code"
+	json_add_string error "$*"
+	json_add_boolean rolled_back "${rolled_back:-0}"
+	json_dump
+}
+
+owned() {
+	config=$1
+	section=$2
+	[ "$(uci -q get "$config.$section.freenetic_managed" 2>/dev/null || true)" = 1 ] &&
+		[ "$(uci -q get "$config.$section.freenetic_scope" 2>/dev/null || true)" = "$SCOPE" ]
+}
+
+reload_services() {
+	ubus call network reload >/dev/null 2>&1 || return 1
+	command -v wifi >/dev/null 2>&1 && wifi reload >/dev/null 2>&1 || true
+	/etc/init.d/firewall reload >/dev/null 2>&1 || return 1
+	/etc/init.d/mwan3 reload >/dev/null 2>&1 || return 1
+}
+
+restore_snapshot() {
+	[ -n "$snapshot_dir" ] || return 1
+	for config in network wireless firewall mwan3; do
+		[ -f "$snapshot_dir/$config" ] || return 1
+		uci -q revert "$config" >/dev/null 2>&1 || true
+		cp -a "$snapshot_dir/$config" "/etc/config/$config" || return 1
+		uci -q revert "$config" >/dev/null 2>&1 || true
+	done
+	reload_services
+}
+
+cleanup() {
+	if [ "$mutation_started" = 1 ] && [ "$completed" != 1 ]; then
+		rolled_back=0
+		restore_snapshot && rolled_back=1
+	fi
+	[ -z "$snapshot_dir" ] || rm -rf "$snapshot_dir"
+	[ "$lock_owned" = 1 ] && [ -n "$lock_dir" ] && rmdir "$lock_dir" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT HUP INT TERM
+
+fail() {
+	code=$1
+	shift
+	rolled_back=0
+	if [ "$mutation_started" = 1 ]; then
+		restore_snapshot && rolled_back=1
+		mutation_started=0
+	fi
+	json_error "$code" "$*"
+	exit 0
+}
+
+managed_network() {
+	uci -q show network 2>/dev/null |
+		sed -n "s/^network\.\([^.=]*\)\.freenetic_scope='\{0,1\}$SCOPE'\{0,1\}$/\1/p" |
+		while IFS= read -r name; do
+			owned network "$name" && { printf '%s\n' "$name"; break; }
+		done
+}
+
+managed_wifi_section() {
+	uci -q show wireless 2>/dev/null |
+		sed -n "s/^wireless\.\([^.=]*\)\.freenetic_scope='\{0,1\}$SCOPE'\{0,1\}$/\1/p" |
+		while IFS= read -r name; do
+			owned wireless "$name" && { printf '%s\n' "$name"; break; }
+		done
+}
+
+emit_status() {
+	name=$(managed_network)
+	json_init
+	json_add_boolean ok 1
+	if [ -z "$name" ]; then
+		json_add_boolean configured 0
+		json_dump
+		return
+	fi
+	wifi_section=$(managed_wifi_section)
+	status=$(ubus call "network.interface.$name" status 2>/dev/null || true)
+	up=$(printf '%s' "$status" | jsonfilter -e '@.up' 2>/dev/null || true)
+	address=$(printf '%s' "$status" | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null || true)
+	json_add_boolean configured 1
+	json_add_string name "$name"
+	json_add_string section "$wifi_section"
+	json_add_string radio "$(uci -q get "wireless.$wifi_section.device" 2>/dev/null || true)"
+	json_add_string ssid "$(uci -q get "wireless.$wifi_section.ssid" 2>/dev/null || true)"
+	json_add_boolean up "$([ "$up" = true ] && printf 1 || printf 0)"
+	json_add_string address "$address"
+	json_dump
+}
+
+begin_transaction() {
+	lock_dir=/tmp/freenetic-mwan-mutation.lock
+	mkdir "$lock_dir" 2>/dev/null || fail busy "Another network operation is already running."
+	lock_owned=1
+	for config in network wireless firewall mwan3; do
+		[ -z "$(uci -q changes "$config" 2>/dev/null || true)" ] ||
+			fail pending-changes "$config has pending command-line changes."
+	done
+	snapshot_dir=$(mktemp -d /tmp/freenetic-wifi-uplink.XXXXXX 2>/dev/null) ||
+		fail snapshot "Cannot create a configuration snapshot."
+	chmod 0700 "$snapshot_dir" || fail snapshot "Cannot protect the configuration snapshot."
+	for config in network wireless firewall mwan3; do
+		cp -a "/etc/config/$config" "$snapshot_dir/$config" || fail snapshot "Cannot snapshot $config."
+	done
+	mutation_started=1
+}
+
+allocate_names() {
+	existing=$(managed_network)
+	if [ -n "$existing" ]; then
+		network_name=$existing
+		wifi_name=$(managed_wifi_section)
+		[ -n "$wifi_name" ] || fail ownership-conflict "The managed Wi-Fi uplink is incomplete."
+		owned mwan3 "$network_name" || fail ownership-conflict "The managed mwan3 uplink is incomplete."
+		return
+	fi
+
+	index=1
+	while [ "$index" -le 9 ]; do
+		[ "$index" = 1 ] && network_name=fnwwan || network_name=fnwwan$index
+		[ "$index" = 1 ] && wifi_name=fn_wifi_wan || wifi_name=fn_wifi_wan_$index
+		if [ -z "$(uci -q get "network.$network_name" 2>/dev/null || true)" ] &&
+			[ -z "$(uci -q get "mwan3.$network_name" 2>/dev/null || true)" ] &&
+			[ -z "$(uci -q get "wireless.$wifi_name" 2>/dev/null || true)" ]; then
+			return
+		fi
+		index=$((index + 1))
+	done
+	fail name-exhausted "No free Freenetic Wi-Fi uplink name is available."
+}
+
+validate_radio() {
+	case "$1" in ''|-*|*[!A-Za-z0-9_]*) return 1 ;; esac
+	[ "$(uci -q get "wireless.$1" 2>/dev/null || true)" = wifi-device ]
+}
+
+wan_zone() {
+	uci -q show firewall 2>/dev/null |
+		sed -n "s/^firewall\.\([^.=]*\)\.name='\{0,1\}wan'\{0,1\}$/\1/p" | sed -n '1p'
+}
+
+add_zone_network() {
+	zone=$1
+	name=$2
+	for item in $(uci -q get "firewall.$zone.network" 2>/dev/null || true); do
+		[ "$item" = "$name" ] && return 0
+	done
+	uci -q add_list "firewall.$zone.network=$name"
+}
+
+remove_zone_network() {
+	zone=$1
+	name=$2
+	values=
+	for item in $(uci -q get "firewall.$zone.network" 2>/dev/null || true); do
+		[ "$item" = "$name" ] || values="$values $item"
+	done
+	uci -q delete "firewall.$zone.network" >/dev/null 2>&1 || true
+	for item in $values; do uci -q add_list "firewall.$zone.network=$item" || return 1; done
+}
+
+ip_to_int() {
+	old_ifs=$IFS
+	IFS=.
+	set -- $1
+	IFS=$old_ifs
+	[ "$#" = 4 ] || return 1
+	printf '%u\n' "$((($1 << 24) + ($2 << 16) + ($3 << 8) + $4))"
+}
+
+mask_from_prefix() {
+	prefix=$1
+	[ "$prefix" -ge 0 ] 2>/dev/null && [ "$prefix" -le 32 ] || return 1
+	[ "$prefix" = 0 ] && { printf '0\n'; return; }
+	printf '%u\n' "$(((0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF))"
+}
+
+prefix_from_netmask() {
+	prefix=0
+	partial=0
+	old_ifs=$IFS
+	IFS=.
+	set -- $1
+	IFS=$old_ifs
+	[ "$#" = 4 ] || return 1
+	for octet in "$@"; do
+		[ "$partial" = 0 ] || [ "$octet" = 0 ] || return 1
+		case "$octet" in
+			255) bits=8 ;;
+			254) bits=7; partial=1 ;;
+			252) bits=6; partial=1 ;;
+			248) bits=5; partial=1 ;;
+			240) bits=4; partial=1 ;;
+			224) bits=3; partial=1 ;;
+			192) bits=2; partial=1 ;;
+			128) bits=1; partial=1 ;;
+			0) bits=0; partial=1 ;;
+			*) return 1 ;;
+		esac
+		prefix=$((prefix + bits))
+	done
+	printf '%s\n' "$prefix"
+}
+
+overlaps_lan() {
+	address=$1
+	prefix=$2
+	wan_ip=$(ip_to_int "$address") || return 1
+	wan_mask=$(mask_from_prefix "$prefix") || return 1
+	lan_address=$(uci -q get network.lan.ipaddr 2>/dev/null || true)
+	lan_netmask=$(uci -q get network.lan.netmask 2>/dev/null || printf 255.255.255.0)
+	lan_ip=$(ip_to_int "$lan_address") || return 1
+	lan_mask=$(ip_to_int "$lan_netmask") || return 1
+	lan_prefix=$(prefix_from_netmask "$lan_netmask") || return 1
+	[ "$prefix" -le "$lan_prefix" ] && common_mask=$wan_mask || common_mask=$lan_mask
+	[ $((wan_ip & common_mask)) -eq $((lan_ip & common_mask)) ]
+}
+
+wait_for_dhcp() {
+	name=$1
+	tries=0
+	while [ "$tries" -lt 30 ]; do
+		status=$(ubus call "network.interface.$name" status 2>/dev/null || true)
+		up=$(printf '%s' "$status" | jsonfilter -e '@.up' 2>/dev/null || true)
+		address=$(printf '%s' "$status" | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null || true)
+		prefix=$(printf '%s' "$status" | jsonfilter -e '@["ipv4-address"][0].mask' 2>/dev/null || true)
+		[ "$up" = true ] && [ -n "$address" ] && return 0
+		sleep 1
+		tries=$((tries + 1))
+	done
+	return 1
+}
+
+wait_for_internet() {
+	name=$1
+	tries=0
+	while [ "$tries" -lt 45 ]; do
+		state=$(sed -n '1p' "/var/run/mwan3track/$name/STATUS" 2>/dev/null || true)
+		[ "$state" = online ] && return 0
+		sleep 1
+		tries=$((tries + 1))
+	done
+	return 1
+}
+
+assign_route_metric() {
+	existing=$(uci -q get "network.$network_name.metric" 2>/dev/null || true)
+	case "$existing" in 20|30|40|50|60|70)
+		owner=$(uci -q show network 2>/dev/null |
+			sed -n "s/^network\.\([^.]*\)\.metric='$existing'$/\1/p" |
+			grep -v "^$network_name$" | sed -n '1p')
+		[ -n "$owner" ] || { route_metric=$existing; return 0; }
+		;;
+	esac
+	for candidate in 20 30 40 50 60 70; do
+		uci -q show network 2>/dev/null | grep -q "^network\.[^.]*\.metric='$candidate'$" && continue
+		route_metric=$candidate
+		return 0
+	done
+	fail uplink-limit "Freenetic supports up to seven Internet connections."
+}
+
+connect_uplink() {
+	[ "$#" = 3 ] || [ "$#" = 4 ] || fail invalid-arguments "Usage: $0 connect RADIO SSID ENCRYPTION KEY"
+	radio=$1
+	ssid=$2
+	encryption=$3
+	key=${4:-}
+	validate_radio "$radio" || fail invalid-radio "The selected Wi-Fi radio does not exist."
+	case "$encryption" in none|psk2|psk-mixed|sae|sae-mixed) ;; *) fail invalid-encryption "Unsupported Wi-Fi security mode." ;; esac
+	ssid_length=$(printf '%s' "$ssid" | wc -c)
+	[ "$ssid_length" -ge 1 ] && [ "$ssid_length" -le 32 ] || fail invalid-ssid "The Wi-Fi name must contain 1 to 32 bytes."
+	case "$ssid$key" in *'
+'*) fail invalid-value "Line breaks are not supported in Wi-Fi credentials." ;; esac
+	if [ "$encryption" = none ]; then
+		[ -z "$key" ] || fail invalid-key "An open Wi-Fi network must not have a password."
+	else
+		key_length=$(printf '%s' "$key" | wc -c)
+		[ "$key_length" -ge 8 ] && [ "$key_length" -le 63 ] || fail invalid-key "The Wi-Fi password must contain 8 to 63 bytes."
+	fi
+	zone=$(wan_zone)
+	[ -n "$zone" ] || fail missing-wan-zone "The WAN firewall zone is missing."
+
+	begin_transaction
+	allocate_names
+
+	# mwan3 requires unique netifd route metrics so all provider default routes
+	# coexist before policy routing takes over. Preserve an explicit user value.
+	[ -n "$(uci -q get network.wan.metric 2>/dev/null || true)" ] ||
+		uci -q set network.wan.metric=10 || fail uci-write "Cannot configure the primary WAN route metric."
+	[ -n "$(uci -q get "network.$network_name" 2>/dev/null || true)" ] || uci -q set "network.$network_name=interface" || fail uci-write "Cannot create the Wi-Fi uplink."
+	uci -q set "network.$network_name.proto=dhcp" || fail uci-write "Cannot configure DHCP."
+	# netifd must retain every uplink default route at the same time. Distinct
+	# route metrics prevent a Wi-Fi DHCP lease from replacing the primary WAN
+	# route before mwan3 can build and track its per-interface tables.
+	assign_route_metric
+	uci -q set "network.$network_name.metric=$route_metric" || fail uci-write "Cannot configure the Wi-Fi route metric."
+	uci -q set "network.$network_name.label=Резервный Wi-Fi" || fail uci-write "Cannot label the Wi-Fi uplink."
+	uci -q set "network.$network_name.freenetic_managed=1" || fail uci-write "Cannot own the Wi-Fi uplink."
+	uci -q set "network.$network_name.freenetic_scope=$SCOPE" || fail uci-write "Cannot scope the Wi-Fi uplink."
+
+	[ -n "$(uci -q get "wireless.$wifi_name" 2>/dev/null || true)" ] || uci -q set "wireless.$wifi_name=wifi-iface" || fail uci-write "Cannot create the Wi-Fi station."
+	uci -q set "wireless.$wifi_name.device=$radio" || fail uci-write "Cannot select the Wi-Fi radio."
+	uci -q set "wireless.$wifi_name.mode=sta" || fail uci-write "Cannot select station mode."
+	uci -q set "wireless.$wifi_name.network=$network_name" || fail uci-write "Cannot attach the Wi-Fi uplink."
+	uci -q set "wireless.$wifi_name.ssid=$ssid" || fail uci-write "Cannot set the Wi-Fi name."
+	uci -q set "wireless.$wifi_name.encryption=$encryption" || fail uci-write "Cannot set Wi-Fi security."
+	if [ "$encryption" = none ]; then uci -q delete "wireless.$wifi_name.key" >/dev/null 2>&1 || true
+	else uci -q set "wireless.$wifi_name.key=$key" || fail uci-write "Cannot store the Wi-Fi password."
+	fi
+	uci -q set "wireless.$wifi_name.disabled=0" || fail uci-write "Cannot enable the Wi-Fi station."
+	uci -q set "wireless.$wifi_name.freenetic_managed=1" || fail uci-write "Cannot own the Wi-Fi station."
+	uci -q set "wireless.$wifi_name.freenetic_scope=$SCOPE" || fail uci-write "Cannot scope the Wi-Fi station."
+
+	add_zone_network "$zone" "$network_name" || fail uci-write "Cannot attach the Wi-Fi uplink to the WAN firewall zone."
+	[ -n "$(uci -q get "mwan3.$network_name" 2>/dev/null || true)" ] || uci -q set "mwan3.$network_name=interface" || fail uci-write "Cannot create the mwan3 interface."
+	uci -q set "mwan3.$network_name.enabled=1" || fail uci-write "Cannot enable mwan3 tracking."
+	uci -q set "mwan3.$network_name.family=ipv4" || fail uci-write "Cannot select the mwan3 family."
+	uci -q delete "mwan3.$network_name.track_ip" >/dev/null 2>&1 || true
+	uci -q add_list "mwan3.$network_name.track_ip=1.1.1.1" || fail uci-write "Cannot configure tracking."
+	uci -q add_list "mwan3.$network_name.track_ip=8.8.8.8" || fail uci-write "Cannot configure tracking."
+	uci -q set "mwan3.$network_name.reliability=1" || fail uci-write "Cannot configure tracking reliability."
+	uci -q set "mwan3.$network_name.freenetic_managed=1" || fail uci-write "Cannot own the mwan3 interface."
+	uci -q set "mwan3.$network_name.freenetic_scope=$SCOPE" || fail uci-write "Cannot scope the mwan3 interface."
+
+	for config in network wireless firewall mwan3; do uci -q commit "$config" || fail commit "Cannot commit $config."; done
+	ubus call network reload >/dev/null 2>&1 || fail reload "The network service did not reload."
+	wifi reload "$radio" >/dev/null 2>&1 || fail reload "The Wi-Fi radio did not reload."
+	/etc/init.d/firewall reload >/dev/null 2>&1 || fail reload "The firewall did not reload."
+	ifup "$network_name" >/dev/null 2>&1 || true
+	wait_for_dhcp "$network_name" || fail no-dhcp "The selected Wi-Fi network did not provide an IP address."
+	overlaps_lan "$address" "$prefix" && fail subnet-conflict "The Wi-Fi network overlaps the Home network subnet."
+	rm -f "/var/run/mwan3track/$network_name/STATUS" >/dev/null 2>&1 || true
+	/etc/init.d/mwan3 reload >/dev/null 2>&1 || fail reload "mwan3 did not reload the Wi-Fi uplink."
+	wait_for_internet "$network_name" || fail no-internet "The Wi-Fi network did not provide working Internet access."
+	result=$(FREENETIC_MWAN_LOCK_HELD=1 /usr/libexec/freenetic-multiwan apply failover 2>/dev/null || true)
+	[ "$(printf '%s' "$result" | jsonfilter -e '@.ok' 2>/dev/null || true)" = true ] || fail multiwan "The failover policy could not include the Wi-Fi uplink."
+
+	completed=1
+	mutation_started=0
+	logger -t freenetic "Configured managed Wi-Fi uplink $network_name"
+	json_init
+	json_add_boolean ok 1
+	json_add_string name "$network_name"
+	json_add_string ssid "$ssid"
+	json_add_string address "$address"
+	json_add_boolean rolled_back 0
+	json_dump
+}
+
+remove_uplink() {
+	[ "$#" = 0 ] || fail invalid-arguments "Usage: $0 remove"
+	network_name=$(managed_network)
+	[ -n "$network_name" ] || { json_init; json_add_boolean ok 1; json_add_boolean removed 0; json_dump; return; }
+	wifi_name=$(managed_wifi_section)
+	owned network "$network_name" || fail ownership-conflict "The Wi-Fi uplink is managed outside Freenetic."
+	owned mwan3 "$network_name" || fail ownership-conflict "The mwan3 uplink is managed outside Freenetic."
+	[ -z "$wifi_name" ] || owned wireless "$wifi_name" || fail ownership-conflict "The Wi-Fi station is managed outside Freenetic."
+	zone=$(wan_zone)
+	[ -n "$zone" ] || fail missing-wan-zone "The WAN firewall zone is missing."
+	begin_transaction
+	previous_status=$(/usr/libexec/freenetic-multiwan status 2>/dev/null || true)
+	previous_mode=$(printf '%s' "$previous_status" | jsonfilter -e '@.mode' 2>/dev/null || true)
+	case "$previous_mode" in single|failover|balance) ;; *) previous_mode=single ;; esac
+	[ -z "$wifi_name" ] || uci -q delete "wireless.$wifi_name" || fail uci-write "Cannot remove the Wi-Fi station."
+	uci -q delete "network.$network_name" || fail uci-write "Cannot remove the Wi-Fi uplink."
+	uci -q delete "mwan3.$network_name" || fail uci-write "Cannot remove the mwan3 uplink."
+	remove_zone_network "$zone" "$network_name" || fail uci-write "Cannot detach the Wi-Fi uplink from the firewall."
+	for config in network wireless firewall mwan3; do uci -q commit "$config" || fail commit "Cannot commit $config."; done
+	reload_services || fail reload "Network services did not reload after removing the Wi-Fi uplink."
+	status=$(/usr/libexec/freenetic-multiwan status 2>/dev/null || true)
+	multiple=$(printf '%s' "$status" | jsonfilter -e '@.multiple' 2>/dev/null || true)
+	[ "$multiple" = true ] && mode=$previous_mode || mode=single
+	result=$(FREENETIC_MWAN_LOCK_HELD=1 /usr/libexec/freenetic-multiwan apply "$mode" 2>/dev/null || true)
+	[ "$(printf '%s' "$result" | jsonfilter -e '@.ok' 2>/dev/null || true)" = true ] || fail multiwan "The Multi-WAN policy could not be updated."
+	completed=1
+	mutation_started=0
+	logger -t freenetic "Removed managed Wi-Fi uplink $network_name"
+	json_init
+	json_add_boolean ok 1
+	json_add_boolean removed 1
+	json_dump
+}
+
+[ "$(id -u)" = 0 ] || fail permission "Wi-Fi uplink management requires root privileges."
+[ -x /etc/init.d/mwan3 ] && [ -x /usr/libexec/freenetic-multiwan ] || fail not-installed "Multi-WAN support is not installed."
+
+action=${1:-}
+[ "$#" -gt 0 ] && shift
+case "$action" in
+	status) [ "$#" = 0 ] && emit_status || fail invalid-arguments "Usage: $0 status" ;;
+	connect) connect_uplink "$@" ;;
+	remove) remove_uplink "$@" ;;
+	*) fail invalid-arguments "Usage: $0 status|connect RADIO SSID ENCRYPTION KEY|remove" ;;
+esac

@@ -23,6 +23,18 @@ assert.match(deploy, /touch \/lib\/apk\/db\/installed/,
 	'development apk deployments must advance LuCI resource cache versioning');
 assert.match(deploy, /touch \/usr\/lib\/opkg\/status/,
 	'development opkg deployments must advance LuCI resource cache versioning');
+assert.match(deploy, /rm -f \/etc\/hotplug\.d\/iface\/95-freenetic-mwan-recover/,
+	'development deployments must remove the obsolete automatic recovery hook');
+assert.match(deploy, /sed -i [^\n]+95-freenetic-mwan-recover/,
+	'development deployments must stop preserving the obsolete hook across sysupgrade');
+assert.match(deploy, /\/usr\/libexec\/freenetic-multiwan/,
+	'development deployments must preserve the transactional Multi-WAN controller');
+assert.match(deploy, /\/usr\/libexec\/freenetic-wifi-uplink/,
+	'development deployments must preserve the transactional Wi-Fi uplink controller');
+assert.match(deploy, /cmp -s[\s\S]*luci-app-freenetic\.json[\s\S]*acl_changed=1/,
+	'development deployments must notice application ACL changes');
+assert.match(deploy, /acl_changed[\s\S]*rpcd restart[\s\S]*rpcd reload/,
+	'development deployments must renew sessions only when their ACL snapshot is stale');
 assert.match(preflight, /command -v apk/, 'router preflight must detect apk');
 assert.match(preflight, /command -v opkg/, 'router preflight must detect opkg');
 assert.match(preflight, /package_manager=opkg/, 'router preflight must accept OpenWrt 24.10');

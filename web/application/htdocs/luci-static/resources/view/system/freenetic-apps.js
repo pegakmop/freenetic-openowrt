@@ -162,6 +162,9 @@ const GROUPS = [
 			title: _('Advanced networking'),
 			tier: 'advanced',
 		items: [
+			{ id: 'mwan3', name: _('Multi-WAN'), tier: 'advanced', restartNetifdOnInstall: true,
+				packages: [ 'mwan3', 'luci-app-mwan3' ],
+				desc: _('Fail over between multiple Internet connections or balance traffic across them.') },
 				{ id: 'pbr', name: _('Policy-based routing'), packages: [ 'pbr' ],
 					desc: _('Route a network segment through a selected WAN or VPN tunnel.') },
 			{ id: 'zapret', name: _('Zapret'), tier: 'advanced', restartNetifdOnInstall: true,

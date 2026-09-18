@@ -1,0 +1,413 @@
+#!/bin/sh
+# Transactional controller for the small Multi-WAN surface exposed by
+# Freenetic.  The browser chooses a mode; ownership checks, UCI writes,
+# service reload, verification and rollback stay on the router.
+
+JSHN=/usr/share/libubox/jshn.sh
+
+fallback_error() {
+	message=$(printf '%s' "$2" | sed 's/\\/\\\\/g; s/"/\\"/g')
+	printf '{"ok":false,"error_code":"%s","error":"%s","rolled_back":false}\n' "$1" "$message"
+}
+
+[ -r "$JSHN" ] || {
+	fallback_error json-unavailable "JSON support is unavailable."
+	exit 0
+}
+# shellcheck disable=SC1090
+. "$JSHN"
+
+snapshot_dir=
+lock_dir=
+lock_owned=0
+mutation_started=0
+completed=0
+
+json_error() {
+	code=$1
+	shift
+	json_init
+	json_add_boolean ok 0
+	json_add_string error_code "$code"
+	json_add_string error "$*"
+	json_add_boolean rolled_back "${rolled_back:-0}"
+	json_dump
+}
+
+restore_snapshot() {
+	[ -n "$snapshot_dir" ] && [ -f "$snapshot_dir/mwan3" ] || return 1
+	uci -q revert mwan3 >/dev/null 2>&1 || true
+	cp -a "$snapshot_dir/mwan3" /etc/config/mwan3 || return 1
+	uci -q revert mwan3 >/dev/null 2>&1 || true
+	/etc/init.d/mwan3 reload >/dev/null 2>&1 || return 1
+	return 0
+}
+
+cleanup() {
+	if [ "$mutation_started" = 1 ] && [ "$completed" != 1 ]; then
+		rolled_back=0
+		restore_snapshot && rolled_back=1
+	fi
+	[ -z "$snapshot_dir" ] || rm -rf "$snapshot_dir"
+	[ "$lock_owned" = 1 ] && [ -n "$lock_dir" ] && rmdir "$lock_dir" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT HUP INT TERM
+
+fail() {
+	code=$1
+	shift
+	rolled_back=0
+	if [ "$mutation_started" = 1 ]; then
+		restore_snapshot && rolled_back=1
+		mutation_started=0
+	fi
+	json_error "$code" "$*"
+	exit 0
+}
+
+valid_section_name() {
+	case "$1" in
+		''|-*|*[!A-Za-z0-9_]* ) return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
+section_type() {
+	uci -q get "mwan3.$1" 2>/dev/null || true
+}
+
+mode_section_owned() {
+	name=$1
+	[ "$(uci -q get "mwan3.$name.freenetic_managed" 2>/dev/null || true)" = 1 ] || return 1
+	scope=$(uci -q get "mwan3.$name.freenetic_scope" 2>/dev/null || true)
+	[ "$scope" = multiwan-mode ] && return 0
+	# Exact identifiers from the pre-controller implementation may not have a
+	# scope yet. Never accept a generic managed flag on an arbitrary section.
+	printf '%s\n' "$name" | grep -Eq '^fn_[sfb][46](_[0-9]+)?$'
+}
+
+default_rule_owned() {
+	name=$1
+	[ "$(uci -q get "mwan3.$name.freenetic_managed" 2>/dev/null || true)" = 1 ] || return 1
+	[ "$(uci -q get "mwan3.$name.freenetic_scope" 2>/dev/null || true)" = multiwan-default ]
+}
+
+discover_uplinks() {
+	uplinks=
+	# Keep the primary first regardless of UCI section order.
+	if [ "$(section_type wan)" = interface ] &&
+		[ "$(uci -q get mwan3.wan.enabled 2>/dev/null || printf 1)" != 0 ] &&
+		[ "$(uci -q get network.wan 2>/dev/null || true)" = interface ]; then
+		family=$(uci -q get mwan3.wan.family 2>/dev/null || printf ipv4)
+		[ "$family" = ipv6 ] || family=ipv4
+		uplinks="wan:$family"
+	fi
+
+	sections=$(uci -q show mwan3 2>/dev/null |
+		sed -n "s/^mwan3\.\([^.=]*\)=interface$/\1/p")
+	for name in $sections; do
+		[ "$name" != wan ] || continue
+		valid_section_name "$name" || continue
+		[ "$(uci -q get "mwan3.$name.enabled" 2>/dev/null || printf 1)" != 0 ] || continue
+		[ "$(uci -q get "network.$name" 2>/dev/null || true)" = interface ] || continue
+		[ "$(uci -q get "network.$name.freenetic_managed" 2>/dev/null || true)" = 1 ] || continue
+		scope=$(uci -q get "network.$name.freenetic_scope" 2>/dev/null || true)
+		case "$scope" in ethernet-port|wifi-uplink|modem-uplink) ;; *) continue ;; esac
+		family=$(uci -q get "mwan3.$name.family" 2>/dev/null || printf ipv4)
+		[ "$family" = ipv6 ] || family=ipv4
+		uplinks="$uplinks $name:$family"
+	done
+	uplinks=$(printf '%s\n' "$uplinks" | sed 's/^ *//;s/  */ /g')
+}
+
+uplink_count() {
+	set -- $uplinks
+	printf '%s\n' "$#"
+}
+
+family_uplinks() {
+	wanted=$1
+	for entry in $uplinks; do
+		name=${entry%%:*}
+		family=${entry#*:}
+		[ "$family" = "$wanted" ] && printf '%s\n' "$name"
+	done
+}
+
+uplink_has_internet() {
+	interface=$1
+	family=$2
+	# The first alpha manages IPv4 policies. IPv6-only probing will be added
+	# together with IPv6 mode management instead of pretending that ping is
+	# equivalent for both families.
+	[ "$family" = ipv4 ] || return 0
+	targets=$(uci -q get "mwan3.$interface.track_ip" 2>/dev/null || true)
+	[ -n "$targets" ] || targets="1.1.1.1 8.8.8.8"
+	reliability=$(uci -q get "mwan3.$interface.reliability" 2>/dev/null || printf 1)
+	case "$reliability" in ''|*[!0-9]*) reliability=1 ;; esac
+	[ "$reliability" -gt 0 ] || reliability=1
+	successes=0
+	for target in $targets; do
+		if mwan3 use "$interface" ping -c 1 -W 2 "$target" >/dev/null 2>&1; then
+			successes=$((successes + 1))
+			[ "$successes" -lt "$reliability" ] || return 0
+		fi
+	done
+	return 1
+}
+
+default_rule() {
+	family=$1
+	suffix=v4
+	destination=0.0.0.0/0
+	[ "$family" = ipv4 ] || {
+		suffix=v6
+		destination=::/0
+	}
+	if [ "$(section_type "default_rule_$suffix")" = rule ]; then
+		printf 'default_rule_%s\n' "$suffix"
+		return
+	fi
+	if [ "$(section_type "fn_default_rule_$suffix")" = rule ]; then
+		printf 'fn_default_rule_%s\n' "$suffix"
+		return
+	fi
+	printf 'fn_default_rule_%s\n' "$suffix"
+}
+
+mode_from_policy() {
+	case "$1" in
+		fn_s[46]|wan_only) printf single ;;
+		fn_f[46]|wan_wanb|wanb_wan) printf failover ;;
+		fn_b[46]|balanced) printf balance ;;
+		*) printf single ;;
+	esac
+}
+
+current_mode() {
+	rule=$(default_rule ipv4)
+	policy=$(uci -q get "mwan3.$rule.use_policy" 2>/dev/null || true)
+	mode_from_policy "$policy"
+}
+
+emit_status() {
+	discover_uplinks
+	mode=$(current_mode)
+	rule=$(default_rule ipv4)
+	policy=$(uci -q get "mwan3.$rule.use_policy" 2>/dev/null || true)
+	single_interface=
+	if [ "$mode" = single ]; then single_policy=$policy
+	else single_policy=fn_s4
+	fi
+	[ "$(section_type "$single_policy")" = policy ] || single_policy=
+	if [ -n "$single_policy" ]; then
+		single_member=$(uci -q get "mwan3.$single_policy.use_member" 2>/dev/null | awk '{ print $1 }')
+		[ -z "$single_member" ] || single_interface=$(uci -q get "mwan3.$single_member.interface" 2>/dev/null || true)
+	fi
+	count=$(uplink_count)
+
+	json_init
+	json_add_boolean ok 1
+	json_add_boolean ready 1
+	json_add_string mode "$mode"
+	json_add_string policy "$policy"
+	json_add_string single_interface "$single_interface"
+	json_add_boolean multiple "$([ "$count" -ge 2 ] && printf 1 || printf 0)"
+	json_add_array interfaces
+	for entry in $uplinks; do
+		name=${entry%%:*}
+		family=${entry#*:}
+		network_status=$(ubus call "network.interface.$name" status 2>/dev/null || true)
+		device=$(printf '%s' "$network_status" | jsonfilter -e '@.l3_device' 2>/dev/null || true)
+		[ -n "$device" ] || device=$(uci -q get "network.$name.device" 2>/dev/null || true)
+		up=$(printf '%s' "$network_status" | jsonfilter -e '@.up' 2>/dev/null || true)
+		state=$(sed -n '1p' "/var/run/mwan3track/$name/STATUS" 2>/dev/null || true)
+		case "$state" in online|offline|disabled|unknown) ;;
+			*) [ "$up" = true ] && state=checking || state=offline ;;
+		esac
+		json_add_object
+		json_add_string name "$name"
+		json_add_string family "$family"
+		json_add_boolean enabled 1
+		json_add_string state "$state"
+		json_add_string device "$device"
+		json_add_string proto "$(uci -q get "network.$name.proto" 2>/dev/null || true)"
+		json_add_string label "$(uci -q get "network.$name.label" 2>/dev/null || true)"
+		json_add_string scope "$(uci -q get "network.$name.freenetic_scope" 2>/dev/null || true)"
+		json_close_object
+	done
+	json_close_array
+	json_dump
+}
+
+preflight_name() {
+	type=$1
+	name=$2
+	existing=$(section_type "$name")
+	[ -z "$existing" ] && return 0
+	[ "$existing" = "$type" ] || fail ownership-conflict "A conflicting mwan3 section already uses $name."
+	mode_section_owned "$name" || fail ownership-conflict "The mwan3 section $name is managed outside Freenetic."
+}
+
+ensure_mode_section() {
+	type=$1
+	name=$2
+	mode=$3
+	[ -n "$(section_type "$name")" ] || uci -q set "mwan3.$name=$type" || fail uci-write "Cannot create mwan3 section $name."
+	uci -q set "mwan3.$name.freenetic_managed=1" || fail uci-write "Cannot own mwan3 section $name."
+	uci -q set "mwan3.$name.freenetic_scope=multiwan-mode" || fail uci-write "Cannot scope mwan3 section $name."
+	uci -q set "mwan3.$name.freenetic_mode=$mode" || fail uci-write "Cannot label mwan3 section $name."
+}
+
+apply_family() {
+	mode=$1
+	family=$2
+	set -- $(family_uplinks "$family")
+	[ "$#" -gt 0 ] || return 0
+	if [ "$mode" = single ]; then
+		first=$1
+		[ "$selected_single_family" = "$family" ] && first=$selected_single
+		set -- "$first"
+	fi
+	mode_code=s
+	[ "$mode" = failover ] && mode_code=f
+	[ "$mode" = balance ] && mode_code=b
+	family_code=4
+	[ "$family" = ipv6 ] && family_code=6
+	policy="fn_${mode_code}${family_code}"
+	preflight_name policy "$policy"
+	index=0
+	for interface in "$@"; do
+		preflight_name member "${policy}_$index"
+		index=$((index + 1))
+	done
+
+	rule=$(default_rule "$family")
+	if [ "$(section_type "$rule")" = rule ]; then
+		case "$rule" in
+			fn_default_rule_v4|fn_default_rule_v6)
+				default_rule_owned "$rule" || fail ownership-conflict "The mwan3 rule $rule is managed outside Freenetic."
+				;;
+		esac
+	elif [ -n "$(section_type "$rule")" ]; then
+		fail ownership-conflict "A conflicting mwan3 section already uses $rule."
+	fi
+
+	ensure_mode_section policy "$policy" "$mode"
+	uci -q delete "mwan3.$policy.use_member" >/dev/null 2>&1 || true
+	index=0
+	for interface in "$@"; do
+		member="${policy}_$index"
+		ensure_mode_section member "$member" "$mode"
+		uci -q set "mwan3.$member.interface=$interface" || fail uci-write "Cannot set $member interface."
+		if [ "$mode" = balance ]; then metric=1; else metric=$((index + 1)); fi
+		uci -q set "mwan3.$member.metric=$metric" || fail uci-write "Cannot set $member metric."
+		uci -q set "mwan3.$member.weight=1" || fail uci-write "Cannot set $member weight."
+		uci -q add_list "mwan3.$policy.use_member=$member" || fail uci-write "Cannot attach $member to $policy."
+		index=$((index + 1))
+	done
+
+	if [ -z "$(section_type "$rule")" ]; then
+		uci -q set "mwan3.$rule=rule" || fail uci-write "Cannot create default mwan3 rule."
+		uci -q set "mwan3.$rule.family=$family" || fail uci-write "Cannot set default rule family."
+		[ "$family" = ipv4 ] && destination=0.0.0.0/0 || destination=::/0
+		uci -q set "mwan3.$rule.dest_ip=$destination" || fail uci-write "Cannot set default rule destination."
+		uci -q set "mwan3.$rule.freenetic_managed=1" || fail uci-write "Cannot own default mwan3 rule."
+		uci -q set "mwan3.$rule.freenetic_scope=multiwan-default" || fail uci-write "Cannot scope default mwan3 rule."
+	fi
+	uci -q set "mwan3.$rule.use_policy=$policy" || fail uci-write "Cannot select $policy."
+	selected_policies="$selected_policies $family:$policy"
+}
+
+apply_mode() {
+	mode=$1
+	requested_single=${2:-}
+	if [ "${FREENETIC_MWAN_LOCK_HELD:-0}" != 1 ]; then
+		lock_dir=/tmp/freenetic-mwan-mutation.lock
+		mkdir "$lock_dir" 2>/dev/null || fail busy "Another network operation is already running."
+		lock_owned=1
+	fi
+	pending=$(uci -q changes mwan3 2>/dev/null || true)
+	[ -z "$pending" ] || fail pending-changes "mwan3 has pending command-line changes."
+	discover_uplinks
+	count=$(uplink_count)
+	[ "$count" -gt 0 ] || fail no-uplink "No Freenetic Internet connection is available."
+	[ "$count" -le 7 ] || fail uplink-limit "Freenetic supports up to seven Internet connections."
+	if [ "$mode" != single ] && [ "$count" -lt 2 ]; then
+		fail second-uplink-required "Configure a second Internet connection first."
+	fi
+	selected_single=
+	selected_single_family=
+	if [ "$mode" = single ]; then
+		[ -z "$requested_single" ] || valid_section_name "$requested_single" ||
+			fail invalid-interface "The selected Internet connection is invalid."
+		for entry in $uplinks; do
+			name=${entry%%:*}
+			family=${entry#*:}
+			if [ -n "$requested_single" ] && [ "$name" = "$requested_single" ]; then
+				selected_single=$name
+				selected_single_family=$family
+				break
+			fi
+		done
+		if [ -n "$requested_single" ] && [ -z "$selected_single" ]; then
+			fail invalid-interface "The selected Internet connection is unavailable."
+		fi
+		if [ -n "$requested_single" ] && ! uplink_has_internet "$selected_single" "$selected_single_family"; then
+			fail no-internet "The selected Internet connection did not pass the connectivity check."
+		fi
+	fi
+
+	snapshot_dir=$(mktemp -d /tmp/freenetic-multiwan.XXXXXX 2>/dev/null) || fail snapshot "Cannot create a configuration snapshot."
+	chmod 0700 "$snapshot_dir" || fail snapshot "Cannot protect the configuration snapshot."
+	cp -a /etc/config/mwan3 "$snapshot_dir/mwan3" || fail snapshot "Cannot snapshot mwan3."
+	mutation_started=1
+	selected_policies=
+	apply_family "$mode" ipv4
+	apply_family "$mode" ipv6
+	uci -q commit mwan3 || fail commit "Cannot commit the Multi-WAN configuration."
+	/etc/init.d/mwan3 reload >/dev/null 2>&1 || fail reload "mwan3 did not reload the new configuration."
+
+	for selected in $selected_policies; do
+		family=${selected%%:*}
+		policy=${selected#*:}
+		rule=$(default_rule "$family")
+		[ "$(uci -q get "mwan3.$rule.use_policy" 2>/dev/null || true)" = "$policy" ] ||
+			fail verify "mwan3 did not retain the selected policy."
+	done
+
+	completed=1
+	mutation_started=0
+	logger -t freenetic "Applied transactional Multi-WAN mode $mode"
+	json_init
+	json_add_boolean ok 1
+	json_add_string mode "$mode"
+	json_add_boolean rolled_back 0
+	json_dump
+}
+
+[ "$(id -u)" = 0 ] || fail permission "Multi-WAN management requires root privileges."
+[ -x /etc/init.d/mwan3 ] && command -v mwan3 >/dev/null 2>&1 || fail not-installed "mwan3 is not installed."
+[ -f /etc/config/mwan3 ] || fail not-installed "The mwan3 configuration is missing."
+
+case "$#:$1" in
+	1:status) emit_status ;;
+	2:check)
+		case "$2" in single|failover|balance) discover_uplinks; count=$(uplink_count);;
+			*) fail invalid-mode "Unknown Multi-WAN mode." ;;
+		esac
+		[ "$count" -gt 0 ] || fail no-uplink "No Freenetic Internet connection is available."
+		[ "$2" = single ] || [ "$count" -ge 2 ] || fail second-uplink-required "Configure a second Internet connection first."
+		json_init; json_add_boolean ok 1; json_add_string mode "$2"; json_dump
+		;;
+	2:apply)
+		case "$2" in single|failover|balance) apply_mode "$2" ;;
+			*) fail invalid-mode "Unknown Multi-WAN mode." ;;
+		esac
+		;;
+	3:apply)
+		[ "$2" = single ] || fail invalid-arguments "A connection can only be selected for single mode."
+		apply_mode "$2" "$3"
+		;;
+	*) fail invalid-arguments "Usage: $0 status|check MODE|apply MODE [INTERFACE]" ;;
+esac
