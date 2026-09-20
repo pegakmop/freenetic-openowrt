@@ -18,7 +18,7 @@ split, reorder, and take a different route.
 ### Fixed
 
 - Fixed OpenWrt 24.10 SDK preparation so Zapret2's `firewall4`, `nftables`
-  and `curl` dependencies are available before package resolution.
+  and `curl` dependencies are installed before the package graph is resolved.
 - Fixed package-content verification for target-specific IPKs while retaining
   the shared noarch package layout used by the SDK.
 

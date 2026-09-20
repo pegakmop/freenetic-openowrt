@@ -18,6 +18,9 @@ assert.match(workflow, /asset_arch: mipsel_24kc/, 'the MT7621 build must declare
 assert.match(workflow, /scripts\/feeds\" update packages/, 'the SDK must refresh the packages feed for Zapret2 dependencies');
 assert.match(workflow, /scripts\/feeds\" install firewall4 nftables/, 'the SDK must install firewall4 and nftables for Zapret2');
 assert.match(workflow, /scripts\/feeds\" install curl/, 'the SDK must install curl for Zapret2');
+assert.ok(workflow.indexOf('make -C "$sdk_dir" defconfig') >
+	workflow.indexOf('"$sdk_dir/scripts/feeds" install -a -p luci'),
+	'feed packages must be installed before the SDK resolves its package graph');
 assert.match(workflow, /release-assets/, 'target builds must prepare release assets');
 assert.match(workflow, /-path '\*\/release-assets\/\*'/,
 	'release publication must find assets below the downloaded artifact root');

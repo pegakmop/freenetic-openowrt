@@ -97,7 +97,6 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/app/luci-theme-freenetic" "$sdk_dir/package/luci-theme-freenetic"
           ln -s "$GITHUB_WORKSPACE/app/luci-app-freenetic" "$sdk_dir/package/luci-app-freenetic"
           ln -s "$GITHUB_WORKSPACE/app/freenetic-zapret2" "$sdk_dir/package/freenetic-zapret2"
-          make -C "$sdk_dir" defconfig
           # The SDK contains the toolchain, but not the base feed sources
           # needed to provide libubus/libuci headers and target libraries for
           # the fnc cross-build.
@@ -113,6 +112,11 @@ jobs:
           "$sdk_dir/scripts/feeds" install curl
           "$sdk_dir/scripts/feeds" install libjson-c libubox libubus libuci libblobmsg-json
           "$sdk_dir/scripts/feeds" install -a -p luci
+          # Resolve the package graph only after every Zapret2 dependency has
+          # been installed.  Running defconfig before feed installation makes
+          # OpenWrt discard the package when the SDK first sees its missing
+          # dependencies, leaving compile with no archive to inspect.
+          make -C "$sdk_dir" defconfig
           make -C "$sdk_dir" package/luci-base/host/compile
           if test "$PACKAGE_FORMAT" = ipk; then
             "$sdk_dir/staging_dir/host/bin/usign" -G \
