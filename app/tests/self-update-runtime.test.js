@@ -47,15 +47,38 @@ set -eu
 if [ "$1" = "-4" ]; then
     shift
 fi
-[ "$1" = "-qO" ]
-destination="$2"
-url="$3"
+if [ "$1" = "--header=Accept: application/octet-stream" ]; then
+    shift
+fi
+destination=-
+if [ "$1" = "-qO-" ]; then
+    shift
+elif [ "$1" = "-qO" ]; then
+    destination="$2"
+    shift 2
+else
+    exit 1
+fi
+url="$1"
+write_payload() {
+    if [ "$destination" = "-" ]; then
+        printf '%s\n' "$@"
+    else
+        printf '%s\n' "$@" > "$destination"
+    fi
+}
 case "$url" in
     */v9.9.9/install.sh)
-        printf '%s\\n' '#!/bin/sh' 'RELEASE_TAG="v9.9.9"' 'echo "Freenetic installer: stage: package_install"' 'exit 1' > "$destination"
+        exit 1
+        ;;
+    */api.github.com/repos/unisequence/freenetic/releases/tags/v9.9.9)
+        write_payload '{"assets":[{"name":"install.sh","id":9001}]}'
+        ;;
+    */api.github.com/repos/unisequence/freenetic/releases/assets/9001)
+        write_payload '#!/bin/sh' 'RELEASE_TAG="v9.9.9"' 'echo "Freenetic installer: stage: package_install"' 'exit 1'
         ;;
     */v0.2.2/install.sh)
-        printf '%s\\n' '#!/bin/sh' 'RELEASE_TAG="v0.2.2"' 'echo "Freenetic installer: stage: complete"' > "$destination"
+        write_payload '#!/bin/sh' 'RELEASE_TAG="v0.2.2"' 'echo "Freenetic installer: stage: complete"'
         ;;
     *)
         exit 1
@@ -63,6 +86,12 @@ case "$url" in
 esac
 `);
 	fs.chmodSync(path.join(binDir, 'wget'), 0o700);
+	fs.writeFileSync(path.join(binDir, 'jsonfilter'), `#!/bin/sh
+[ "$1" = "-e" ]
+cat >/dev/null
+printf '%s\\n' 9001
+`);
+	fs.chmodSync(path.join(binDir, 'jsonfilter'), 0o700);
 	for (const command of [ 'grep', 'rm', 'sed', 'sh', 'tail', 'wc' ])
 		fs.symlinkSync('/bin/' + command, path.join(binDir, command));
 

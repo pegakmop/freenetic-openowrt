@@ -8,6 +8,7 @@
 JSHN=/usr/share/libubox/jshn.sh
 RAW_BASE_URL=https://raw.githubusercontent.com/unisequence/freenetic
 RELEASES_BASE_URL=https://github.com/unisequence/freenetic/releases/download
+GITHUB_API_BASE_URL=https://api.github.com/repos/unisequence/freenetic
 MAX_INSTALLER_BYTES=262144
 
 if [ ! -r "$JSHN" ]; then
@@ -70,8 +71,34 @@ download_installer() {
 	download_release_asset() {
 		asset_url="$1"
 		asset_destination="$2"
-		wget -4 -qO "$asset_destination" "$asset_url" ||
-			wget -qO "$asset_destination" "$asset_url"
+		if wget -4 -qO "$asset_destination" "$asset_url" ||
+			wget -qO "$asset_destination" "$asset_url"; then
+			return 0
+		fi
+
+		# A few networks allow api.github.com and the release CDN but block the
+		# github.com redirect endpoint. Resolve the generated installer through
+		# the GitHub Releases API in that case; the API's octet-stream response
+		# redirects directly to release-assets.githubusercontent.com.
+		case "$asset_url" in
+			"$RELEASES_BASE_URL"/*/install.sh)
+				asset_path="${asset_url#"$RELEASES_BASE_URL/"}"
+				asset_tag="${asset_path%/install.sh}"
+				[ -n "$asset_tag" ] || return 1
+				release_json="$(wget -4 -qO- "$GITHUB_API_BASE_URL/releases/tags/$asset_tag" 2>/dev/null || true)"
+				asset_id="$(printf '%s\n' "$release_json" |
+					jsonfilter -e '@.assets[@.name="install.sh"].id' 2>/dev/null |
+					sed -n '1p')"
+				case "$asset_id" in
+					''|*[!0-9]*) return 1 ;;
+				esac
+				wget -4 --header='Accept: application/octet-stream' -qO "$asset_destination" \
+					"$GITHUB_API_BASE_URL/releases/assets/$asset_id"
+				;;
+			*)
+				return 1
+				;;
+		esac
 	}
 	# New releases publish a generated installer beside their packages so its
 	# pinned hashes always match the final release assets. A raw-tag fallback is

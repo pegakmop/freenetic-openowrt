@@ -32,6 +32,10 @@ assert.match(helper, /download_installer\(\)/,
 	'updates must use the generated release installer when available');
 assert.match(helper, /wget -4 -qO/,
 	'updates must prefer IPv4 for release assets when a router has broken IPv6 egress');
+assert.match(helper, /GITHUB_API_BASE_URL=https:\/\/api\.github\.com\/repos\/unisequence\/freenetic/,
+	'updates must keep a fixed GitHub API endpoint for blocked release redirects');
+assert.match(helper, /releases\/assets\/\$asset_id/,
+	'updates must support downloading the installer through the GitHub release API');
 assert.match(helper, /\$RELEASES_BASE_URL\/\$installer_tag\/install\.sh/,
 	'updates must prefer the installer generated beside release assets');
 assert.match(helper, /\$RAW_BASE_URL\/\$installer_tag\/install\.sh/,
