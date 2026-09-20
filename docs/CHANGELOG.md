@@ -13,6 +13,20 @@ The surface remains familiar.
 Beneath it, packets are learning new habits:
 split, reorder, and take a different route.
 
+## [0.4.0-alpha.3] — 2026-09-20
+
+### Fixed
+
+- Fixed OpenWrt 24.10 SDK preparation so Zapret2's `firewall4`, `nftables`
+  and `curl` dependencies are available before package resolution.
+- Fixed package-content verification for target-specific IPKs while retaining
+  the shared noarch package layout used by the SDK.
+
+### Verification
+
+- Added a release-workflow contract that guards the dependency feed setup for
+  both supported package formats.
+
 ## [0.4.0-alpha.2] — 2026-09-20
 
 ### Added

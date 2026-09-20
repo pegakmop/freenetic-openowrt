@@ -102,7 +102,15 @@ jobs:
           # needed to provide libubus/libuci headers and target libraries for
           # the fnc cross-build.
           "$sdk_dir/scripts/feeds" update base
+          # Zapret2 is a runtime package, so its OpenWrt dependencies must be
+          # present in the SDK before make resolves the package graph.  A
+          # stock SDK has the toolchain but does not install feed packages;
+          # without these installs package/freenetic-zapret2/compile silently
+          # drops the package and the content check sees no IPK.
+          "$sdk_dir/scripts/feeds" update packages
           "$sdk_dir/scripts/feeds" update luci
+          "$sdk_dir/scripts/feeds" install firewall4 nftables
+          "$sdk_dir/scripts/feeds" install curl
           "$sdk_dir/scripts/feeds" install libjson-c libubox libubus libuci libblobmsg-json
           "$sdk_dir/scripts/feeds" install -a -p luci
           make -C "$sdk_dir" package/luci-base/host/compile

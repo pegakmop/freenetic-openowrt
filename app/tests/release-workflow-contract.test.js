@@ -15,6 +15,9 @@ assert.match(workflow, /name: OpenWrt 25\.12\.5 ramips\/mt7621 \(APK \+ fnc\)/,
 assert.match(workflow, /fnc-\$asset_version-\$ASSET_ARCH-\$PACKAGE_FORMAT/,
 	'fnc assets must identify their package-manager ABI');
 assert.match(workflow, /asset_arch: mipsel_24kc/, 'the MT7621 build must declare its release architecture');
+assert.match(workflow, /scripts\/feeds\" update packages/, 'the SDK must refresh the packages feed for Zapret2 dependencies');
+assert.match(workflow, /scripts\/feeds\" install firewall4 nftables/, 'the SDK must install firewall4 and nftables for Zapret2');
+assert.match(workflow, /scripts\/feeds\" install curl/, 'the SDK must install curl for Zapret2');
 assert.match(workflow, /release-assets/, 'target builds must prepare release assets');
 assert.match(workflow, /-path '\*\/release-assets\/\*'/,
 	'release publication must find assets below the downloaded artifact root');
