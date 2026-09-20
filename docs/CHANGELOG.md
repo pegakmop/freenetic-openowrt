@@ -13,6 +13,14 @@ The surface remains familiar.
 Beneath it, packets are learning new habits:
 split, reorder, and take a different route.
 
+## [0.4.0-alpha.4] — 2026-09-20
+
+### Fixed
+
+- Fixed the self-update downloader on routers with a broken or incomplete
+  IPv6 route by preferring IPv4 for pinned GitHub release assets, while
+  retaining a fallback for IPv6-only and older wget environments.
+
 ## [0.4.0-alpha.3] — 2026-09-20
 
 ### Fixed

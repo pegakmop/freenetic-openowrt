@@ -44,6 +44,9 @@ fi
 
 	fs.writeFileSync(path.join(binDir, 'wget'), `#!/bin/sh
 set -eu
+if [ "$1" = "-4" ]; then
+    shift
+fi
 [ "$1" = "-qO" ]
 destination="$2"
 url="$3"

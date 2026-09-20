@@ -62,15 +62,26 @@ rollback_required() {
 download_installer() {
 	installer_tag="$1"
 	installer_destination="$2"
+	# Some OpenWrt routers advertise an IPv6 resolver/route but do not have
+	# working IPv6 egress. BusyBox wget can then fail on the first connection
+	# without retrying the same URL over IPv4. Prefer IPv4 for GitHub assets;
+	# keep the normal invocation as a fallback for IPv6-only installations and
+	# older wget builds which do not implement -4.
+	download_release_asset() {
+		asset_url="$1"
+		asset_destination="$2"
+		wget -4 -qO "$asset_destination" "$asset_url" ||
+			wget -qO "$asset_destination" "$asset_url"
+	}
 	# New releases publish a generated installer beside their packages so its
 	# pinned hashes always match the final release assets. A raw-tag fallback is
 	# allowed only for the historical releases which predate installer assets;
 	# falling back for a modern release could silently execute a stale template.
-	if wget -qO "$installer_destination" "$RELEASES_BASE_URL/$installer_tag/install.sh"; then
+	if download_release_asset "$RELEASES_BASE_URL/$installer_tag/install.sh" "$installer_destination"; then
 		return 0
 	fi
 	printf '%s\n' "$installer_tag" | grep -Eq '^v(0\.1\.|0\.2\.[0-5]($|-))' || return 1
-	wget -qO "$installer_destination" "$RAW_BASE_URL/$installer_tag/install.sh"
+	download_release_asset "$RAW_BASE_URL/$installer_tag/install.sh" "$installer_destination"
 }
 
 rollback_release() {

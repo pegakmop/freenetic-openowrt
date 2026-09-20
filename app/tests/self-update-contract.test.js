@@ -30,6 +30,8 @@ assert.match(helper, /RELEASES_BASE_URL=https:\/\/github\.com\/unisequence\/free
 	'release asset repository must be fixed router-side');
 assert.match(helper, /download_installer\(\)/,
 	'updates must use the generated release installer when available');
+assert.match(helper, /wget -4 -qO/,
+	'updates must prefer IPv4 for release assets when a router has broken IPv6 egress');
 assert.match(helper, /\$RELEASES_BASE_URL\/\$installer_tag\/install\.sh/,
 	'updates must prefer the installer generated beside release assets');
 assert.match(helper, /\$RAW_BASE_URL\/\$installer_tag\/install\.sh/,
