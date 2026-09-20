@@ -95,7 +95,8 @@ check-package-contents:
 		exit 1; \
 	}
 	@node "$(APP_DIR)/check-package-contents.js" \
-		"$(FREENETIC_PACKAGE_DIR)" "$(FREENETIC_PACKAGE_FORMAT)" "$(FREENETIC_APK_TOOL)"
+		"$(FREENETIC_PACKAGE_DIR)" "$(FREENETIC_PACKAGE_FORMAT)" "$(FREENETIC_APK_TOOL)" \
+		"$(FREENETIC_TARGET_PACKAGE_DIR)"
 
 # The LuCI packages are noarch, but OpenWrt keeps repository indexes under the
 # target ABI directory. Mirror the four Freenetic APKs into the MT7621 feed so

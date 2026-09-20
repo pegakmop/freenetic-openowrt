@@ -137,13 +137,16 @@ function archiveVersion(filename, packageName, format) {
 	return stem.slice(prefix.length, architectureSeparator);
 }
 
-function findArchive(packageRoot, packageName, format) {
-	if (!fs.existsSync(packageRoot))
+function findArchive(packageRoot, packageName, format, additionalRoots = []) {
+	const roots = [ packageRoot ].concat(additionalRoots || [])
+		.filter((root, index, all) => root && all.indexOf(root) === index)
+		.filter(root => fs.existsSync(root));
+	if (!roots.length)
 		throw new Error('Package output directory does not exist: ' + packageRoot);
 
-	const candidates = fs.readdirSync(packageRoot, { withFileTypes: true })
+	const candidates = roots.flatMap(root => fs.readdirSync(root, { withFileTypes: true })
 		.filter(entry => entry.isFile() && archiveMatches(entry.name, packageName, format))
-		.map(entry => path.join(packageRoot, entry.name));
+		.map(entry => path.join(root, entry.name)));
 	if (candidates.length !== 1)
 		throw new Error('Expected exactly one ' + format.toUpperCase() + ' for ' + packageName +
 			', found ' + candidates.length + ': ' + candidates.map(path.basename).join(', '));
@@ -205,7 +208,7 @@ function requireJson(root, relativePath) {
 	}
 }
 
-function verifyPackageContents(packageRoot, format, apkTool) {
+function verifyPackageContents(packageRoot, format, apkTool, additionalPackageRoots = []) {
 	if (!['apk', 'ipk'].includes(format))
 		throw new Error('Package format must be apk or ipk');
 
@@ -213,7 +216,12 @@ function verifyPackageContents(packageRoot, format, apkTool) {
 	const extracted = [];
 	try {
 		for (const packageName of PACKAGE_NAMES) {
-			const archive = findArchive(packageRoot, packageName, format);
+			/* OpenWrt 24.10 keeps target-specific IPKs in the target feed while
+			 * the noarch LuCI packages remain in bin/packages.  APK builds put
+			 * both kinds beside each other.  Search the optional target feed only
+			 * as a fallback so both layouts use the same content contract. */
+			const archive = findArchive(packageRoot, packageName, format,
+				packageName === 'freenetic-zapret2' ? additionalPackageRoots : []);
 			const version = archiveVersion(path.basename(archive), packageName, format);
 			const extraction = extractArchive(archive, format, apkTool);
 			const files = walkFiles(extraction.root);
@@ -289,7 +297,8 @@ function main() {
 	const packageRoot = path.resolve(process.argv[2] || '');
 	const format = process.argv[3] || process.env.FREENETIC_PACKAGE_FORMAT || '';
 	const apkTool = process.argv[4] || process.env.FREENETIC_APK_TOOL || '';
-	const records = verifyPackageContents(packageRoot, format, apkTool);
+	const additionalPackageRoots = process.argv.slice(5).filter(Boolean).map(root => path.resolve(root));
+	const records = verifyPackageContents(packageRoot, format, apkTool, additionalPackageRoots);
 
 	console.log('Package contents (' + format + '): ok');
 	console.log('Freenetic package version: ' + records[0].version);
