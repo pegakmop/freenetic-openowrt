@@ -1,0 +1,26 @@
+{
+	"zapret2-read": {
+		"description": "Read Zapret2 capabilities and runtime state",
+		"read": {
+			"ubus": {
+				"zapret2": [ "info", "status", "runtime", "validate", "plan", "list_index", "list_get", "log" ]
+			},
+			"uci": [ "zapret2" ]
+		}
+	},
+	"zapret2-write": {
+		"description": "Validate and operate Zapret2",
+		"read": {
+			"ubus": {
+				"zapret2": [ "info", "status", "runtime", "validate", "plan", "list_index", "list_get", "log" ]
+			},
+			"uci": [ "zapret2" ]
+		},
+		"write": {
+			"ubus": {
+				"zapret2": [ "service", "list_put", "list_delete", "list_clear" ]
+			},
+			"uci": [ "zapret2" ]
+		}
+	}
+}

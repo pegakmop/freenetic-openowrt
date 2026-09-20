@@ -31,7 +31,11 @@ assert.match(workflow, /--verify-tag/, 'release publication must verify the push
 assert.match(workflow, /app\/prepare-release\.js/, 'release publication must generate installer metadata from final assets');
 assert.match(workflow, /\$GITHUB_WORKSPACE\/docs\/CHANGELOG\.md/,
 	'release publication must read release notes from the documentation directory');
-assert.match(workflow, /asset_count.*-eq 21/, 'the release must contain packages, binaries, APK key, installer and manifest');
+assert.match(workflow, /asset_count.*-eq 27/, 'the release must contain core packages, Zapret2 builds and signing keys, binaries, installer and manifest');
+assert.match(workflow, /freenetic-zapret2-\$zapret_version-\$ASSET_ARCH\.\$PACKAGE_FORMAT/,
+	'the release must publish a Zapret2 package for every supported target and package manager');
+assert.match(workflow, /freenetic-zapret2-apk-key-\$ASSET_ARCH-\$asset_version\.pem/,
+	'each architecture-specific Zapret2 APK must publish the exact CI key that signed it');
 assert.match(workflow, /freenetic-apk-release-key-\$asset_version\.pem/,
 	'the APK package signing key must be published beside the signed packages');
 assert.match(workflow, /xargs -0 -r -n1 "\$SDK_DIR\/staging_dir\/host\/bin\/apk"[\s\\]*\n[\s\\]*--allow-untrusted adbsign[\s\\]*\n[\s\\]*--reset-signatures --sign-key "\$SDK_DIR\/private-key\.pem"/,

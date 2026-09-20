@@ -569,7 +569,7 @@ return view.extend({
 		if (!this.pbrAvailable) {
 			const link = E('a', {
 				class: 'fn-wifi-policy-link',
-				href: L.url('admin', 'system', 'applications')
+				href: L.url('admin', 'system', 'applications') + '?focus=pbr'
 			}, _('Open Applications'));
 			this.policyNoticeNode.className = 'fn-oc-notice fn-oc-notice-warning fn-wifi-policy-notice';
 			this.policyNoticeNode.appendChild(E('strong', {}, _('VPN routing is not installed')));

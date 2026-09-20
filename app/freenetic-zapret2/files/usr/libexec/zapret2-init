@@ -1,0 +1,35 @@
+#!/bin/sh
+
+set -eu
+DEFAULT=/usr/share/zapret2/zapret2-v2-default
+TARGET=/etc/config/zapret2
+BACKUP_DIR=/etc/zapret2/legacy
+
+[ -r "$DEFAULT" ] || { echo 'schema v2 default configuration is unavailable' >&2; exit 1; }
+/etc/init.d/zapret2 stop >/dev/null 2>&1 || true
+# The historical integration used a different service and nft table name.
+# Stop and clean those fixed legacy resources before replacing its schema.
+[ ! -x /etc/init.d/nfqws2 ] || /etc/init.d/nfqws2 stop >/dev/null 2>&1 || true
+nft delete table inet nfqws2 >/dev/null 2>&1 || true
+mkdir -p "$BACKUP_DIR"
+chmod 0700 "$BACKUP_DIR"
+# Never interpret the legacy schema: retain it only as an operator-readable
+# migration aid before writing the disabled schema v2 defaults.
+if [ -f /etc/config/nfqws2 ]; then
+	stamp=$(date +%Y%m%d-%H%M%S)
+	cp /etc/config/nfqws2 "$BACKUP_DIR/nfqws2-v5-$stamp"
+	chmod 600 "$BACKUP_DIR/nfqws2-v5-$stamp"
+	logger -t zapret2 'legacy nfqws2 configuration was backed up; manual migration is required'
+fi
+if [ -f "$TARGET" ]; then
+	stamp=$(date +%Y%m%d-%H%M%S)
+	cp "$TARGET" "$BACKUP_DIR/zapret2-schema-backup-$stamp"
+	chmod 600 "$BACKUP_DIR/zapret2-schema-backup-$stamp"
+fi
+tmp="$TARGET.new.$$"
+cp "$DEFAULT" "$tmp"
+chmod 600 "$tmp"
+mv "$tmp" "$TARGET"
+uci -q commit zapret2
+rm -f /var/run/zapret2/last_error
+logger -t zapret2 'configuration backed up and initialized as schema v2; service remains disabled'

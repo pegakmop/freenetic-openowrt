@@ -80,6 +80,9 @@ $SSH_CMD "$ROUTER" '
     rm -rf /www/luci-static/freenetic
     mkdir -p /www/luci-static/freenetic /www/luci-static/resources
     cp -r /tmp/freenetic-pkg/htdocs/luci-static/freenetic/. /www/luci-static/freenetic/
+	# This route was intentionally replaced by a tab inside the native
+	# Zapret2 page; remove the short-lived development copy if present.
+	rm -f /www/luci-static/resources/view/network/freenetic-zapret2-settings.js
     # resources/ is shared with other LuCI packages, so it cannot be wiped
     # wholesale like freenetic/ above — a file renamed/removed under
     # view/{network,status,system}/freenetic-*.js or *-freenetic.js here
@@ -151,13 +154,17 @@ $SSH_CMD "$ROUTER" '
              /www/luci-static/resources/freenetic-multiwan-data.js \
              /www/luci-static/resources/menu-freenetic.js \
              /www/luci-static/resources/freenetic-navigation.js \
+             /www/luci-static/resources/freenetic-zapret2-tabs.js \
              /www/luci-static/resources/settings-freenetic.js \
              /www/luci-static/resources/view/network/freenetic-firewall.js \
              /www/luci-static/resources/view/network/freenetic-mynetworks.js \
              /www/luci-static/resources/view/network/freenetic-wifi-acl.js \
              /www/luci-static/resources/view/network/freenetic-other-connections.js \
              /www/luci-static/resources/view/network/freenetic-ddns.js \
-             /www/luci-static/resources/view/network/freenetic-multiwan.js \
+			 /www/luci-static/resources/view/network/freenetic-multiwan.js \
+			 /www/luci-static/resources/view/network/freenetic-zapret2.js \
+			 /www/luci-static/resources/zapret2 \
+             /www/luci-static/resources/view/zapret2 \
              /www/luci-static/resources/view/network/freenetic-portforward.js \
              /www/luci-static/resources/view/network/freenetic-routing.js \
              /www/luci-static/resources/view/network/freenetic-wan.js \
@@ -180,6 +187,9 @@ $SSH_CMD "$ROUTER" '
              /etc/openvpn/freenetic /usr/libexec/freenetic-openvpn-profile \
              /usr/libexec/freenetic-package-status \
              /usr/libexec/freenetic-network-restart \
+		     /usr/libexec/freenetic-tailscale-recover \
+		     /usr/libexec/freenetic-zapret2-package \
+		     /usr/libexec/freenetic-zapret2 \
              /usr/libexec/freenetic-ipsec-restart \
              /usr/libexec/freenetic-ipsec-status \
              /usr/libexec/freenetic-pbr-restart \

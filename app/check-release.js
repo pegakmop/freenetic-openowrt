@@ -7,7 +7,8 @@ const PACKAGE_NAMES = [
 	'luci-theme-freenetic',
 	'luci-app-freenetic',
 	'luci-i18n-theme-freenetic-ru',
-	'luci-i18n-freenetic-ru'
+	'luci-i18n-freenetic-ru',
+	'freenetic-zapret2'
 ];
 const INDEXED_PACKAGE_NAMES = PACKAGE_NAMES.slice();
 

@@ -1,0 +1,28 @@
+#!/bin/sh
+# Restore Tailscale policy routing after mwan3 package removal. The recovery
+# is scheduled before apk starts because mwan3's deinstall hooks can interrupt
+# the RPC connection which initiated the removal.
+
+set -u
+
+[ "$#" -eq 1 ] && [ "$1" = schedule ] || {
+	printf '{"ok":false,"error":"Usage: %s schedule"}\n' "$0"
+	exit 0
+}
+
+if [ ! -x /etc/init.d/tailscale ] || ! pidof tailscaled >/dev/null 2>&1; then
+	printf '{"ok":true,"scheduled":false,"reason":"tailscale-not-running"}\n'
+	exit 0
+fi
+
+(
+	sleep 8
+	# The service was running when recovery was scheduled. Restart it even if
+	# a package hook stopped tailscaled in the meantime.
+	if [ -x /etc/init.d/tailscale ]; then
+		/etc/init.d/tailscale restart
+		logger -t freenetic 'Restored Tailscale after Multi-WAN package removal'
+	fi
+) </dev/null >/dev/null 2>&1 &
+
+printf '{"ok":true,"scheduled":true,"delay":8}\n'

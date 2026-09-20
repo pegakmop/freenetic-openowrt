@@ -5,12 +5,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const PACKAGE_NAMES = [
+const CORE_PACKAGE_NAMES = [
 	'luci-theme-freenetic',
 	'luci-app-freenetic',
 	'luci-i18n-theme-freenetic-ru',
 	'luci-i18n-freenetic-ru'
 ];
+const PACKAGE_NAMES = CORE_PACKAGE_NAMES.concat('freenetic-zapret2');
 
 const EXPECTED_FILES = {
 	'luci-theme-freenetic': [
@@ -23,6 +24,7 @@ const EXPECTED_FILES = {
 		'www/luci-static/freenetic/cascade.css',
 		'www/luci-static/freenetic/favicon.svg',
 		'www/luci-static/resources/freenetic-navigation.js',
+		'www/luci-static/resources/freenetic-zapret2-tabs.js',
 		'www/luci-static/resources/freenetic-rpc.js',
 		'www/luci-static/resources/menu-freenetic.js',
 		'www/luci-static/resources/settings-freenetic.js'
@@ -45,6 +47,8 @@ const EXPECTED_FILES = {
 		'usr/libexec/freenetic-self-update',
 		'usr/libexec/freenetic-uninstall',
 		'usr/libexec/freenetic-wifi-uplink',
+		'usr/libexec/freenetic-zapret2',
+		'usr/libexec/freenetic-zapret2-package',
 		'usr/share/luci/menu.d/zz-luci-freenetic.json',
 		'usr/share/rpcd/acl.d/luci-app-freenetic.json',
 		'www/luci-static/resources/freenetic-diagnostics.js',
@@ -57,6 +61,7 @@ const EXPECTED_FILES = {
 		'www/luci-static/resources/view/network/freenetic-firewall.js',
 		'www/luci-static/resources/view/network/freenetic-mynetworks.js',
 		'www/luci-static/resources/view/network/freenetic-multiwan.js',
+		'www/luci-static/resources/view/network/freenetic-zapret2.js',
 		'www/luci-static/resources/view/network/freenetic-other-connections.js',
 		'www/luci-static/resources/view/network/freenetic-ports.js',
 		'www/luci-static/resources/freenetic-connections-core.js',
@@ -81,6 +86,24 @@ const EXPECTED_FILES = {
 	],
 	'luci-i18n-freenetic-ru': [
 		'usr/lib/lua/luci/i18n/freenetic.ru.lmo'
+	],
+	'freenetic-zapret2': [
+		'etc/config/zapret2',
+		'etc/init.d/zapret2',
+		'opt/zapret2/blockcheck2.sh',
+		'opt/zapret2/config',
+		'opt/zapret2/config.default',
+		'opt/zapret2/docs/LICENSE.txt',
+		'opt/zapret2/init.d/openwrt/zapret2',
+		'opt/zapret2/ip2net/ip2net',
+		'opt/zapret2/mdig/mdig',
+		'opt/zapret2/nfq2/nfqws2',
+		'usr/libexec/zapret2/backend.uc',
+		'usr/libexec/zapret2/compiler.sh',
+		'usr/libexec/zapret2-init',
+		'usr/sbin/nfqws2',
+		'usr/share/rpcd/ucode/zapret2.uc',
+		'usr/share/zapret2/zapret2-v2-default'
 	]
 };
 
@@ -224,6 +247,26 @@ function verifyPackageContents(packageRoot, format, apkTool) {
 				file.startsWith('www/luci-static/freenetic/')) || files.some(file =>
 				file.startsWith('usr/share/ucode/luci/'))))
 				throw new Error('Application package contains theme-owned files');
+			if (packageName === 'freenetic-zapret2') {
+				const config = fs.readFileSync(path.join(extraction.root, 'opt/zapret2/config'), 'utf8');
+				if (!/^NFQWS2_ENABLE=0$/m.test(config))
+					throw new Error('Zapret2 package does not default to the disabled state');
+				const uciConfig = fs.readFileSync(path.join(extraction.root, 'etc/config/zapret2'), 'utf8');
+				if (!/^\s*option enabled '0'$/m.test(uciConfig))
+					throw new Error('Zapret2 native service does not default to the disabled state');
+				for (const executable of [
+					'etc/init.d/zapret2',
+					'opt/zapret2/blockcheck2.sh',
+					'opt/zapret2/nfq2/nfqws2',
+					'opt/zapret2/ip2net/ip2net',
+					'opt/zapret2/mdig/mdig',
+					'usr/libexec/zapret2/compiler.sh',
+					'usr/libexec/zapret2-init'
+				]) {
+					if (!(fs.statSync(path.join(extraction.root, executable)).mode & 0o111))
+						throw new Error(packageName + ' ships a non-executable runtime file: ' + executable);
+				}
+			}
 
 			records.push({ name: packageName, version, archive, files });
 		}
@@ -233,7 +276,9 @@ function verifyPackageContents(packageRoot, format, apkTool) {
 			fs.rmSync(temporaryDirectory, { recursive: true, force: true });
 	}
 
-	const versions = new Set(records.map(record => record.version));
+	const versions = new Set(records
+		.filter(record => CORE_PACKAGE_NAMES.includes(record.name))
+		.map(record => record.version));
 	if (versions.size !== 1)
 		throw new Error('Freenetic package versions do not match: ' + [...versions].join(', '));
 
@@ -263,6 +308,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+	CORE_PACKAGE_NAMES,
 	EXPECTED_FILES,
 	PACKAGE_NAMES,
 	archiveMatches,

@@ -96,6 +96,7 @@ jobs:
           test -n "$sdk_dir"
           ln -s "$GITHUB_WORKSPACE/app/luci-theme-freenetic" "$sdk_dir/package/luci-theme-freenetic"
           ln -s "$GITHUB_WORKSPACE/app/luci-app-freenetic" "$sdk_dir/package/luci-app-freenetic"
+          ln -s "$GITHUB_WORKSPACE/app/freenetic-zapret2" "$sdk_dir/package/freenetic-zapret2"
           make -C "$sdk_dir" defconfig
           # The SDK contains the toolchain, but not the base feed sources
           # needed to provide libubus/libuci headers and target libraries for
@@ -208,6 +209,26 @@ jobs:
             fi
           fi
 
+          if [ "$PACKAGE_FORMAT" = apk ]; then
+            zapret_archive="$(find "$SDK_DIR/bin" -type f -name 'freenetic-zapret2-*.apk' -print | sort -V | tail -n 1)"
+            zapret_filename="${zapret_archive##*/}"
+            zapret_version="${zapret_filename#freenetic-zapret2-}"
+            zapret_version="${zapret_version%.apk}"
+          else
+            zapret_archive="$(find "$SDK_DIR/bin" -type f -name 'freenetic-zapret2_*.ipk' -print | sort -V | tail -n 1)"
+            zapret_filename="${zapret_archive##*/}"
+            zapret_version="${zapret_filename#freenetic-zapret2_}"
+            zapret_version="${zapret_version%_${ASSET_ARCH}.ipk}"
+          fi
+          test -n "$zapret_archive"
+          test -n "$zapret_version"
+          cp -f "$zapret_archive" \
+            "$release_dir/freenetic-zapret2-$zapret_version-$ASSET_ARCH.$PACKAGE_FORMAT"
+          if [ "$PACKAGE_FORMAT" = apk ]; then
+            cp -f "$SDK_DIR/public-key.pem" \
+              "$release_dir/freenetic-zapret2-apk-key-$ASSET_ARCH-$asset_version.pem"
+          fi
+
           if [ "$INCLUDE_FNC" = true ]; then
             cp -f "$GITHUB_WORKSPACE/cli/fnc" "$release_dir/fnc-$asset_version-$ASSET_ARCH-$PACKAGE_FORMAT"
           fi
@@ -308,6 +329,17 @@ jobs:
             cp -f "$source" "$release_dir/$package-$asset_version-mipsel_24kc.apk"
             test -f "$release_dir/$package-$asset_version-all.ipk"
           done
+          for zapret_target in \
+            aarch64_cortex-a53.apk \
+            mipsel_24kc.apk \
+            aarch64_cortex-a53.ipk \
+            mipsel_24kc.ipk; do
+            test "$(find "$release_dir" -maxdepth 1 -type f \
+              -name "freenetic-zapret2-*-$zapret_target" | wc -l)" -eq 1
+          done
+          for zapret_arch in aarch64_cortex-a53 mipsel_24kc; do
+            test -f "$release_dir/freenetic-zapret2-apk-key-$zapret_arch-$asset_version.pem"
+          done
           test -f "$release_dir/fnc-$asset_version-aarch64_cortex-a53-apk"
           test -f "$release_dir/fnc-$asset_version-aarch64_cortex-a53-ipk"
           test -f "$release_dir/fnc-$asset_version-mipsel_24kc-apk"
@@ -332,7 +364,7 @@ jobs:
             "$asset_version"
 
           asset_count="$(find "$release_dir" -maxdepth 1 -type f | wc -l)"
-          test "$asset_count" -eq 21
+          test "$asset_count" -eq 27
           echo "asset_version=$asset_version" >> "$GITHUB_OUTPUT"
           echo "release_dir=$release_dir" >> "$GITHUB_OUTPUT"
           echo "release_notes=$notes_file" >> "$GITHUB_OUTPUT"

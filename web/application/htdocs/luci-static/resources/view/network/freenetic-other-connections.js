@@ -29,6 +29,10 @@ const { NETWORK_RESTART_HELPER, WG_PROTO, AWG_PROTO, OVPN_PROTO, L2TP_PROTO, XFR
 'require freenetic-connections-openvpn as openvpnView';
 'require freenetic-connections-ipsec as ipsecView';
 
+function applicationsUrl(appId) {
+	return L.url('admin/system/applications') + '?focus=' + encodeURIComponent(appId);
+}
+
 return view.extend(Object.assign({
 	load() {
 		return Promise.all([
@@ -97,8 +101,8 @@ return view.extend(Object.assign({
 			click: click
 		}, label);
 		const supportActions = actions => E('div', { class: 'fn-oc-support-actions' }, actions);
-		const applicationAction = () => E('a', {
-			href: L.url('admin/system/applications'),
+		const applicationAction = appId => E('a', {
+			href: applicationsUrl(appId),
 			class: 'fn-settings-btn fn-oc-support-action'
 		}, _('Open Applications'));
 		const wgMissing = [];
@@ -113,7 +117,7 @@ return view.extend(Object.assign({
 				supportButton(_('Import configuration'), () => this.openImportDialog())
 			]));
 		else
-			wgBody.push(supportActions([ applicationAction() ]));
+			wgBody.push(supportActions([ applicationAction('wireguard') ]));
 		addSupportCard('fn-oc-support-card-wireguard', _('WireGuard'),
 			_('Standard kernel-based VPN protocol'),
 			wgReady ? _('Ready') : _('Unavailable'),
@@ -129,7 +133,7 @@ return view.extend(Object.assign({
 				supportButton(_('Import OpenVPN profile'), () => this.openOpenvpnImportDialog())
 			]));
 		else
-			ovpnBody.push(supportActions([ applicationAction() ]));
+			ovpnBody.push(supportActions([ applicationAction('openvpn') ]));
 		addSupportCard('fn-oc-support-card-openvpn', _('OpenVPN'),
 			_('Profile-based VPN protocol with broad provider support'),
 			ovpnReady ? _('Ready') : _('Unavailable'),
@@ -159,7 +163,7 @@ return view.extend(Object.assign({
 			awgInstalled ? _('Ready') : _('Optional'),
 			awgInstalled ? 'fn-status-ok' : 'fn-status-off', awgBody);
 
-		const addPackageCard = (className, title, description, packages, readyText, actionLabel, action) => {
+		const addPackageCard = (className, title, description, packages, readyText, actionLabel, action, appId) => {
 			const missing = packages.filter(name => !this.packages[name]);
 			const ready = !missing.length;
 			const body = [ E('span', {}, ready
@@ -168,7 +172,7 @@ return view.extend(Object.assign({
 			if (ready)
 				body.push(supportActions([ supportButton(actionLabel, action, true) ]));
 			else
-				body.push(supportActions([ applicationAction() ]));
+				body.push(supportActions([ applicationAction(appId) ]));
 			addSupportCard(className, title, description,
 				ready ? _('Ready') : _('Unavailable'),
 				ready ? 'fn-status-ok' : 'fn-status-off', body);
@@ -177,11 +181,11 @@ return view.extend(Object.assign({
 		addPackageCard('fn-oc-support-card-l2tp', _('L2TP/IPsec'),
 			_('Legacy PPP tunnel protected by an IPsec transport connection.'),
 			L2TP_IPSEC_PACKAGES, _('xl2tpd and strongSwan are ready.'),
-			_('Add L2TP/IPsec connection'), () => this.openL2tpForm(null));
+			_('Add L2TP/IPsec connection'), () => this.openL2tpForm(null), 'l2tp_ipsec');
 		addPackageCard('fn-oc-support-card-ikev2', _('IKEv2/IPsec'),
 			_('Modern IPsec VPN with PSK or EAP-MSCHAPv2 authentication.'),
 			IKEV2_PACKAGES, _('strongSwan and the XFRM interface are ready.'),
-			_('Add IKEv2/IPsec connection'), () => this.openIkev2Form(null));
+			_('Add IKEv2/IPsec connection'), () => this.openIkev2Form(null), 'ikev2_ipsec');
 
 		this.supportNode.appendChild(E('div', { class: 'fn-oc-support-grid' }, cards));
 	},

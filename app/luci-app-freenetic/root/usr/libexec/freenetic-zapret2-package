@@ -1,0 +1,153 @@
+#!/bin/sh
+# Install the architecture-specific Zapret2 package published beside the
+# currently installed Freenetic release. The package is deliberately absent
+# from the upstream OpenWrt feeds, so the generic LuCI package helper cannot
+# resolve it by name.
+
+JSHN=/usr/share/libubox/jshn.sh
+RELEASES_BASE_URL=https://github.com/unisequence/freenetic/releases/download
+
+if [ ! -r "$JSHN" ]; then
+	printf '%s\n' '{"code":1,"stderr":"JSON support is unavailable"}'
+	exit 0
+fi
+# shellcheck disable=SC1090
+. "$JSHN"
+
+reply() {
+	reply_code="$1"
+	reply_stdout="$2"
+	reply_stderr="$3"
+	json_init
+	json_add_int code "$reply_code"
+	[ -n "$reply_stdout" ] && json_add_string stdout "$reply_stdout"
+	[ -n "$reply_stderr" ] && json_add_string stderr "$reply_stderr"
+	json_dump
+}
+
+fail() {
+	reply 1 "" "$*"
+	rm -rf "$stage_dir"
+	exit 0
+}
+
+valid_tag() {
+	printf '%s\n' "$1" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9][A-Za-z0-9.-]*)?$'
+}
+
+manifest_asset() {
+	asset_prefix="$1"
+	asset_suffix="$2"
+	awk -v prefix="./$asset_prefix" -v suffix="$asset_suffix" '
+		$1 ~ /^[0-9a-f]{64}$/ && index($2, prefix) == 1 &&
+		length($2) >= length(suffix) &&
+		substr($2, length($2) - length(suffix) + 1) == suffix {
+			print $1 " " substr($2, 3)
+		}
+	' "$manifest"
+}
+
+download_checked() {
+	asset_name="$1"
+	expected_hash="$2"
+	destination="$stage_dir/$asset_name"
+	case "$asset_name" in
+		''|*/*|.*|*[!A-Za-z0-9._+~-]*) fail "Invalid release asset name" ;;
+	esac
+	wget -qO "$destination" "$release_url/$asset_name" || fail "Cannot download $asset_name"
+	[ -s "$destination" ] || fail "Downloaded asset is empty: $asset_name"
+	actual_hash="$(sha256sum "$destination" 2>/dev/null | awk '{ print $1 }')"
+	[ "$actual_hash" = "$expected_hash" ] || fail "SHA-256 mismatch for $asset_name"
+}
+
+[ "$#" -eq 1 ] && [ "$1" = install ] || {
+	reply 1 "" "Usage: $0 install"
+	exit 0
+}
+
+package_manager=
+package_extension=
+if command -v apk >/dev/null 2>&1; then
+	package_manager=apk
+	package_extension=apk
+elif command -v opkg >/dev/null 2>&1; then
+	package_manager=opkg
+	package_extension=ipk
+else
+	reply 1 "" "Neither apk nor opkg is installed"
+	exit 0
+fi
+
+board_json="$(ubus call system board 2>/dev/null || true)"
+target="$(printf '%s\n' "$board_json" | jsonfilter -e '@.release.target' 2>/dev/null || true)"
+case "$target" in
+	mediatek/filogic) asset_arch=aarch64_cortex-a53 ;;
+	ramips/mt7621) asset_arch=mipsel_24kc ;;
+	*)
+		reply 1 "" "Unsupported OpenWrt target: ${target:-unknown}"
+		exit 0
+		;;
+esac
+
+release_tag="$(uci -q get freenetic.updates.installed_release 2>/dev/null || true)"
+if ! valid_tag "$release_tag"; then
+	reply 1 "" "The installed Freenetic release is unknown; update Freenetic before installing Zapret2"
+	exit 0
+fi
+
+stage_dir="$(mktemp -d /tmp/freenetic-zapret2.XXXXXX 2>/dev/null || true)"
+[ -n "$stage_dir" ] || {
+	reply 1 "" "Cannot create a private staging directory"
+	exit 0
+}
+chmod 0700 "$stage_dir" || fail "Cannot protect the staging directory"
+
+release_url="$RELEASES_BASE_URL/$release_tag"
+manifest="$stage_dir/SHA256SUMS.txt"
+wget -qO "$manifest" "$release_url/SHA256SUMS.txt" || fail "Cannot download the Freenetic release manifest"
+[ -s "$manifest" ] || fail "The Freenetic release manifest is empty"
+
+package_record="$(manifest_asset freenetic-zapret2- "-$asset_arch.$package_extension")"
+[ "$(printf '%s\n' "$package_record" | sed '/^$/d' | wc -l)" -eq 1 ] ||
+	fail "This Freenetic release does not contain Zapret2 for $asset_arch/$package_manager"
+package_hash="${package_record%% *}"
+package_asset="${package_record#* }"
+download_checked "$package_asset" "$package_hash"
+
+output_file="$stage_dir/package.out"
+error_file="$stage_dir/package.err"
+if command -v flock >/dev/null 2>&1; then
+	exec 200>/tmp/ipkg.lock
+	flock -x 200 || fail "Cannot acquire the package manager lock"
+fi
+
+case "$package_manager" in
+	apk)
+		key_record="$(manifest_asset "freenetic-zapret2-apk-key-$asset_arch-" .pem)"
+		[ "$(printf '%s\n' "$key_record" | sed '/^$/d' | wc -l)" -eq 1 ] ||
+			fail "The Freenetic APK signing key is missing from the release manifest"
+		key_hash="${key_record%% *}"
+		key_asset="${key_record#* }"
+		download_checked "$key_asset" "$key_hash"
+		keys_dir="$stage_dir/apk-keys"
+		mkdir -m 0700 "$keys_dir" || fail "Cannot create the APK trust directory"
+		for system_key in /etc/apk/keys/*.pem; do
+			[ -f "$system_key" ] || continue
+			cp "$system_key" "$keys_dir/" || fail "Cannot stage an OpenWrt APK key"
+		done
+		cp "$stage_dir/$key_asset" "$keys_dir/freenetic-release.pem" ||
+			fail "Cannot stage the Freenetic APK key"
+		apk update >"$output_file" 2>"$error_file" || fail "$(cat "$error_file")"
+		apk --keys-dir "$keys_dir" add "$stage_dir/$package_asset" \
+			>>"$output_file" 2>"$error_file" || fail "$(cat "$error_file")"
+		;;
+	opkg)
+		opkg update >"$output_file" 2>"$error_file" || fail "$(cat "$error_file")"
+		opkg install "$stage_dir/$package_asset" \
+			>>"$output_file" 2>"$error_file" || fail "$(cat "$error_file")"
+		;;
+esac
+
+package_output="$(tail -n 20 "$output_file" 2>/dev/null || true)"
+reply 0 "$package_output" ""
+rm -rf "$stage_dir"

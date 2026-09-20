@@ -132,6 +132,7 @@ const applicationCatalogPath = path.join(applicationPackage, 'po', 'ru', 'freene
 assert.ok(fs.existsSync(themeCatalogPath), 'theme needs its own Russian catalog');
 assert.ok(fs.existsSync(applicationCatalogPath), 'application catalog must remain in place');
 const themeCatalog = fs.readFileSync(themeCatalogPath, 'utf8');
+const applicationCatalog = fs.readFileSync(applicationCatalogPath, 'utf8');
 const catalogIds = new Set([...themeCatalog.matchAll(/^msgid "((?:\\.|[^"])*)"$/gm)]
 	.map(match => match[1].replace(/\\"/g, '"')));
 assert.match(themeCatalog, /msgid "Services"\nmsgstr "Службы"/,
@@ -147,6 +148,28 @@ for (const filename of walk(themeWeb).filter(filename => /\.(?:js|ut)$/.test(fil
 assert.deepEqual([...themeMessages].filter(message => !catalogIds.has(message)).sort(), [],
 	'theme catalog must cover every static theme translation');
 assert.ok(catalogIds.has('More'), 'theme catalog must translate the dynamic More navigation label');
+
+const applicationCatalogIdList = [...applicationCatalog.matchAll(/^msgid "((?:\\.|[^"])*)"$/gm)]
+	.map(match => match[1].replace(/\\'/g, "'").replace(/\\"/g, '"'))
+	.filter(Boolean);
+const applicationCatalogIds = new Set(applicationCatalogIdList);
+assert.equal(applicationCatalogIds.size, applicationCatalogIdList.length,
+	'application catalog must not contain duplicate message identifiers');
+const applicationMessages = new Set();
+/* The Zapret2 client is an upstream MIT-licensed LuCI application with its
+ * own translation catalog.  Freenetic vendors the source unchanged and keeps
+ * its catalog separate, so do not treat those strings as Freenetic messages. */
+for (const filename of walk(path.join(applicationWeb, 'htdocs', 'luci-static', 'resources'))
+	.filter(filename => filename.endsWith('.js') &&
+		!filename.includes(`${path.sep}zapret2${path.sep}`))) {
+	const source = fs.readFileSync(filename, 'utf8');
+	for (const pattern of [ /_\(\s*'((?:\\.|[^'\\])*)'\s*\)/g, /_\(\s*"((?:\\.|[^"\\])*)"\s*\)/g ]) {
+		for (const match of source.matchAll(pattern))
+			applicationMessages.add(match[1].replace(/\\'/g, "'").replace(/\\"/g, '"'));
+	}
+}
+assert.deepEqual([...applicationMessages].filter(message => !applicationCatalogIds.has(message)).sort(), [],
+	'application catalog must cover every static application translation');
 
 const clientsSource = fs.readFileSync(path.join(root, 'web', 'application', 'htdocs',
 	'luci-static', 'resources', 'view', 'status', 'freenetic-clients.js'), 'utf8');

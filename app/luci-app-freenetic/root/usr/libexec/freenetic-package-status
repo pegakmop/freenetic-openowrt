@@ -45,11 +45,14 @@ else
 	exit 0
 fi
 
-# One index lookup for all requested names.  apk search is expensive when
-# repeated for every package because each call reopens all repository indexes.
+# One index lookup and one installed-package lookup for all requested names.
+# Reopening apk's database once per catalog entry is noticeably slow on a
+# router and makes an already completed installation look unfinished.
 available=''
+installed_packages=''
 if [ "$manager" = 'apk' ]; then
 	available=$(apk search -e "$@" 2>/dev/null || true)
+	installed_packages=$(apk info 2>/dev/null || true)
 else
 	# opkg accepts one optional pattern, unlike apk's multi-pattern search.
 	# Read its plain-text catalogue once so every requested name is checked.
@@ -63,7 +66,7 @@ for package in "$@"; do
 
 	installed=false
 	if [ "$manager" = 'apk' ]; then
-		apk info -e "$package" >/dev/null 2>&1 && installed=true
+		printf '%s\n' "$installed_packages" | grep -Fxq -- "$package" && installed=true
 	else
 		opkg status "$package" 2>/dev/null |
 			awk '$1 == "Status:" && $NF == "installed" { found = 1 } END { exit !found }' && installed=true

@@ -1,0 +1,158 @@
+#!/bin/sh
+# Transactional controller for the deliberately small Zapret2 surface exposed
+# by Freenetic. The browser can only toggle fixed, reviewed profiles; arbitrary
+# nfqws2 arguments and nftables snippets remain outside this interface.
+
+JSHN=/usr/share/libubox/jshn.sh
+
+fallback_error() {
+	message=$(printf '%s' "$2" | sed 's/\\/\\\\/g; s/"/\\"/g')
+	printf '{"ok":false,"error_code":"%s","error":"%s","rolled_back":false}\n' "$1" "$message"
+}
+
+[ -r "$JSHN" ] || {
+	fallback_error json-unavailable "JSON support is unavailable."
+	exit 0
+}
+# shellcheck disable=SC1090
+. "$JSHN"
+
+lock_dir=/var/lock/freenetic-zapret2.lock
+snapshot_dir=
+lock_owned=0
+mutation_started=0
+completed=0
+rolled_back=0
+
+json_error() {
+	code=$1
+	shift
+	json_init
+	json_add_boolean ok 0
+	json_add_string error_code "$code"
+	json_add_string error "$*"
+	json_add_boolean rolled_back "$rolled_back"
+	json_dump
+}
+
+json_success() {
+	json_init
+	json_add_boolean ok 1
+	json_add_boolean enabled "$1"
+	json_add_boolean ipv4 "$2"
+	json_add_boolean ipv6 "$3"
+	json_add_boolean http "$4"
+	json_add_boolean tls "$5"
+	json_add_boolean quic "$6"
+	json_dump
+}
+
+restore_snapshot() {
+	[ -n "$snapshot_dir" ] && [ -f "$snapshot_dir/zapret2" ] || return 1
+	uci -q revert zapret2 >/dev/null 2>&1 || true
+	cp -a "$snapshot_dir/zapret2" /etc/config/zapret2 || return 1
+	uci -q revert zapret2 >/dev/null 2>&1 || true
+	if [ "$old_enabled" = 1 ]; then
+		/etc/init.d/zapret2 reload >/dev/null 2>&1
+	else
+		/etc/init.d/zapret2 stop >/dev/null 2>&1
+	fi
+}
+
+cleanup() {
+	if [ "$mutation_started" = 1 ] && [ "$completed" != 1 ]; then
+		restore_snapshot && rolled_back=1
+	fi
+	[ -z "$snapshot_dir" ] || rm -rf "$snapshot_dir"
+	[ "$lock_owned" = 1 ] && rmdir "$lock_dir" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT HUP INT TERM
+
+fail() {
+	code=$1
+	shift
+	rolled_back=0
+	if [ "$mutation_started" = 1 ]; then
+		restore_snapshot && rolled_back=1
+		mutation_started=0
+	fi
+	json_error "$code" "$*"
+	exit 0
+}
+
+valid_bool() {
+	[ "$1" = 0 ] || [ "$1" = 1 ]
+}
+
+require_runtime() {
+	[ -x /usr/sbin/nfqws2 ] || fail not-installed "Zapret2 is not installed."
+	[ -x /etc/init.d/zapret2 ] || fail not-installed "Zapret2 service is not installed."
+	[ -f /etc/config/zapret2 ] || fail not-installed "Zapret2 configuration is unavailable."
+	[ "$(uci -q get zapret2.main.schema_version 2>/dev/null || true)" = 2 ] ||
+		fail incompatible-config "Zapret2 configuration schema 2 is required."
+}
+
+apply_config() {
+	[ "$#" -eq 6 ] || fail invalid-arguments "Six Boolean settings are required."
+	enabled=$1
+	ipv4=$2
+	ipv6=$3
+	http=$4
+	tls=$5
+	quic=$6
+	for value in "$enabled" "$ipv4" "$ipv6" "$http" "$tls" "$quic"; do
+		valid_bool "$value" || fail invalid-arguments "Settings must be 0 or 1."
+	done
+	[ "$ipv4" = 1 ] || [ "$ipv6" = 1 ] || fail invalid-arguments "Enable IPv4, IPv6, or both."
+	if [ "$enabled" = 1 ]; then
+		[ "$http" = 1 ] || [ "$tls" = 1 ] || [ "$quic" = 1 ] ||
+			fail invalid-arguments "Enable at least one traffic strategy."
+	fi
+
+	require_runtime
+	mkdir -p /var/lock
+	mkdir "$lock_dir" 2>/dev/null || fail busy "Another Zapret2 change is already in progress."
+	lock_owned=1
+	snapshot_dir=$(mktemp -d /tmp/freenetic-zapret2.XXXXXX) || fail snapshot-failed "Cannot create a configuration snapshot."
+	cp -a /etc/config/zapret2 "$snapshot_dir/zapret2" || fail snapshot-failed "Cannot save the current Zapret2 configuration."
+	old_enabled=$(uci -q get zapret2.main.enabled 2>/dev/null || printf 0)
+	mutation_started=1
+
+	uci -q batch <<-EOF || fail uci-write "Cannot update Zapret2 settings."
+		set zapret2.main.enabled='$enabled'
+		set zapret2.main.ipv4='$ipv4'
+		set zapret2.main.ipv6='$ipv6'
+		set zapret2.main.intercept_mode='all'
+		set zapret2.http_default.enabled='$http'
+		set zapret2.tls_default.enabled='$tls'
+		set zapret2.quic_default.enabled='$quic'
+	EOF
+	uci -q commit zapret2 || fail uci-commit "Cannot save Zapret2 settings."
+
+	if [ "$enabled" = 1 ]; then
+		if ! service_output=$(/etc/init.d/zapret2 reload 2>&1); then
+			detail=$(sed -n '1,3p' /var/run/zapret2/last_error 2>/dev/null | tr '\n' ' ')
+			[ -n "$detail" ] || detail=$(printf '%s' "$service_output" | tail -n 3 | tr '\n' ' ')
+			[ -n "$detail" ] || detail="Zapret2 did not start."
+			fail service-failed "$detail"
+		fi
+		/etc/init.d/zapret2 running >/dev/null 2>&1 || fail verification-failed "Zapret2 stopped immediately after applying settings."
+	else
+		/etc/init.d/zapret2 stop >/dev/null 2>&1 || fail service-failed "Zapret2 did not stop cleanly."
+		/etc/init.d/zapret2 running >/dev/null 2>&1 && fail verification-failed "Zapret2 is still running after it was disabled."
+	fi
+
+	completed=1
+	mutation_started=0
+	json_success "$enabled" "$ipv4" "$ipv6" "$http" "$tls" "$quic"
+}
+
+case "${1:-}" in
+	apply)
+		shift
+		apply_config "$@"
+		;;
+	*)
+		json_error invalid-action "Supported action: apply."
+		;;
+esac

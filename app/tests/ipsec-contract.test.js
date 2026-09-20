@@ -56,9 +56,13 @@ assert.match(apps, /id: 'l2tp_ipsec',[\s\S]*restartNetifdOnInstall:\s*true/, 'L2
 assert.match(apps, /id: 'ikev2_ipsec',[\s\S]*restartNetifdOnInstall:\s*true/, 'IKEv2 package install must restart netifd');
 assert.match(apps, /xl2tpd.*ppp-mod-pppol2tp.*strongswan-default/, 'L2TP/IPsec catalog must install xl2tpd, PPP and strongSwan');
 assert.match(apps, /ensurePackageIndexes\(\)[\s\S]*updatePackageIndexes/,
-	'Applications must refresh package indexes before probing or installing packages');
-assert.match(apps, /wasInstalled \? run\(\) : this\.ensurePackageIndexes\(\)\.then\(run\)/,
-	'new package installs must wait for the package index refresh');
+	'Applications must retain an explicit package-index refresh for installations');
+assert.match(apps, /wasInstalled \? prepareRemoval\.then\(run\) : useInstallHelper \? run\(\) : this\.ensurePackageIndexes\(\)\.then\(run\)/,
+	'normal package installs must wait for the package index refresh while release-backed packages use their constrained helper');
+assert.doesNotMatch(apps, /this\.refreshPackageStatus\(\)/,
+	'opening Applications must not refresh every configured package repository');
+assert.match(apps, /refreshPackageStatus\(\) \{\s*return getPackageStatus\(\)/,
+	'background status refreshes must use the existing repository indexes');
 assert.match(apps, /strongswan-mod-eap-mschapv2.*xfrm.*luci-proto-xfrm/, 'IKEv2 catalog must install EAP and XFRM support');
 assert.match(wifi, /proto === 'l2tp' \|\| proto === 'xfrm'/, 'Access & Routing Policy must recognize IPsec interfaces');
 assert.ok(acl.read.uci.includes('ipsec'), 'IPsec UCI reads must be covered by the rpcd ACL');

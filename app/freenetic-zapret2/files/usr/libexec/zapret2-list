@@ -1,0 +1,182 @@
+#!/bin/sh
+
+. /usr/share/libubox/jshn.sh
+. /lib/functions.sh
+
+LIST_DIR=/etc/zapret2/lists
+AUTO_DIR=/etc/zapret2/autohostlists
+MAX_FILES=32
+MAX_FILE_SIZE=1048576
+MAX_TOTAL_SIZE=8388608
+LOCK_DIR=/var/run/zapret2/list.lock
+lock_held=0
+
+fail() { printf '%s\n' "$*" >&2; exit 1; }
+release_lock() { [ "$lock_held" = 1 ] || return 0; rm -f "$LOCK_DIR/pid"; rmdir "$LOCK_DIR" 2>/dev/null || true; lock_held=0; }
+acquire_lock() {
+	local attempts=0 owner
+	mkdir -p /var/run/zapret2
+	while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+		owner=$(sed -n '1p' "$LOCK_DIR/pid" 2>/dev/null || true)
+		case "$owner" in
+			''|*[!0-9]*) ;;
+			*) kill -0 "$owner" 2>/dev/null || { rm -f "$LOCK_DIR/pid"; rmdir "$LOCK_DIR" 2>/dev/null || true; continue; } ;;
+		esac
+		attempts=$((attempts + 1)); [ "$attempts" -lt 50 ] || fail 'list operation lock timed out'; sleep 0.1
+	done
+	printf '%s\n' "$$" >"$LOCK_DIR/pid"
+	lock_held=1
+}
+trap release_lock EXIT
+trap 'release_lock; exit 1' INT TERM
+valid_id() { printf '%s\n' "$1" | grep -Eq '^[a-z0-9][a-z0-9_]{0,31}$'; }
+valid_type() { case "$1" in domain|ip|auto_domain) return 0;; *) return 1;; esac; }
+path_for() {
+	valid_id "$1" && valid_type "$2" || return 1
+	case "$2" in
+		domain|ip) printf '%s/%s.%s\n' "$LIST_DIR" "$1" "$2" ;;
+		auto_domain) printf '%s/%s.domain\n' "$AUTO_DIR" "$1" ;;
+	esac
+}
+
+validate_domain() {
+	printf '%s\n' "$1" | grep -Eq '^\^?[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$'
+}
+
+validate_ip() {
+	printf '%s\n' "$1" | awk '
+	function v4(s, p,a,n,i) { n=split(s,a,"."); if(n!=4)return 0; for(i=1;i<=4;i++)if(a[i]!~/^[0-9]+$/||a[i]+0>255)return 0; return 1 }
+	function v6(s,a,n,i,compressed,units,tmp,cc) {
+		if(s !~ /^[0-9A-Fa-f:.]+$/ || s ~ /:::/)return 0
+		tmp=s; cc=gsub(/::/,"",tmp); if(cc>1)return 0; compressed=(cc==1)
+		if(!compressed && (s~/^:/ || s~/:$/))return 0
+		n=split(s,a,":"); units=0
+		for(i=1;i<=n;i++)if(a[i]!="") { if(index(a[i],".")>0){if(i!=n||!v4(a[i]))return 0;units+=2}else{if(a[i]!~/^[0-9A-Fa-f]{1,4}$/)return 0;units++} }
+		return compressed ? units<8 : units==8
+	}
+	{ s=$0;p="";if(index(s,"/")>0){n=split(s,a,"/");if(n!=2||a[2]!~/^[0-9]+$/)exit 1;s=a[1];p=a[2]+0}
+	  if(index(s,":")>0){if(!v6(s)||(p!=""&&p>128))exit 1;exit 0}
+	  if(!v4(s)||(p!=""&&p>32))exit 1 }'
+}
+
+validate_file() {
+	local type="$1" file="$2" line cleaned line_no=0 validator
+	[ -f "$file" ] && [ ! -L "$file" ] || fail 'staged list is unavailable'
+	[ "$(wc -c <"$file")" -le "$MAX_FILE_SIZE" ] || fail 'list exceeds 1 MiB'
+	LC_ALL=C grep -q '[[:cntrl:]]' "$file" && fail 'list contains control characters'
+	case "$type" in domain|auto_domain) validator=validate_domain;; ip) validator=validate_ip;; *) fail 'invalid list type';; esac
+	while IFS= read -r line || [ -n "$line" ]; do
+		line_no=$((line_no + 1)); cleaned=$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+		case "$cleaned" in ''|'#'*) continue;; esac
+		"$validator" "$cleaned" || fail "invalid ${type#auto_} entry at line $line_no: $cleaned"
+	done <"$file"
+}
+
+reference_value() { [ "$1" = "$reference_id" ] && reference_found=1; return 0; }
+reference_profile() {
+	local section="$1" option name enabled autohostlist id
+	reference_found=0
+	case "$reference_type" in
+		domain) options='domain_list domain_exclude_list' ;;
+		ip) options='ip_list ip_exclude_list' ;;
+		auto_domain)
+			config_get id "$section" id "$section"; config_get_bool autohostlist "$section" autohostlist 0
+			[ "$id" = "$reference_id" ] && [ "$autohostlist" = 1 ] && reference_found=1
+			options=''
+			;;
+	esac
+	for option in $options; do config_list_foreach "$section" "$option" reference_value; done
+	[ "$reference_found" = 1 ] || return 0
+	reference_count=$((reference_count + 1)); config_get name "$section" name "$section"; json_add_string '' "$name"
+}
+
+list_is_referenced() {
+	local id="$1" type="$2" found
+	reference_id="$id"; reference_type="$type"; reference_count=0
+	config_load zapret2; config_foreach reference_profile profile
+	[ "$reference_count" -gt 0 ]
+}
+
+list_metadata() {
+	local id="$1" type="$2" file="$3" size entries
+	size=$(wc -c <"$file"); entries=$(awk '{gsub(/^[ \t]+|[ \t]+$/,"",$0);if(length($0)&&substr($0,1,1)!="#")n++}END{print n+0}' "$file")
+	json_add_object ''; json_add_string id "$id"; json_add_string type "$type"; json_add_int size "$size"; json_add_int entries "$entries"
+	reference_id="$id"; reference_type="$type"; reference_count=0
+	json_add_array profiles; config_foreach reference_profile profile; json_close_array
+	json_add_int references "$reference_count"; json_close_object
+}
+
+index_lists() {
+	local file base id type
+	config_load zapret2; json_init; json_add_array lists
+	for file in "$LIST_DIR"/*.domain "$LIST_DIR"/*.ip; do
+		[ -f "$file" ] && [ ! -L "$file" ] || continue
+		base=${file##*/}; id=${base%.*}; type=${base##*.}; valid_id "$id" || continue
+		list_metadata "$id" "$type" "$file"
+	done
+	for file in "$AUTO_DIR"/*.domain; do
+		[ -f "$file" ] && [ ! -L "$file" ] || continue
+		base=${file##*/}; id=${base%.domain}; valid_id "$id" || continue
+		list_metadata "$id" auto_domain "$file"
+	done
+	json_close_array; json_dump
+}
+
+get_list() {
+	local file
+	file=$(path_for "$1" "$2") || fail 'invalid list id or type'; [ -f "$file" ] && [ ! -L "$file" ] || fail 'list not found'
+	json_init; json_add_string id "$1"; json_add_string type "$2"; json_add_string content "$(head -c "$MAX_FILE_SIZE" "$file")"; json_dump
+}
+
+put_list() {
+	local id="$1" type="$2" staged="$3" old_id="${4:-}" old_type="${5:-}" dest old='' count total tmp replacement=0
+	acquire_lock
+	[ "$type" != auto_domain ] || fail 'automatic domain lists are engine-managed and cannot be uploaded'
+	dest=$(path_for "$id" "$type") || fail 'invalid list id or type'; validate_file "$type" "$staged"; mkdir -p "$LIST_DIR"
+	if [ -n "$old_id" ] || [ -n "$old_type" ]; then
+		[ -n "$old_id" ] && [ -n "$old_type" ] || fail 'old list ID and type must be supplied together'
+		old=$(path_for "$old_id" "$old_type") || fail 'invalid old list id or type'; [ -f "$old" ] || fail 'original list not found'
+		[ "$old_type" != auto_domain ] || fail 'automatic domain lists cannot be renamed'
+		if [ "$old" != "$dest" ] && list_is_referenced "$old_id" "$old_type"; then fail 'a referenced list cannot be renamed or change type'; fi
+	fi
+	[ ! -e "$dest" ] || [ "$dest" = "$old" ] || fail 'destination list ID already exists'
+	count=$(find "$LIST_DIR" -maxdepth 1 -type f \( -name '*.domain' -o -name '*.ip' \) | wc -l)
+	[ -e "$dest" ] && replacement=1; [ -n "$old" ] && replacement=1
+	[ "$replacement" = 1 ] || [ "$count" -lt "$MAX_FILES" ] || fail 'list count exceeds 32'
+	total=$(find "$LIST_DIR" -maxdepth 1 -type f \( -name '*.domain' -o -name '*.ip' \) -exec wc -c {} \; | awk '{n+=$1}END{print n+0}')
+	[ -e "$dest" ] && total=$((total - $(wc -c <"$dest")))
+	[ -z "$old" ] || [ "$old" = "$dest" ] || total=$((total - $(wc -c <"$old")))
+	[ $((total + $(wc -c <"$staged"))) -le "$MAX_TOTAL_SIZE" ] || fail 'all static lists exceed 8 MiB'
+	tmp="$LIST_DIR/.${id}.$$"; (umask 077; sed 's/[[:space:]]*$//' "$staged" >"$tmp") || { rm -f "$tmp"; fail 'cannot stage list'; }
+	chown 0:1 "$tmp" && chmod 0640 "$tmp" && mv "$tmp" "$dest" || { rm -f "$tmp"; fail 'cannot replace list'; }
+	[ -z "$old" ] || [ "$old" = "$dest" ] || rm -f "$old" || fail 'cannot remove old list after rename'
+	get_list "$id" "$type"
+}
+
+delete_list() {
+	local id="$1" type="$2" file
+	acquire_lock
+	[ "$type" != auto_domain ] || fail 'automatic domain lists can only be cleared'
+	file=$(path_for "$id" "$type") || fail 'invalid list id or type'; [ -f "$file" ] || fail 'list not found'
+	list_is_referenced "$id" "$type" && fail 'list is referenced by a profile'
+	rm -f "$file" || fail 'cannot delete list'; printf '{"deleted":true}\n'
+}
+
+clear_list() {
+	local id="$1" type="$2" file tmp
+	acquire_lock
+	file=$(path_for "$id" "$type") || fail 'invalid list id or type'; [ "$type" = auto_domain ] || fail 'only automatic domain lists support clear'
+	mkdir -p "$AUTO_DIR"; tmp="$AUTO_DIR/.${id}.$$"; (umask 007; : >"$tmp") || fail 'cannot stage empty automatic list'
+	chown 0:1 "$tmp" && chmod 0660 "$tmp" && mv "$tmp" "$file" || { rm -f "$tmp"; fail 'cannot clear automatic list'; }
+	printf '{"cleared":true}\n'
+}
+
+case "$1" in
+	index) index_lists;;
+	get) get_list "$2" "$3";;
+	put) put_list "$2" "$3" "$4" "${5:-}" "${6:-}";;
+	delete) delete_list "$2" "$3";;
+	clear) clear_list "$2" "$3";;
+	validate) validate_file "$2" "$3";;
+	*) fail 'usage: zapret2-list {index|get ID TYPE|put ID TYPE FILE [OLD_ID OLD_TYPE]|delete ID TYPE|clear ID auto_domain|validate TYPE FILE}';;
+esac

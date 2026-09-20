@@ -47,6 +47,10 @@ assert.ok(packageStatus.includes("''|-*|*[!A-Za-z0-9+_.:@/-]*"),
 	'package status must reject option-like and metacharacter package names');
 assert.ok(packageStatus.indexOf('for package in "$@"; do') < packageStatus.indexOf('available=$(apk search'),
 	'package names must be validated before invoking apk search');
+assert.match(packageStatus, /installed_packages=\$\(apk info/,
+	'apk package status must read the installed database only once');
+assert.doesNotMatch(packageStatus, /apk info -e "\$package"/,
+	'apk package status must not reopen the installed database for every catalog entry');
 assert.match(packageStatus, /\$1 == "Status:" && \$NF == "installed"/,
 	'legacy opkg detection must accept current user-installed status records');
 

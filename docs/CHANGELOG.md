@@ -13,6 +13,33 @@ The surface remains familiar.
 Beneath it, packets are learning new habits:
 split, reorder, and take a different route.
 
+## [0.4.0-alpha.2] — 2026-09-20
+
+### Added
+
+- Added the official Zapret2 1.0.5.2 runtime as the architecture-specific
+  `freenetic-zapret2` package, disabled by default and shipped with its
+  OpenWrt integration and license notices.
+- Added a Freenetic entry point for Zapret2 that uses the native LuCI page
+  when available and keeps a versioned compatibility client for older
+  installations.
+- Added a compact Zapret2 workspace for strategies, runtime settings,
+  scripts, lists, Blockcheck2 and debug logs.
+
+### Improved
+
+- Added a single Freenetic apply flow for Zapret2 changes with progress
+  feedback, native CBI saves and an authoritative page reload after apply.
+- Refined strategy editing, multi-select controls, status actions and the
+  surrounding cards to match the Freenetic Internet and Applications UI.
+- Added package, ACL, helper and release-workflow contracts for the new
+  runtime across APK and IPK builds.
+
+### Alpha scope
+
+- Zapret2 is intentionally installed inactive; enabling the service and
+  selecting strategies remain explicit user actions.
+
 ## [0.4.0-alpha.1] — 2026-09-18
 
 ### Added

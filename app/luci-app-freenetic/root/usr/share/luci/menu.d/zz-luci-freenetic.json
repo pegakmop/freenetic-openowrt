@@ -127,6 +127,87 @@
 			}
 		}
 	},
+	"admin/network/zapret2": {
+		"title": "Zapret2",
+		"order": 4.4,
+		"action": {
+			"type": "view",
+			"path": "network/freenetic-zapret2"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-freenetic"
+			],
+			"uci": {
+				"luci": { "main": { "mediaurlbase": "/luci-static/freenetic" } },
+				"zapret2": { "main": { "freenetic_managed": "1" } }
+			}
+		}
+	},
+	"admin/network/zapret2/config": {
+		"title": "Settings",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "zapret2/v4r30/config"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-freenetic"
+			],
+			"uci": {
+				"zapret2": { "main": { "freenetic_managed": "1" } }
+			}
+		}
+	},
+	"admin/network/zapret2/profiles": {
+		"title": "Profiles",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "zapret2/v4r30/profiles"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-freenetic"
+			],
+			"uci": {
+				"zapret2": { "main": { "freenetic_managed": "1" } }
+			}
+		}
+	},
+	"admin/network/zapret2/lists": {
+		"title": "Local lists",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "zapret2/v4r30/lists"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-freenetic"
+			],
+			"uci": {
+				"zapret2": { "main": { "freenetic_managed": "1" } }
+			}
+		}
+	},
+	"admin/network/zapret2/log": {
+		"title": "Log",
+		"order": 40,
+		"action": {
+			"type": "view",
+			"path": "zapret2/v4r30/log"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-freenetic"
+			],
+			"uci": {
+				"zapret2": { "main": { "freenetic_managed": "1" } }
+			}
+		}
+	},
 	"admin/network/home_network": {
 		"title": "Home Network",
 		"order": 5,

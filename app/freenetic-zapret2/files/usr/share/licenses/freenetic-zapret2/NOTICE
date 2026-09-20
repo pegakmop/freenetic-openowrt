@@ -1,0 +1,8 @@
+The native OpenWrt control plane in this package is derived from
+openwrt-zapret2 by Damoc:
+
+https://github.com/damocjwj/openwrt-zapret2
+
+Imported from commit 9266bd548754aed5176104456b73280368b54c28 and adapted for
+the Freenetic package layout and user interface. The integration remains
+available under the MIT License in openwrt-integration.LICENSE.

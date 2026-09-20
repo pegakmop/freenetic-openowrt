@@ -5,6 +5,7 @@
 			"cgi-io": [ "download" ],
 			"ubus": {
 				"uci": [ "changes", "get" ],
+				"zapret2": [ "info", "status", "validate", "list_index", "list_get", "log" ],
 				"mwan3": [ "status" ],
 				"network.interface": [ "status", "dump" ],
 				"network.device": [ "status" ],
@@ -45,12 +46,13 @@
 				"/usr/share/ddns/custom/*": [ "read" ],
 				"/usr/share/ddns/list": [ "read" ]
 			},
-			"uci": [ "network", "wireless", "dhcp", "firewall", "ddns", "mwan3", "attendedsysupgrade", "luci", "freenetic", "pbr", "ipsec" ]
+			"uci": [ "network", "wireless", "dhcp", "firewall", "ddns", "mwan3", "zapret2", "attendedsysupgrade", "luci", "freenetic", "pbr", "ipsec" ]
 		},
 		"write": {
 			"cgi-io": [ "upload" ],
 			"ubus": {
 				"uci": [ "add", "apply", "commit", "confirm", "delete", "order", "rename", "rollback", "set" ],
+				"zapret2": [ "service", "list_put", "list_delete", "list_clear" ],
 				"network": [ "reload" ],
 				"luci.wireguard": [ "generateKeyPair", "getPublicAndPrivateKeyFromPrivate", "generatePsk" ],
 				"luci.amneziawg": [ "generateKeyPair", "getPublicAndPrivateKeyFromPrivate", "generatePsk" ],
@@ -75,6 +77,9 @@
 				"/usr/libexec/freenetic-openvpn-profile install *": [ "exec" ],
 				"/usr/libexec/freenetic-openvpn-profile remove *": [ "exec" ],
 				"/usr/libexec/freenetic-network-restart": [ "exec" ],
+				"/usr/libexec/freenetic-tailscale-recover schedule": [ "exec" ],
+				"/usr/libexec/freenetic-zapret2-package install": [ "exec" ],
+				"/usr/libexec/freenetic-zapret2 apply *": [ "exec" ],
 				"/usr/libexec/freenetic-avahi-reflector enable": [ "exec" ],
 				"/usr/libexec/freenetic-avahi-reflector disable": [ "exec" ],
 				"/usr/libexec/freenetic-ipsec-restart": [ "exec" ],
@@ -88,7 +93,7 @@
 				"/usr/libexec/freenetic-port-probe *": [ "exec" ],
 				"/usr/lib/ddns/dynamic_dns_lucihelper.sh": [ "exec" ]
 			},
-			"uci": [ "network", "wireless", "dhcp", "firewall", "ddns", "mwan3", "luci", "freenetic", "pbr", "ipsec" ]
+			"uci": [ "network", "wireless", "dhcp", "firewall", "ddns", "mwan3", "luci", "freenetic", "pbr", "ipsec", "zapret2" ]
 		}
 	}
 }

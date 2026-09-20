@@ -18,6 +18,13 @@ const dashboardClientRows = dashboardData.dashboardClientRows;
 
 assert.equal(dashboardData.connectionLabel({ name: 'fnwwan', device: 'phy1-sta0', proto: 'dhcp' }),
 	'Wi-Fi connection', 'a station uplink must not be labelled as Ethernet');
+assert.deepEqual(dashboardData.backupEthernetDevices({ interfaces: [
+	{ name: 'wan', device: 'wan', scope: '' },
+	{ name: 'wanb', device: 'lan3', scope: 'ethernet-port' },
+	{ name: 'fnwwan', device: 'phy1-sta0', scope: 'wifi-uplink' },
+	{ name: 'modem', device: 'wwan0', scope: 'modem-uplink' },
+	{ name: 'duplicate', device: 'lan3', scope: 'ethernet-port' }
+] }), [ 'lan3' ], 'only physical backup WAN devices should receive the dashboard reserve label');
 
 const leases = [
 	{ macaddr: 'aa:bb:cc:00:00:02', hostname: 'Laptop', ipaddr: '192.168.1.22' },

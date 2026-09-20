@@ -15,7 +15,12 @@ const system = resource('view/system/freenetic-system.js');
 const clients = resource('view/status/freenetic-clients.js');
 const routing = resource('view/network/freenetic-routing.js');
 const ddns = resource('view/network/freenetic-ddns.js');
+const otherConnections = resource('view/network/freenetic-other-connections.js');
+const wifiAcl = resource('view/network/freenetic-wifi-acl.js');
 const wifiMonitor = resource('view/status/freenetic-wifimonitor.js');
+const multiwan = resource('view/network/freenetic-multiwan.js');
+const zapret2 = resource('view/network/freenetic-zapret2.js');
+const zapret2Config = resource('view/zapret2/v4r30/config.js');
 
 assert.match(wan, /Existing protocol: %s \(preserved\)/,
 	'WAN must expose and preserve protocols outside its compact editor');
@@ -43,6 +48,42 @@ assert.match(apps, /removablePackages\(item\)/,
 	'application removal must account for shared packages');
 assert.match(apps, /operationPackages\.length && item\.restartNetifdOnInstall/,
 	'network protocol removals must restart netifd too');
+assert.match(apps, /requestedAppId\(\)[\s\S]*?searchParams\.get\('focus'\)/,
+	'applications must accept a safe focused-card request');
+assert.match(apps, /fn-apps-row-focused/,
+	'applications must visibly identify the requested package card');
+assert.match(apps, /id: 'nfqws2',[\s\S]*?packages: \[ 'zapret2', 'luci-app-zapret2' \]/,
+	'Applications must expose Zapret2 through the native LuCI package pair');
+assert.match(apps, /nativeConfigurePath: \[ 'admin', 'services', 'zapret2' \]/,
+	'Applications must configure native Zapret2 through its own LuCI route');
+assert.doesNotMatch(apps, /id: 'zapret',[\s\S]*?packages: \[ 'zapret' \]/,
+	'Applications must not present legacy Zapret as Zapret2');
+assert.match(multiwan, /applicationsUrl\('mwan3'\)/,
+	'the missing Multi-WAN package notice must target its catalog card');
+assert.match(zapret2, /applicationsUrl\(\)/,
+	'the missing Zapret2 package notice must target its catalog card');
+assert.match(zapret2, /admin\/services\/zapret2/,
+	'the Zapret2 entry point must open the installed native LuCI client');
+assert.match(zapret2Config, /api\.validate\(model\.candidate\(\)\)/,
+	'the Zapret2 settings page must validate the complete candidate before saving');
+assert.match(zapret2Config, /api\.service\('reload'\)/,
+	'the Zapret2 settings page must apply validated settings through the native service API');
+assert.match(ddns, /applicationsUrl\('ddns'\)/,
+	'the missing DDNS package notice must target its catalog card');
+assert.ok(otherConnections.indexOf("'require freenetic-connections-ipsec as ipsecView';") <
+	otherConnections.indexOf('function applicationsUrl(appId)'),
+	'LuCI module directives must remain before executable helper declarations');
+for (const id of [ 'wireguard', 'openvpn' ])
+	assert.match(otherConnections, new RegExp(`applicationAction\\('${id}'\\)`),
+		`the missing ${id} package notice must target its catalog card`);
+assert.match(otherConnections, /openL2tpForm\(null\), 'l2tp_ipsec'/,
+	'the missing L2TP package notice must target its catalog card');
+assert.match(otherConnections, /openIkev2Form\(null\), 'ikev2_ipsec'/,
+	'the missing IKEv2 package notice must target its catalog card');
+assert.match(wifiAcl, /applications'\) \+ '\?focus=pbr'/,
+	'the missing policy-routing package notice must target its catalog card');
+assert.match(multiwan, /class: 'fn-multiwan-gate-content', inert: ''/,
+	'unavailable Multi-WAN controls must not remain interactive');
 const flashHandler = system.slice(system.indexOf('\tflashUploadedFirmware()'), system.indexOf('\thandleSysupgrade()'));
 assert.match(flashHandler, /const reconnectTimer = window\.setTimeout\(startReconnect, 1500\)/,
 	'a successful sysupgrade that drops rpcd must still start reconnect polling');

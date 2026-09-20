@@ -18,6 +18,10 @@ const MULTIWAN_HELPER = '/usr/libexec/freenetic-multiwan';
 const WIFI_UPLINK_HELPER = '/usr/libexec/freenetic-wifi-uplink';
 const PACKAGE_NAMES = [ 'mwan3', 'luci-app-mwan3' ];
 
+function applicationsUrl(appId) {
+	return L.url('admin/system/applications') + '?focus=' + encodeURIComponent(appId);
+}
+
 function getWirelessConfig() {
 	return ubusCall('uci', 'get', { config: 'wireless' }).then(result => result.values || {}).catch(() => ({}));
 }
@@ -177,7 +181,7 @@ function packageNotice(model) {
 		return null;
 
 	const body = [ E('span', {}, packageStateText(model)) ];
-	body.push(E('a', { href: L.url('admin/system/applications'), class: 'fn-oc-notice-link' }, _('Open Applications')));
+	body.push(E('a', { href: applicationsUrl('mwan3'), class: 'fn-oc-notice-link' }, _('Open Applications')));
 
 	return E('section', { class: 'fn-oc-notice fn-oc-notice-warning' }, [
 		E('strong', {}, _('Multi-WAN is not installed'))
@@ -656,10 +660,7 @@ return view.extend({
 			? E('div', { class: 'fn-multiwan-uplinks' }, visibleUplinks.map(uplink => renderUplink(uplink, state)))
 			: E('div', { class: 'fn-info-empty' }, _('No mwan3 uplinks are configured yet. Install mwan3, then the editor will let you define failover and balancing members.'));
 
-		const page = [
-			E('h1', { class: 'fn-pf-title' }, _('Multi-WAN')),
-			E('p', { class: 'fn-pf-description' }, _('Connect a second Internet line and keep access online if the main one fails.')),
-			packageNotice(model),
+		const controls = [
 			E('div', { class: 'fn-dash fn-multiwan-dashboard' }, [
 				renderCurrentCard(state),
 				renderBackupCard(state, wifiUplink,
@@ -670,6 +671,22 @@ return view.extend({
 				cardHead('M3 12h18M3 6h12M3 18h8M16 4l4 4-4 4M14 16l4 4 4-4', _('Internet connections'), [ 'admin', 'network', 'internet' ]),
 				E('div', { class: 'fn-card-body' }, [ uplinkBody ])
 			])
+		];
+		const gatedControls = model.package.ready ? controls : [ E('div', { class: 'fn-multiwan-gate' }, [
+			E('div', { class: 'fn-multiwan-gate-content', inert: '', 'aria-hidden': 'true' }, controls),
+			E('a', {
+				class: 'fn-multiwan-gate-link',
+				href: applicationsUrl('mwan3'),
+				title: _('Install Multi-WAN from Applications'),
+				'aria-label': _('Install Multi-WAN from Applications')
+			})
+		]) ];
+
+		const page = [
+			E('h1', { class: 'fn-pf-title' }, _('Multi-WAN')),
+			E('p', { class: 'fn-pf-description' }, _('Connect a second Internet line and keep access online if the main one fails.')),
+			packageNotice(model),
+			...gatedControls
 		];
 
 		return E('div', { class: 'fn-pf-page fn-multiwan-page' }, page.filter(Boolean));

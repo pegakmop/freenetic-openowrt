@@ -306,6 +306,16 @@ function getPorts() {
 	return ubusCall('luci', 'getBuiltinEthernetPorts').then(r => r.result || []).catch(() => []);
 }
 
+function backupEthernetDevices(status) {
+	const devices = [];
+	((status && status.interfaces) || []).forEach(uplink => {
+		const device = uplink && String(uplink.device || '').trim();
+		if (uplink && uplink.scope === 'ethernet-port' && device && devices.indexOf(device) === -1)
+			devices.push(device);
+	});
+	return devices;
+}
+
 function getIwinfoDevices() {
 	return ubusCall('iwinfo', 'devices').then(r => r.devices || []).catch(() => []);
 }
@@ -691,6 +701,7 @@ return baseclass.extend({
 	connectionInterfaceLabel,
 	getWirelessConfig,
 	getPorts,
+	backupEthernetDevices,
 	getIwinfoDevices,
 	getWifiRadios,
 	mhzToChannel,

@@ -1,0 +1,150 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=99
+STOP=90
+
+EXTRA_COMMANDS="validate"
+EXTRA_HELP="\n\tvalidate\tValidate UCI, nftables and zapret2 arguments without changing runtime state"
+
+PROG=/usr/sbin/nfqws2
+BACKEND=/usr/libexec/zapret2/backend.uc
+ARGV_STATE=/var/run/zapret2/argv
+STATE_DIR=/var/run/zapret2
+ROLLBACK_DIR=$STATE_DIR/reload-rollback
+STATE_FILES='argv applied_hash wan_devices source_devices rules.nft summary manifest.json diagnostics.json'
+
+append_runtime_arg() {
+	procd_append_param command "$1"
+}
+
+load_service_config() {
+	config_load zapret2
+	config_get_bool enabled main enabled 0
+}
+
+start_instance() {
+	procd_open_instance
+	procd_set_param command "$PROG"
+	while IFS= read -r arg; do
+		append_runtime_arg "$arg"
+	done <"$ARGV_STATE"
+	procd_set_param respawn 3600 5 5
+	procd_set_param file /etc/config/zapret2
+	procd_close_instance
+}
+
+backup_runtime() {
+	rm -rf "$ROLLBACK_DIR"
+	mkdir -m 700 -p "$ROLLBACK_DIR" || return 1
+	local file
+	for file in $STATE_FILES; do
+		[ ! -f "$STATE_DIR/$file" ] || cp "$STATE_DIR/$file" "$ROLLBACK_DIR/$file" || return 1
+	done
+	[ -s "$ROLLBACK_DIR/argv" ] && [ -s "$ROLLBACK_DIR/rules.nft" ]
+}
+
+restore_runtime() {
+	local file transaction=$ROLLBACK_DIR/restore.nft
+	[ -s "$ROLLBACK_DIR/argv" ] && [ -s "$ROLLBACK_DIR/rules.nft" ] || return 1
+	{
+		nft list table inet zapret2 >/dev/null 2>&1 && echo 'delete table inet zapret2'
+		cat "$ROLLBACK_DIR/rules.nft"
+	} >"$transaction" || return 1
+	nft -f "$transaction" || return 1
+	for file in $STATE_FILES; do
+		rm -f "$STATE_DIR/$file"
+		[ ! -f "$ROLLBACK_DIR/$file" ] || cp "$ROLLBACK_DIR/$file" "$STATE_DIR/$file" || return 1
+	done
+	return 0
+}
+
+wait_running() {
+	local count=0 stable=0
+	while [ "$count" -lt 10 ]; do
+		if service_running; then
+			stable=$((stable + 1))
+			[ "$stable" -ge 3 ] && return 0
+		else
+			stable=0
+		fi
+		count=$((count + 1))
+		sleep 1
+	done
+	return 1
+}
+
+start_service() {
+	load_service_config
+	[ "$enabled" = 1 ] || return 0
+	[ -x "$PROG" ] || {
+		logger -t zapret2 'zapret2 binary is unavailable'
+		return 1
+	}
+
+	# A reload can request that a previously compiled rollback plan be started.
+	# Normal starts always compile, preflight and atomically apply current UCI.
+	if [ "${ZAPRET2_USE_STATE:-0}" != 1 ]; then
+		/usr/bin/ucode "$BACKEND" activate || return 1
+	fi
+	[ -s "$ARGV_STATE" ] || {
+		logger -t zapret2 'validated runtime argument file is unavailable'
+		return 1
+	}
+	start_instance
+}
+
+stop_service() {
+	/usr/bin/ucode "$BACKEND" stop
+}
+
+reload_service() {
+	load_service_config
+	if [ "$enabled" != 1 ]; then
+		procd_kill zapret2
+		/usr/bin/ucode "$BACKEND" stop
+		return 0
+	fi
+
+	# Validate before touching the running instance. Preserve the complete last
+	# known-good plan so a launch failure can restore both daemon argv and nft.
+	local had_runtime=0
+	if service_running; then
+		backup_runtime || {
+			logger -t zapret2 'cannot stage last known-good runtime; reload was not attempted'
+			return 1
+		}
+		had_runtime=1
+	fi
+	/usr/bin/ucode "$BACKEND" activate || return 1
+	procd_kill zapret2
+	ZAPRET2_USE_STATE=1 start
+	if wait_running; then
+		rm -rf "$ROLLBACK_DIR"
+		return 0
+	fi
+
+	logger -t zapret2 'replacement daemon failed; restoring last known-good runtime'
+	procd_kill zapret2
+	if [ "$had_runtime" = 1 ] && restore_runtime; then
+		ZAPRET2_USE_STATE=1 start
+		if wait_running; then
+			printf '%s\n' 'reload failed; restored last known-good runtime' >"$STATE_DIR/last_error"
+			logger -t zapret2 'last known-good runtime restored'
+			rm -rf "$ROLLBACK_DIR"
+			return 1
+		fi
+	fi
+	/usr/bin/ucode "$BACKEND" stop
+	rm -rf "$ROLLBACK_DIR"
+	logger -t zapret2 'reload failed and no runnable previous state could be restored'
+	return 1
+}
+
+validate() {
+	/usr/bin/ucode "$BACKEND" validate
+}
+
+service_triggers() {
+	procd_add_reload_trigger zapret2 firewall network
+}

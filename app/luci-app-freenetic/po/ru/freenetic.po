@@ -654,9 +654,6 @@ msgstr "Не удалось сохранить линию выпуска: %s"
 msgid "Failed to save channel: %s"
 msgstr "Не удалось сохранить канал: %s"
 
-msgid "Checking…"
-msgstr "Проверка…"
-
 #, javascript-format
 msgid "Looking for compatible %s releases…"
 msgstr "Поиск совместимых выпусков %s…"
@@ -985,6 +982,12 @@ msgstr "Направляет сегмент сети через выбранны
 
 msgid "Zapret"
 msgstr "Zapret"
+
+msgid "Zapret2 (NFQWS2)"
+msgstr "Zapret2 (NFQWS2)"
+
+msgid "Programmable DPI-bypass engine with Lua strategies."
+msgstr "Программируемый движок обхода DPI со стратегиями на Lua."
 
 msgid "Advanced traffic-processing tool for regional connectivity scenarios."
 msgstr "Расширенный инструмент обработки трафика для особых сценариев подключения."
@@ -3475,6 +3478,7 @@ msgstr "Обнаружены дополнительные параметры Ope
 
 msgid "This rule contains additional OpenWrt parameters; Freenetic does not display them. Saving preserves parameters it does not edit."
 msgstr "Это правило содержит дополнительные параметры OpenWrt; Freenetic их не отображает. При сохранении параметры, которые не редактируются интерфейсом, сохраняются."
+
 msgid "%s installed."
 msgstr "%s установлено."
 
@@ -3567,6 +3571,7 @@ msgstr "Это правило межсетевого экрана не упра�
 
 msgid "Unknown"
 msgstr "Неизвестно"
+
 msgid "Driver default"
 msgstr "По умолчанию драйвера"
 
@@ -3609,6 +3614,9 @@ msgstr "Порт WAN"
 
 msgid "Backup WAN port"
 msgstr "Порт резервного WAN"
+
+msgid "Reserve"
+msgstr "Резерв"
 
 #, javascript-format
 msgid "LAN port %d"
@@ -3887,6 +3895,30 @@ msgstr "Резервный интернет"
 
 msgid "Multi-WAN is not installed"
 msgstr "Multi-WAN не установлен"
+
+msgid "Install mwan3 from Applications to enable Multi-WAN failover and balancing."
+msgstr "Установите mwan3 в разделе «Приложения», чтобы включить резервирование и балансировку Multi-WAN."
+
+msgid "Install Multi-WAN from Applications"
+msgstr "Установить Multi-WAN из раздела «Приложения»"
+
+msgid "Install Multi-WAN?"
+msgstr "Установить Multi-WAN?"
+
+msgid "Multi-WAN adds routing rules and restarts the LuCI session while it is being installed."
+msgstr "Multi-WAN добавляет правила маршрутизации и во время установки перезапускает сеанс LuCI."
+
+msgid "After installation you will be signed out once. Sign in again to continue."
+msgstr "После установки потребуется один раз войти снова."
+
+msgid "Install Multi-WAN"
+msgstr "Установить Multi-WAN"
+
+msgid "Installing Multi-WAN…"
+msgstr "Установка Multi-WAN…"
+
+msgid "The package manager is preparing Multi-WAN. The page will reopen when LuCI is ready."
+msgstr "Пакетный менеджер настраивает Multi-WAN. Страница откроется заново, когда LuCI будет готов."
 
 msgid "No mwan3 member"
 msgstr "Нет участника mwan3"
@@ -4294,3 +4326,198 @@ msgstr "Резервный Wi-Fi удалён."
 
 msgid "Could not remove Wi-Fi backup: %s"
 msgstr "Не удалось удалить резервный Wi-Fi: %s"
+
+msgid "A detected network segment with firewall zones is required for a Direct override."
+msgstr "Для режима «Напрямую» требуется обнаруженный сетевой сегмент с зонами межсетевого экрана."
+
+msgid "Fail over between multiple Internet connections or balance traffic across them."
+msgstr "Переключает интернет на резервный канал при сбое или распределяет трафик между несколькими подключениями."
+
+msgid "Reload interface"
+msgstr "Перезапустить интерфейс"
+
+msgid "The primary mwan3 interface is missing. Restore the mwan3 configuration first."
+msgstr "Основной интерфейс mwan3 отсутствует. Сначала восстановите конфигурацию mwan3."
+
+msgid "This firmware does not currently expose a compatible mwan3 package."
+msgstr "В этой прошивке сейчас нет совместимого пакета mwan3."
+
+msgid "Zapret2"
+msgstr "Zapret2"
+
+msgid "Opening Zapret2 settings…"
+msgstr "Открываем настройки Zapret2…"
+
+msgid "The full Zapret2 configuration is opening."
+msgstr "Открывается полный конфигуратор Zapret2."
+
+msgid "Opening the Zapret2 settings…"
+msgstr "Открываем настройки Zapret2…"
+
+msgid "The installed LuCI interface is opening."
+msgstr "Открывается установленный интерфейс LuCI."
+
+msgid "The compatibility interface is opening."
+msgstr "Открывается интерфейс совместимости."
+
+msgid "Profiles"
+msgstr "Профили"
+
+msgid "Local lists"
+msgstr "Локальные списки"
+
+msgid "Log"
+msgstr "Журнал"
+
+msgid "Configure traffic interception and runtime settings. Ordered Profiles are configured on the Profiles page."
+msgstr "Настройте перехват трафика и параметры службы. Упорядоченные профили настраиваются на странице «Профили»."
+
+msgid "Basic settings"
+msgstr "Основные настройки"
+
+msgid "Traffic interception"
+msgstr "Перехват трафика"
+
+msgid "Queue settings"
+msgstr "Настройки очереди"
+
+msgid "Advanced runtime"
+msgstr "Дополнительные параметры"
+
+msgid "Enable Zapret2"
+msgstr "Включить Zapret2"
+
+msgid "Process IPv4"
+msgstr "Обрабатывать IPv4"
+
+msgid "Process IPv6"
+msgstr "Обрабатывать IPv6"
+
+msgid "Start"
+msgstr "Запустить"
+
+msgid "Reload"
+msgstr "Перезагрузить"
+
+msgid "Stop"
+msgstr "Остановить"
+
+msgid "Generated"
+msgstr "Сгенерировано"
+
+msgid "TCP original / reply"
+msgstr "TCP: исходящие / ответные"
+
+msgid "UDP original / reply"
+msgstr "UDP: исходящие / ответные"
+
+msgid "Other original / reply"
+msgstr "Другие: исходящие / ответные"
+
+msgid "Configure the NFQWS2 traffic-processing engine using safe, ready-made strategies."
+msgstr "Настройте обработку трафика NFQWS2 с помощью безопасных готовых стратегий."
+
+msgid "Apply required"
+msgstr "Нужно применить"
+
+msgid "Stopped with an error"
+msgstr "Остановлен из-за ошибки"
+
+msgid "Configuration is incompatible"
+msgstr "Несовместимая конфигурация"
+
+msgid "Zapret2 is not installed"
+msgstr "Zapret2 не установлен"
+
+msgid "Zapret2 interface is not installed"
+msgstr "Интерфейс Zapret2 не установлен"
+
+msgid "The runtime is present, but its LuCI interface is missing. Install luci-app-zapret2 from Applications."
+msgstr "Среда Zapret2 установлена, но интерфейс LuCI отсутствует. Установите luci-app-zapret2 в разделе «Приложения»."
+
+msgid "Install Zapret2 from Applications. Installation does not enable traffic processing."
+msgstr "Установите Zapret2 в разделе «Приложения». Сама установка не включает обработку трафика."
+
+msgid "Install the signed Freenetic package first. Installation does not enable traffic processing."
+msgstr "Сначала установите подписанный пакет Freenetic. Сама установка не включает обработку трафика."
+
+msgid "Traffic processing"
+msgstr "Обработка трафика"
+
+msgid "Start Zapret2 and apply the selected strategies to devices on the home network."
+msgstr "Запустить Zapret2 и применять выбранные стратегии к устройствам домашней сети."
+
+msgid "Process IPv4 connections."
+msgstr "Обрабатывать IPv4-соединения."
+
+msgid "Process IPv6 connections."
+msgstr "Обрабатывать IPv6-соединения."
+
+msgid "HTTP"
+msgstr "HTTP"
+
+msgid "Conservative split for unencrypted web traffic on TCP port 80."
+msgstr "Щадящее разделение незашифрованного веб-трафика на TCP-порту 80."
+
+msgid "HTTPS / TLS"
+msgstr "HTTPS / TLS"
+
+msgid "Conservative split of the initial TLS handshake on TCP port 443."
+msgstr "Щадящее разделение начального TLS-рукопожатия на TCP-порту 443."
+
+msgid "QUIC"
+msgstr "QUIC"
+
+msgid "Process QUIC initial packets on UDP port 443. Enable only when needed."
+msgstr "Обрабатывать начальные пакеты QUIC на UDP-порту 443. Включайте только при необходимости."
+
+msgid "Apply settings"
+msgstr "Применить настройки"
+
+msgid "Process ID: %s"
+msgstr "ID процесса: %s"
+
+msgid "Processed connections: %s"
+msgstr "Обработано соединений: %s"
+
+msgid "Service"
+msgstr "Служба"
+
+msgid "Traffic strategies"
+msgstr "Стратегии обработки"
+
+msgid "IP versions"
+msgstr "Версии IP"
+
+msgid "All Internet traffic mode"
+msgstr "Режим всего интернет-трафика"
+
+msgid "The first version processes matching traffic on the configured Internet interfaces. Some VPN and proxy connections may also match these ports."
+msgstr "Первая версия обрабатывает подходящий трафик на настроенных интернет-интерфейсах. Под эти порты могут также попасть некоторые VPN- и прокси-соединения."
+
+msgid "Settings are validated before activation. If the new service fails to start, Freenetic restores the previous configuration and runtime."
+msgstr "Настройки проверяются до включения. Если новая служба не запустится, Freenetic восстановит предыдущую конфигурацию и рабочее состояние."
+
+msgid "Enable IPv4, IPv6, or both."
+msgstr "Включите IPv4, IPv6 или оба протокола."
+
+msgid "Enable at least one traffic strategy."
+msgstr "Включите хотя бы одну стратегию обработки."
+
+msgid "Applying Zapret2 settings"
+msgstr "Применение настроек Zapret2"
+
+msgid "Validating the configuration and switching the traffic processor…"
+msgstr "Проверяем конфигурацию и переключаем обработчик трафика…"
+
+msgid " The previous configuration was restored."
+msgstr " Предыдущая конфигурация восстановлена."
+
+msgid "Zapret2 is running."
+msgstr "Zapret2 запущен."
+
+msgid "Zapret2 is disabled."
+msgstr "Zapret2 отключён."
+
+msgid "Failed to apply Zapret2 settings: %s"
+msgstr "Не удалось применить настройки Zapret2: %s"

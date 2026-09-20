@@ -1622,7 +1622,20 @@ input[disabled], textarea[disabled], select[disabled] {
 	font-weight: 500;
 }
 .cbi-tabmenu > li.cbi-tab > a { color: var(--fn-accent); border-bottom-color: var(--fn-accent); }
-.cbi-tab-disabled > a { color: var(--fn-text-disabled) !important; pointer-events: none; }
+/* LuCI uses cbi-tab-disabled for an inactive tab, not for a disabled
+   control.  Inactive tabs still need to receive clicks so ui.tabs can switch
+   the active pane.  Real disabled controls use [disabled] or
+   cbi-button-disabled instead. */
+.cbi-tabmenu > li.cbi-tab-disabled > a {
+	color: var(--fn-text-secondary) !important;
+	pointer-events: auto;
+	cursor: pointer;
+}
+.cbi-tabmenu > li.cbi-tab-disabled > a:hover,
+.cbi-tabmenu > li.cbi-tab-disabled > a:focus-visible {
+	color: var(--fn-text) !important;
+	border-bottom-color: var(--fn-border-strong);
+}
 
 .tabs { list-style: none; margin: 0; padding: 0; }
 .tab-content { padding-top: 12px; }
@@ -2045,6 +2058,25 @@ body.modal-overlay-active { overflow: hidden; }
 	}
 }
 
+/* Engine-wide options are a peer of the native Zapret2 tabs.  The tab
+   module moves the live native CBI section here, so its existing controls,
+   validation and reset action keep working without a second implementation. */
+body[data-page="admin-services-zapret2"] #cbi-zapret2-freenetic-global-settings > .cbi-section {
+	box-sizing: border-box;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	background: transparent !important;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-freenetic-global-settings > .cbi-section > h3 {
+	display: none;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-freenetic-global-settings > .cbi-section > div[style] {
+	margin-top: 0 !important;
+}
+
 /* ---------- badges (network status widgets) ---------- */
 
 .ifacebox {
@@ -2438,6 +2470,21 @@ body[data-page="admin-system-package-manager"] #maincontent #view > .controls > 
  * dashboard surfaces: the first release slice reports state without exposing
  * live network mutations, so uplinks and policies read like a status board. */
 .fn-multiwan-page .fn-oc-notice { margin-bottom: 20px; }
+.fn-multiwan-gate { position: relative; }
+.fn-multiwan-gate-content {
+	opacity: .38;
+	filter: saturate(.45);
+}
+.fn-multiwan-gate-link {
+	position: absolute;
+	z-index: 3;
+	inset: 0;
+	border: 1px solid transparent;
+	border-radius: var(--fn-radius-lg);
+	cursor: pointer;
+}
+.fn-multiwan-gate-link:hover { border-color: color-mix(in srgb, var(--fn-accent) 38%, transparent); }
+.fn-multiwan-gate-link:focus-visible { outline: 3px solid var(--fn-accent-soft); outline-offset: 3px; }
 .fn-multiwan-section { grid-column: 1 / -1; }
 .fn-multiwan-dashboard {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4749,6 +4796,13 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 	background: var(--fn-surface);
 }
 .fn-apps-row:last-child { border-bottom: none; }
+.fn-apps-row-focused {
+	position: relative;
+	z-index: 1;
+	background: var(--fn-accent-soft);
+	box-shadow: inset 3px 0 0 var(--fn-accent), 0 0 0 2px var(--fn-accent-soft);
+}
+.fn-apps-row-focused:focus { outline: 2px solid var(--fn-accent); outline-offset: 2px; }
 .fn-apps-row > .fn-icon { flex: 0 0 auto; color: var(--fn-text-secondary); }
 .fn-apps-info { flex: 1 1 auto; min-width: 0; }
 .fn-apps-name {
@@ -4794,6 +4848,79 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 }
 .fn-apps-row .fn-status-pill { flex: 0 0 auto; margin-right: 4px; letter-spacing: .08em; }
 .fn-apps-row .fn-settings-btn { flex: 0 0 auto; width: auto; padding: 7px 16px; }
+.fn-apps-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+
+/* Zapret2 deliberately exposes a compact, reviewed subset of the native
+   schema. Dense strategy rows keep the feature understandable on a phone
+   without making the switches look like unrelated global settings. */
+.fn-zapret-title-row {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+.fn-zapret-title-row .fn-status-pill { margin-top: 8px; flex: 0 0 auto; }
+.fn-zapret-layout { display: grid; gap: 16px; margin-top: 20px; }
+.fn-zapret-card { overflow: hidden; }
+.fn-zapret-card .fn-card-head { min-height: 50px; }
+.fn-zapret-card .fn-card-head strong { font-size: 1rem; letter-spacing: .035em; }
+.fn-zapret-options { display: grid; gap: 0; padding-top: 4px; padding-bottom: 4px; }
+.fn-zapret-option {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	min-width: 0;
+	padding: 15px 0;
+	border-bottom: 1px solid var(--fn-border);
+	cursor: pointer;
+}
+.fn-zapret-option:last-child { border-bottom: 0; }
+.fn-zapret-option-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.fn-zapret-option-copy strong { color: var(--fn-text); font-size: 1rem; }
+.fn-zapret-option-copy > span { color: var(--fn-text-secondary); line-height: 1.4; }
+.fn-zapret-master { padding: 0; border-bottom: 0; }
+.fn-zapret-runtime-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 7px 18px;
+	margin-top: 14px;
+	padding-top: 14px;
+	border-top: 1px solid var(--fn-border);
+	color: var(--fn-text-secondary);
+}
+.fn-zapret-runtime-meta .fn-zapret-error { flex-basis: 100%; color: var(--fn-danger); overflow-wrap: anywhere; }
+.fn-zapret-warning { margin: 0; }
+.fn-zapret-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	color: var(--fn-text-secondary);
+	line-height: 1.4;
+}
+.fn-zapret-actions .fn-settings-btn { flex: 0 0 auto; width: auto; min-width: 180px; }
+.fn-zapret-missing { margin-top: 20px; }
+.fn-zapret-missing .fn-card-body { display: grid; gap: 10px; max-width: 720px; }
+.fn-zapret-missing p { margin: 0; color: var(--fn-text-secondary); }
+.fn-zapret-missing .fn-settings-btn { width: max-content; }
+@media (max-width: 700px) {
+	.fn-zapret-title-row { align-items: center; }
+	.fn-zapret-title-row .fn-pf-description { margin-bottom: 0; }
+	.fn-zapret-option { gap: 14px; padding: 13px 0; }
+	.fn-zapret-actions { align-items: stretch; flex-direction: column; gap: 12px; }
+	.fn-zapret-actions .fn-settings-btn,
+	.fn-zapret-missing .fn-settings-btn { width: 100%; min-width: 0; }
+	.fn-apps-actions { margin-left: auto; }
+	.fn-apps-row .fn-apps-actions .fn-settings-btn { margin-left: 0; }
+}
+@media (max-width: 460px) {
+	.fn-zapret-title-row { align-items: flex-start; flex-direction: column; gap: 4px; }
+	.fn-zapret-title-row .fn-status-pill { margin-top: 0; }
+	.fn-zapret-runtime-meta { flex-direction: column; gap: 5px; }
+	.fn-apps-actions { width: 100%; }
+	.fn-apps-actions .fn-settings-btn { flex: 1 1 0; }
+}
 
 /* System removal stays visually separate from routine file operations. The
    restrained red edge communicates risk without turning the whole page into
@@ -5751,5 +5878,1333 @@ input[type="checkbox"].fn-switch-input::after { content: none; }
 		animation-iteration-count: 1 !important;
 		transition-duration: .01ms !important;
 		scroll-behavior: auto !important;
+	}
+}
+
+/* ---------- native Zapret2 page ----------
+ * The upstream LuCI app intentionally emits stock CBI markup.  Keep its
+ * controls and RPC behaviour intact, but give the page the same card rhythm
+ * as Internet / Backup Internet and make its inactive CBI tabs usable in the
+ * Freenetic theme. */
+body[data-page="admin-services-zapret2"] #view > .cbi-section,
+body[data-page="admin-services-zapret2"] #cbi-zapret2 > .cbi-map-tabbed > [data-tab][data-tab-active="true"] {
+	background: var(--fn-surface);
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius-lg);
+	box-shadow: var(--fn-shadow-1);
+}
+
+body[data-page="admin-services-zapret2"] #view > .cbi-section {
+	box-sizing: border-box;
+	margin: 0 0 20px !important;
+	padding: 18px 20px 20px;
+}
+
+body[data-page="admin-services-zapret2"] #view > .cbi-section > table {
+	margin: 0;
+}
+
+body[data-page="admin-services-zapret2"] #view > .cbi-section .label-success {
+	background: var(--fn-status-ok-soft);
+	color: var(--fn-status-ok);
+}
+
+body[data-page="admin-services-zapret2"] #view > .cbi-section .label-danger {
+	background: var(--fn-danger-soft);
+	color: var(--fn-danger);
+}
+
+/* The native status section is a small two-row summary, not a full-width
+   table. Keep the values next to their labels so the panel does not leave a
+   large empty gap between the two halves. */
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table {
+	width: auto;
+	max-width: 100%;
+	table-layout: auto;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr > .td {
+	display: block;
+	box-sizing: border-box;
+	padding: 8px 0;
+	border-bottom-color: var(--fn-border-strong);
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr > .td.left {
+	flex: 0 0 140px;
+	width: auto !important;
+	color: var(--fn-text-secondary);
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr > .td.right {
+	flex: 0 1 auto;
+	text-align: left;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table + div {
+	margin-top: 12px !important;
+	padding-top: 12px;
+	border-top: 1px solid var(--fn-border-strong);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2 {
+	margin: 0;
+}
+
+/* Zapret2 applies its settings through its own controls and RPC calls.  The
+   generic LuCI page-level Apply/Save/Reset bar would suggest a second,
+   conflicting save flow, so keep it out of this page.  Nested action bars
+   (for example the debug-log refresh controls) remain available. */
+body[data-page="admin-services-zapret2"] #view > .cbi-page-actions {
+	display: none !important;
+}
+
+/* CBI's tab controller toggles data-tab-active.  The stock theme used to
+   leave every pane in normal flow, which made the page look like one giant
+   settings dump and also hid the fact that the tab links were interactive. */
+body[data-page="admin-services-zapret2"] #cbi-zapret2 > .cbi-map-tabbed > [data-tab],
+body[data-page="admin-services-zapret2"] #cbi-zapret2 .cbi-section-node-tabbed > [data-tab] {
+	display: none;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2 > .cbi-map-tabbed > [data-tab][data-tab-active="true"],
+body[data-page="admin-services-zapret2"] #cbi-zapret2 .cbi-section-node-tabbed > [data-tab][data-tab-active="true"] {
+	display: block;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2 > .cbi-map-tabbed > [data-tab][data-tab-active="true"] {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 20px;
+	overflow: hidden;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2 > .cbi-map-tabbed > [data-tab][data-tab-active="true"] > .cbi-section:first-child,
+body[data-page="admin-services-zapret2"] #cbi-zapret2 > .cbi-map-tabbed > [data-tab][data-tab-active="true"] > .cbi-section:not(.cbi-tblsection) {
+	margin-top: 0;
+}
+
+/* Blockcheck2 and debug log are native utility panes.  Flatten their nested
+   CBI cards and give the controls the same compact surface rhythm as the
+   strategy rows, while leaving every native id and event handler intact. */
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab > .cbi-section-node > .cbi-section,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab > .cbi-section-node > .cbi-section {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	background: transparent;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab > h3,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab > h3 {
+	margin: 0 0 14px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .cbi-section-node > .cbi-section > div:first-child {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+	gap: 10px 14px !important;
+	padding-top: 2px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .cbi-section-node > .cbi-section > div:first-child > div[style*="font-weight: bold"] {
+	box-sizing: border-box;
+	margin-top: 4px;
+	padding: 12px 0 6px !important;
+	border-bottom: 1px solid var(--fn-border-strong);
+	color: var(--fn-text);
+	font-size: .75rem !important;
+	letter-spacing: .04em;
+	line-height: 1.25;
+	text-transform: uppercase;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-checkbox {
+	box-sizing: border-box;
+	min-width: 0;
+	min-height: 36px;
+	margin: 0;
+	padding: 8px 10px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+	line-height: 1.3;
+	transition: border-color .16s ease, background-color .16s ease;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-checkbox:hover,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-checkbox:focus-within {
+	border-color: var(--fn-accent);
+	background: var(--fn-surface-alt);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-checkbox input[type="checkbox"] {
+	flex: 0 0 auto;
+	margin: 0 8px 0 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-field {
+	box-sizing: border-box;
+	min-width: 0;
+	margin: 0;
+	padding: 7px 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-field > span:first-child {
+	flex: 0 0 auto;
+	color: var(--fn-text-secondary);
+	font-size: .8rem;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-field > input,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-field > select,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_domain,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_curl_path {
+	box-sizing: border-box;
+	max-width: 100%;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_domain,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_curl_path,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_pktws_extra_pre,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_pktws_extra_post {
+	width: 100% !important;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .cbi-section-node > .cbi-section > div[style*="justify-content: space-between"] {
+	align-items: center;
+	margin-top: 16px !important;
+	padding-top: 14px;
+	border-top: 1px solid var(--fn-border-strong);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_status {
+	color: var(--fn-text-secondary);
+	font-size: .85rem;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_strategies_section,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .cbi-section-node > .cbi-section > div:has(> #bc2_log) {
+	margin-top: 18px !important;
+	padding-top: 14px;
+	border-top: 1px solid var(--fn-border-strong);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_strategies_section h3,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .cbi-section-node > .cbi-section > div:has(> #bc2_log) > h3 {
+	margin-bottom: 10px;
+	font-size: .9rem;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_strategies,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_log {
+	box-sizing: border-box;
+	width: 100% !important;
+	border-color: var(--fn-border-strong);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+	color: var(--fn-text);
+	line-height: 1.45;
+	resize: vertical;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_log {
+	height: 280px !important;
+	min-height: 220px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab .cbi-value-description {
+	margin-bottom: 14px;
+	line-height: 1.45;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab .cbi-section > .cbi-tabmenu {
+	margin: 12px 0 14px;
+	border-bottom-color: var(--fn-border-strong);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab .cbi-tabcontainer,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab .cbi-tabcontainer-content > .cbi-section {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	background: transparent;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab .cbi-section-descr {
+	margin: 0 0 12px;
+	color: var(--fn-text-secondary);
+	font-size: .85rem;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab textarea {
+	box-sizing: border-box;
+	width: 100% !important;
+	height: 280px !important;
+	min-height: 220px;
+	border-color: var(--fn-border-strong);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface);
+	color: var(--fn-text);
+	font-family: var(--fn-font-system);
+	line-height: 1.45;
+	resize: vertical;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab .cbi-page-actions {
+	justify-content: flex-start;
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top-color: var(--fn-border-strong);
+}
+
+/* Scripts are rendered by the native page as a table.  Keep that live table
+   (and its edit/remove handlers), but present it as the same quiet list of
+   cards used by the strategy pane instead of a stretched legacy CBI table. */
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #cbi-zapret2-_scripts > .cbi-value {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	margin: 0;
+	padding: 4px 0 14px;
+	border-bottom: 1px solid var(--fn-border-strong);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #cbi-zapret2-_scripts > .cbi-value > .cbi-value-title {
+	flex: 0 0 auto;
+	width: auto !important;
+	max-width: none;
+	min-width: 0;
+	padding: 0;
+	color: var(--fn-text);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #cbi-zapret2-_scripts > .cbi-value > .cbi-value-field {
+	flex: 0 0 auto;
+	width: auto;
+	margin: 0;
+	padding: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container {
+	margin-top: 14px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table {
+	display: block;
+	width: 100%;
+	margin: 0;
+	border: 0;
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr {
+	display: grid;
+	grid-template-columns: 90px minmax(150px, .9fr) minmax(220px, 1.4fr) auto;
+	align-items: center;
+	gap: 12px;
+	box-sizing: border-box;
+	min-width: 0;
+	margin: 0;
+	padding: 10px 12px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr.cbi-section-table-titles {
+	min-height: 34px;
+	padding-top: 8px;
+	padding-bottom: 8px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius);
+	background: var(--fn-client-section-bg);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) {
+	margin-top: 8px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius);
+	background: var(--fn-client-section-bg);
+	transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles):hover {
+	border-color: var(--fn-border-strong);
+	background: var(--fn-wan-soft);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr > .th,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr > .td {
+	display: block;
+	box-sizing: border-box;
+	min-width: 0;
+	width: auto !important;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	color: var(--fn-text);
+	line-height: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr > .th {
+	color: var(--fn-text-secondary);
+	font-size: .7rem;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td:nth-child(2) {
+	font-weight: 600;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr > .td.cbi-section-actions {
+	min-width: 0 !important;
+	width: auto !important;
+	margin: 0;
+	padding: 0;
+	text-align: right;
+	overflow: visible;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container .cbi-section-actions > div {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 6px;
+	min-width: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container .cbi-section-actions .cbi-button {
+	box-sizing: border-box;
+	min-width: 0;
+	margin: 0;
+	padding: 6px 10px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: var(--fn-radius-sm);
+	background: var(--fn-surface);
+	color: var(--fn-text);
+	font-size: .82rem;
+	font-weight: 500;
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container .cbi-section-actions .cbi-button:hover,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container .cbi-section-actions .cbi-button:focus-visible {
+	border-color: var(--fn-accent);
+	background: var(--fn-surface-alt);
+	color: var(--fn-text);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container .cbi-section-actions .cbi-button-remove {
+	border-color: var(--fn-danger);
+	background: transparent;
+	color: var(--fn-danger);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container .cbi-section-actions .cbi-button-remove:hover,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container .cbi-section-actions .cbi-button-remove:focus-visible {
+	background: var(--fn-danger-soft);
+	color: var(--fn-danger);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .cbi-section-create {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 14px !important;
+	padding-top: 14px;
+	border-top: 1px solid var(--fn-border-strong);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #new_script_name {
+	flex: 0 1 360px;
+	min-width: 0;
+}
+
+@media (max-width: 1100px) {
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .cbi-section-node > .cbi-section > div:first-child {
+		grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr {
+		grid-template-columns: 72px minmax(140px, .9fr) minmax(180px, 1.4fr) auto;
+	}
+}
+
+@media (max-width: 700px) {
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .cbi-section-node > .cbi-section > div:first-child {
+		grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab #bc2_log,
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_debuglog_tab textarea {
+		height: 240px !important;
+		min-height: 180px;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #cbi-zapret2-_scripts > .cbi-value {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 8px;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #cbi-zapret2-_scripts > .cbi-value > .cbi-value-title {
+		white-space: normal;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr.cbi-section-table-titles {
+		display: none;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-template-areas:
+			"order name"
+			"filename filename"
+			"actions actions";
+		align-items: start;
+		gap: 8px 12px;
+		padding: 12px;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td {
+		white-space: normal;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td:nth-child(1) {
+		grid-area: order;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td:nth-child(2) {
+		grid-area: name;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td:nth-child(3) {
+		grid-area: filename;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td:nth-child(4) {
+		grid-area: actions;
+		padding-top: 10px;
+		border-top: 1px solid var(--fn-border-strong);
+		text-align: left;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td::before {
+		display: block;
+		margin-bottom: 3px;
+		color: var(--fn-text-secondary);
+		font-size: .68rem;
+		font-weight: 600;
+		letter-spacing: .04em;
+		line-height: 14px;
+		text-transform: uppercase;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td:nth-child(1)::before { content: "Порядок"; }
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td:nth-child(2)::before { content: "Название"; }
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) > .td:nth-child(3)::before { content: "Имя файла"; }
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container .cbi-section-actions > div {
+		justify-content: flex-start;
+		flex-wrap: wrap;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .cbi-section-create {
+		align-items: stretch;
+		flex-wrap: wrap;
+	}
+}
+
+@media (max-width: 480px) {
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .cbi-section-node > .cbi-section > div:first-child {
+		grid-template-columns: minmax(0, 1fr) !important;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_scripts_tab #scripts-table-container > .table > .tr:not(.cbi-section-table-titles) {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas:
+			"order"
+			"name"
+			"filename"
+			"actions";
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-_blockcheck_tab .bc2-field {
+		flex-wrap: wrap;
+	}
+}
+
+/* Strategies are the main daily-use view.  Turn the wide stock table into
+   compact cards: the name and switch form the header, useful match metadata
+   stays visible, and the low-value L3 column is omitted. */
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table {
+	display: block;
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead {
+	display: none;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-tbody {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+	gap: 12px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-areas:
+		"name enabled"
+		"port port"
+		"protocol protocol"
+		"l7 l7"
+		"lists lists"
+		"actions actions";
+	gap: 8px 12px;
+	min-width: 0;
+	padding: 14px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface-alt);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > .td {
+	display: block;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	vertical-align: initial;
+	overflow-wrap: anywhere;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > .td:first-child {
+	grid-area: name;
+	font-size: 1rem;
+	font-weight: 700;
+	color: var(--fn-text);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="enabled"] {
+	grid-area: enabled;
+	justify-self: end;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="port"] {
+	grid-area: port;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="protocol"] {
+	grid-area: protocol;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="filter_l7"] {
+	grid-area: l7;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="_lists"] {
+	grid-area: lists;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="filter_l3"] {
+	display: none;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="port"]::before,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="protocol"]::before,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="filter_l7"]::before,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="_lists"]::before {
+	content: attr(data-title);
+	display: inline-block;
+	min-width: 76px;
+	margin-right: 8px;
+	color: var(--fn-text-secondary);
+	font-size: .7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td.cbi-section-actions {
+	grid-area: actions;
+	min-width: 0 !important;
+	width: auto !important;
+	margin-top: 4px;
+	padding-top: 10px;
+	border-top: 1px solid var(--fn-border);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions > div {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button {
+	margin: 0;
+	padding: 6px 10px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy > .cbi-section:not(.cbi-tblsection) {
+	margin-top: 16px;
+	padding: 16px;
+	border: 1px solid var(--fn-border);
+	border-radius: var(--fn-radius);
+	background: var(--fn-surface-alt);
+}
+
+@media (max-width: 700px) {
+	body[data-page="admin-services-zapret2"] #view > .cbi-section {
+		padding: 14px;
+	}
+	body[data-page="admin-services-zapret2"] .cbi-tabmenu {
+		max-width: 100%;
+		overflow-x: auto;
+		flex-wrap: nowrap;
+		justify-content: flex-start;
+	}
+	body[data-page="admin-services-zapret2"] .cbi-tabmenu > li {
+		flex: 0 0 auto;
+	}
+	body[data-page="admin-services-zapret2"] .cbi-tabmenu > li > a {
+		white-space: nowrap;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2 > .cbi-map-tabbed > [data-tab][data-tab-active="true"] {
+		padding: 14px;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-tbody {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas:
+			"name"
+			"enabled"
+			"port"
+			"protocol"
+			"l7"
+			"lists"
+			"actions";
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="enabled"] {
+		justify-self: start;
+	}
+	body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr {
+		gap: 10px;
+	}
+	body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr > .td.left {
+		flex-basis: 112px;
+	}
+}
+
+/* Figma reference: Zapret2's strategy list is a compact, full-width set of
+ * rows rather than a wall of independent settings cards.  Keep each row a
+ * card (the same visual language as the Internet/Backup Internet surfaces),
+ * while preserving the native CBI table and its RPC-backed controls. */
+body[data-page="admin-services-zapret2"] #cbi-zapret2 > .cbi-map-tabbed > #cbi-zapret2-strategy {
+	padding: 0;
+	border: 0;
+	box-shadow: none;
+	background: transparent;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy > h3 {
+	display: none;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table {
+	display: block;
+	width: 100%;
+	border: 0;
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead {
+	display: block;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr {
+	display: grid;
+	grid-template-columns: 32px 220px 80px 80px 120px minmax(0, 1fr) 310px;
+	align-items: center;
+	gap: 16px;
+	box-sizing: border-box;
+	min-height: 34px;
+	margin: 0;
+	padding: 10px 16px;
+	border: 1.5px solid var(--fn-border-strong);
+	border-radius: 8px;
+	background-color: var(--fn-client-section-bg) !important;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th {
+	display: block;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	color: #6b7c85;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .5px;
+	line-height: 14px;
+	text-align: left;
+	text-transform: uppercase;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th:first-child {
+	grid-column: 2;
+	font-size: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th:first-child::after {
+	content: "Стратегия";
+	font-size: 11px;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th[data-name="enabled"],
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th[data-name="filter_l3"] {
+	display: none;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th[data-name="port"] { grid-column: 3; }
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th[data-name="protocol"] { grid-column: 4; }
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th[data-name="filter_l7"] { grid-column: 5; }
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th[data-name="_lists"] { grid-column: 6; }
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr > .th.cbi-section-actions { grid-column: 7; }
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-tbody {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	margin: 12px 0 0;
+	padding: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row {
+	display: grid;
+	grid-template-columns: 32px 220px 80px 80px 120px minmax(0, 1fr) 310px;
+	grid-template-areas: none;
+	align-items: center;
+	gap: 16px;
+	box-sizing: border-box;
+	min-height: 56px;
+	margin: 0;
+	padding: 12px 16px;
+	border: 1.5px solid var(--fn-border-strong);
+	border-radius: 8px;
+	background-color: var(--fn-client-section-bg) !important;
+	transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row:hover {
+	background-color: var(--fn-wan-soft) !important;
+	border-color: var(--fn-border-strong);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > .td {
+	display: block;
+	grid-area: auto;
+	min-width: 0;
+	width: auto !important;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	color: var(--fn-text);
+	font-size: 13px;
+	line-height: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > .td:first-child {
+	grid-area: auto;
+	grid-column: 2;
+	grid-row: 1;
+	color: var(--fn-text);
+	font-weight: 400;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="enabled"] {
+	grid-column: 1;
+	grid-row: 1;
+	overflow: visible;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="port"] { grid-column: 3; grid-row: 1; }
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="protocol"] { grid-column: 4; grid-row: 1; }
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="filter_l3"] { display: none; }
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="filter_l7"] { grid-column: 5; grid-row: 1; }
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="_lists"] { grid-column: 6; grid-row: 1; }
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td.cbi-section-actions {
+	grid-column: 7;
+	grid-row: 1;
+	min-width: 0 !important;
+	width: 310px !important;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions > div {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	min-width: 0;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .drag-handle {
+	display: none !important;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button {
+	box-sizing: border-box;
+	min-width: 0;
+	margin: 0;
+	padding: 7px 12px;
+	border: 1px solid var(--fn-border-strong);
+	border-radius: 6px;
+	background: var(--fn-surface);
+	color: var(--fn-text);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button:hover,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button:focus-visible {
+	background: var(--fn-surface-alt);
+	border-color: var(--fn-accent);
+	color: var(--fn-text);
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button-remove {
+	border-color: #ff5252;
+	background: transparent;
+	color: #ff5252;
+}
+
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button-remove:hover,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button-remove:focus-visible {
+	background: rgba(255, 82, 82, .12);
+	color: #ff6b6b;
+}
+
+/* The earlier mobile-card rules add field labels with ::before.  On the
+ * desktop rows the heading already labels each column, so show the native
+ * values without repeating (and clipping) those labels. */
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="port"]::before,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="protocol"]::before,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="filter_l7"]::before,
+body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="_lists"]::before {
+	content: none;
+	display: none;
+}
+
+:root[data-darkmode="true"] body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead > .tr,
+:root[data-darkmode="true"] body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row {
+	border-color: var(--fn-border-strong);
+	background-color: var(--fn-client-section-bg) !important;
+}
+
+:root[data-darkmode="true"] body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row:hover {
+	background-color: var(--fn-wan-soft) !important;
+	border-color: var(--fn-border-strong);
+}
+
+:root[data-darkmode="true"] body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > .td,
+:root[data-darkmode="true"] body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > .td:first-child {
+	color: var(--fn-text);
+}
+
+:root[data-darkmode="true"] body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button {
+	border-color: #2d4059;
+	background: #202e43;
+	color: #ffffff;
+}
+
+:root[data-darkmode="true"] body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button:hover,
+:root[data-darkmode="true"] body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions .cbi-button:focus-visible {
+	background: #2a3d58;
+	border-color: #47749e;
+	color: #ffffff;
+}
+
+@media (max-width: 1100px) and (min-width: 701px) {
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table {
+	min-width: 1000px;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy {
+	overflow-x: auto;
+	}
+}
+
+@media (max-width: 700px) {
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-thead {
+	display: none;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-tbody {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 12px;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row {
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-areas:
+		"name enabled"
+		"port port"
+		"protocol protocol"
+		"l7 l7"
+		"lists lists"
+		"actions actions";
+	align-items: start;
+	gap: 8px 12px;
+	min-height: 0;
+	padding: 14px;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > .td:first-child {
+	grid-area: name !important;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="enabled"] {
+	grid-area: enabled;
+	justify-self: end;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="port"] {
+	grid-area: port;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="protocol"] {
+	grid-area: protocol;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="filter_l7"] {
+	grid-area: l7;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="_lists"] {
+	grid-area: lists;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="port"]::before,
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="protocol"]::before,
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="filter_l7"]::before,
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td[data-name="_lists"]::before {
+	content: attr(data-title);
+	display: inline-block;
+	min-width: 76px;
+	margin-right: 8px;
+	color: #6b7c85;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .5px;
+	text-transform: uppercase;
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-table-row > td.cbi-section-actions {
+	grid-area: actions;
+	width: auto !important;
+	margin-top: 4px;
+	padding-top: 10px;
+	border-top: 1px solid var(--fn-border-strong);
+	}
+	body[data-page="admin-services-zapret2"] #cbi-zapret2-strategy .cbi-section-actions > div {
+	justify-content: flex-start;
+	flex-wrap: wrap;
+	}
+}
+
+/* Zapret2 strategy editor -------------------------------------------------
+ * CBI's generic mobile rule gives every value a 280px flex basis.  That is
+ * useful for a few legacy forms, but it turns this editor into a four-screen
+ * modal on a phone.  Keep the native widgets and validation, and use the
+ * same dense two-column rhythm as the strategy rows. */
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal {
+	box-sizing: border-box;
+	width: min(760px, calc(100% - 32px));
+	max-width: 760px;
+	max-height: calc(100vh - 32px);
+	margin: 16px auto;
+	padding: 20px 24px 16px;
+	border: 1px solid var(--fn-border-strong);
+	border-top: 3px solid var(--fn-accent);
+	overflow-y: auto;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal > h4:first-child {
+	margin: 0 0 14px;
+	padding-left: 10px;
+	border-left: 3px solid var(--fn-accent);
+	color: var(--fn-text);
+	font-size: .95rem;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal > .cbi-map,
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-section {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	background: transparent;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value {
+	display: grid;
+	grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+	align-items: start;
+	gap: 4px 16px;
+	box-sizing: border-box;
+	padding: 8px 0;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value:first-child {
+	padding-top: 0;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value label.cbi-value-title {
+	box-sizing: border-box;
+	width: auto;
+	max-width: none;
+	padding: 6px 0 0;
+	color: var(--fn-text);
+	font-size: .875rem;
+	font-weight: 500;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value-field {
+	box-sizing: border-box;
+	flex: 0 1 auto;
+	width: 100%;
+	min-width: 0;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value-field > div:first-child {
+	max-width: none;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value-field input[type="text"],
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value-field textarea {
+	box-sizing: border-box;
+	width: 100%;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown:not(.btn):not(.cbi-button) {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+	max-width: none;
+}
+
+/* A closed multi-select should read like one compact value.  LuCI keeps the
+ * checkbox forms inside each selected option for the open menu; hiding those
+ * forms only while closed avoids the repeated squares and vertical growth. */
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown:not([open]) > ul {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	gap: 0;
+	overflow: hidden;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown:not([open]) > ul > li[display] {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	max-width: 100%;
+	padding: 0;
+	white-space: nowrap;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown:not([open]) > ul > li[display] form {
+	display: none;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown:not([open]) > ul > li[display] label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown:not([open]) > ul > li[display] ~ li[display]::before {
+	content: ",";
+	margin-right: 4px;
+	color: var(--fn-text-secondary);
+}
+
+/* Open multi-select menu: keep the native checkbox and label on one tidy
+ * row instead of letting the inline form collapse above its label. */
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown[open] > ul.dropdown > li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 30px;
+	padding: 6px 8px;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown[open] > ul.dropdown > li form {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	margin: 0;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown[open] > ul.dropdown > li form input[type="checkbox"] {
+	display: block;
+	width: 16px;
+	height: 16px;
+	margin: 0;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-dropdown[open] > ul.dropdown > li > label {
+	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
+	margin: 0;
+	line-height: 18px;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value-description {
+	margin-top: 3px;
+	font-size: .75rem;
+	line-height: 1.3;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal textarea.cbi-input-textarea {
+	min-height: 132px;
+	height: 132px !important;
+	resize: vertical;
+}
+
+body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal > .button-row {
+	position: sticky;
+	bottom: -16px;
+	margin: 8px -24px -16px;
+	padding: 12px 24px 0;
+	background: var(--fn-surface);
+	border-top: 1px solid var(--fn-border);
+}
+
+@media (max-width: 700px) {
+	body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal {
+		width: calc(100% - 24px);
+		max-height: calc(100vh - 24px);
+		margin: 12px auto;
+		padding: 18px 16px 14px;
+	}
+	body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value {
+		grid-template-columns: minmax(120px, 140px) minmax(0, 1fr);
+		gap: 4px 12px;
+		padding: 7px 0;
+	}
+	body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal > .button-row {
+		bottom: -14px;
+		margin: 8px -16px -14px;
+		padding: 10px 16px 0;
+	}
+}
+
+@media (max-width: 480px) {
+	body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 3px;
+	}
+	body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value label.cbi-value-title {
+		padding-top: 0;
+	}
+	body[data-page="admin-services-zapret2"] #modal_overlay .cbi-modal .cbi-value-field {
+		width: 100%;
+	}
+}
+
+/* Final polish for the native service summary.  Keep the status block
+ * compact, but make its two rows read as one small piece of information
+ * instead of two independently underlined cells.  The action row remains
+ * native; only its spacing and visual hierarchy are refined. */
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table {
+	width: min(100%, 560px);
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr {
+	display: grid;
+	grid-template-columns: minmax(128px, 140px) minmax(0, 1fr);
+	align-items: center;
+	gap: 0 18px;
+	min-height: 36px;
+	border-bottom: 1px solid var(--fn-border-strong);
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr:last-child {
+	border-bottom: 0;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr > .td {
+	min-width: 0;
+	padding: 8px 0;
+	border: 0 !important;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr > .td.left {
+	flex: none;
+	width: auto !important;
+	font-size: .84rem;
+	letter-spacing: .01em;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr > .td.right {
+	flex: none;
+	width: auto !important;
+	text-align: left;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table + div {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px 14px !important;
+	margin-top: 14px !important;
+	padding-top: 14px;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table + div > div {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table + div > div:last-child {
+	justify-content: flex-end;
+	margin-left: auto;
+}
+
+body[data-page="admin-services-zapret2"] #freenetic-zapret2-apply {
+	min-width: 158px;
+	box-shadow: 0 1px 0 rgba(0, 0, 0, .12);
+}
+
+body[data-page="admin-services-zapret2"] #freenetic-zapret2-apply:focus-visible,
+body[data-page="admin-services-zapret2"] #freenetic-zapret2-apply:hover {
+	box-shadow: 0 0 0 2px var(--fn-accent-soft), 0 1px 0 rgba(0, 0, 0, .12);
+}
+
+@media (max-width: 700px) {
+	body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table {
+		width: 100%;
+	}
+	body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table > .tr {
+		grid-template-columns: minmax(112px, 1fr) minmax(0, 1fr);
+		gap: 0 10px;
+	}
+	body[data-page="admin-services-zapret2"] #view > div:first-child > .cbi-section > table + div > div:last-child {
+		justify-content: flex-start;
+		margin-left: 0;
 	}
 }

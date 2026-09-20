@@ -4,6 +4,7 @@ APP_DIR := app
 WEB_DIR := web
 THEME_PACKAGE_DIR := $(APP_DIR)/luci-theme-freenetic
 APPLICATION_PACKAGE_DIR := $(APP_DIR)/luci-app-freenetic
+ZAPRET2_PACKAGE_DIR := $(APP_DIR)/freenetic-zapret2
 THEME_WEB_DIR := $(WEB_DIR)/theme
 APPLICATION_WEB_DIR := $(WEB_DIR)/application
 FREENETIC_PRIMARY_PACKAGE_ARCH ?= $(shell sed -n 's/^CONFIG_TARGET_ARCH_PACKAGES="\([^"]*\)"/\1/p' "$(OPENWRT_DIR)/.config")
@@ -19,7 +20,7 @@ FREENETIC_PACKAGE_DIR ?= $(if $(wildcard $(FREENETIC_PRIMARY_PACKAGE_DIR)/luci-t
 FREENETIC_MT7621_PACKAGE_DIR := $(OPENWRT_DIR)/bin/packages/$(FREENETIC_MT7621_PACKAGE_ARCH)/base
 FREENETIC_PACKAGE_FORMAT ?= $(if $(shell grep -q '^CONFIG_USE_APK=y' "$(OPENWRT_DIR)/.config" 2>/dev/null && echo yes),apk,ipk)
 FREENETIC_APK_TOOL ?= $(OPENWRT_DIR)/staging_dir/host/bin/apk
-FREENETIC_RELEASE_PACKAGES := luci-theme-freenetic luci-app-freenetic luci-i18n-theme-freenetic-ru luci-i18n-freenetic-ru
+FREENETIC_NOARCH_RELEASE_PACKAGES := luci-theme-freenetic luci-app-freenetic luci-i18n-theme-freenetic-ru luci-i18n-freenetic-ru
 FREENETIC_APK_SIGN_ARG := $(if $(wildcard $(OPENWRT_DIR)/private-key.pem),--sign $(OPENWRT_DIR)/private-key.pem,)
 
 .PHONY: check check-static check-layout check-js check-shell check-json check-tests check-cli check-cli-mt7621 check-package check-package-contents check-release-tree check-package-index stage-mt7621-packages release
@@ -31,6 +32,7 @@ check-static: check-layout check-js check-shell check-json check-tests
 check-layout:
 	@test -d "$(THEME_PACKAGE_DIR)/root" -a -d "$(THEME_WEB_DIR)/htdocs" -a -d "$(THEME_WEB_DIR)/ucode"
 	@test -d "$(APPLICATION_PACKAGE_DIR)/root" -a -d "$(APPLICATION_WEB_DIR)/htdocs"
+	@test -f "$(ZAPRET2_PACKAGE_DIR)/Makefile"
 	@test "$$(readlink "$(THEME_PACKAGE_DIR)/htdocs")" = "../../web/theme/htdocs"
 	@test "$$(readlink "$(THEME_PACKAGE_DIR)/ucode")" = "../../web/theme/ucode"
 	@test "$$(readlink "$(APPLICATION_PACKAGE_DIR)/htdocs")" = "../../web/application/htdocs"
@@ -80,7 +82,9 @@ check-package:
 		FREENETIC_ROOT="$(CURDIR)" \
 		CONFIG_PACKAGE_luci-theme-freenetic=m CONFIG_PACKAGE_luci-app-freenetic=m \
 		CONFIG_PACKAGE_luci-i18n-theme-freenetic-ru=m CONFIG_PACKAGE_luci-i18n-freenetic-ru=m \
-		package/luci-theme-freenetic/compile package/luci-app-freenetic/compile
+		CONFIG_PACKAGE_freenetic-zapret2=m \
+		package/luci-theme-freenetic/compile package/luci-app-freenetic/compile \
+		package/freenetic-zapret2/compile
 	@$(MAKE) check-package-contents OPENWRT_DIR="$(OPENWRT_DIR)" \
 		FREENETIC_PACKAGE_FORMAT="$(FREENETIC_PACKAGE_FORMAT)" \
 		FREENETIC_APK_TOOL="$(FREENETIC_APK_TOOL)"
@@ -106,7 +110,7 @@ stage-mt7621-packages:
 		exit 1; \
 	}
 	@mkdir -p "$(FREENETIC_MT7621_PACKAGE_DIR)"
-	@for package in $(FREENETIC_RELEASE_PACKAGES); do \
+	@for package in $(FREENETIC_NOARCH_RELEASE_PACKAGES); do \
 		find "$(FREENETIC_MT7621_PACKAGE_DIR)" -maxdepth 1 -type f -name "$$package-*.apk" -delete; \
 		archive="$$(find "$(FREENETIC_PACKAGE_DIR)" -maxdepth 1 -type f -name "$$package-*.apk" -print 2>/dev/null | sort -V | tail -n 1)"; \
 		test -n "$$archive" || { echo "Missing primary APK for $$package" >&2; exit 1; }; \
@@ -142,7 +146,8 @@ check-package-index:
 # around files left by an earlier compile. Publishing remains explicit.
 release: check-release-tree
 	@$(MAKE) -C "$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)" \
-		package/luci-theme-freenetic/clean package/luci-app-freenetic/clean
+		package/luci-theme-freenetic/clean package/luci-app-freenetic/clean \
+		package/freenetic-zapret2/clean
 	@$(MAKE) check-package OPENWRT_DIR="$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)"
 	@$(MAKE) -C "$(OPENWRT_DIR)" DL_DIR="$(DL_DIR)" package/index
 	@if test "$(FREENETIC_PACKAGE_FORMAT)" = apk; then \

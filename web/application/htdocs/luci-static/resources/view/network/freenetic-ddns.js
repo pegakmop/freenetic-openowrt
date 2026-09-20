@@ -32,6 +32,10 @@ const PROVIDER_LABELS = {
 };
 const COMMON_PROVIDERS = [ 'cloudflare.com-v4', 'duckdns.org', 'dyndns.org', 'dynv6.com', 'no-ip.com' ];
 
+function applicationsUrl(appId) {
+	return L.url('admin/system/applications') + '?focus=' + encodeURIComponent(appId);
+}
+
 function listValue(value) {
 	if (value == null || value === '')
 		return [];
@@ -183,7 +187,7 @@ return view.extend({
 		this.supportNode.appendChild(E('div', { class: 'fn-oc-notice fn-oc-notice-warning' }, [
 			E('strong', {}, _('Dynamic DNS is not installed')),
 			E('span', {}, text),
-			E('a', { href: L.url('admin/system/applications'), class: 'fn-oc-notice-link' }, _('Open Applications'))
+			E('a', { href: applicationsUrl('ddns'), class: 'fn-oc-notice-link' }, _('Open Applications'))
 		]));
 	},
 

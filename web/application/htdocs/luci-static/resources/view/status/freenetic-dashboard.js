@@ -29,7 +29,7 @@
 const ubusCall = rpc.call;
 const MULTIWAN_HELPER = '/usr/libexec/freenetic-multiwan';
 
-const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, freeneticReleaseLine, freeneticReleaseCandidates, formatFreeneticReleaseDate, freeneticReleaseNotes, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, getIwinfoDevices, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, freeneticReleaseCodename, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
+const { HISTORY_LEN, POLL_INTERVAL, MIN_CPU_SAMPLE_INTERVAL, FREENETIC_REPOSITORY, FREENETIC_RELEASES_API, FREENETIC_UPDATE_HELPER, FREENETIC_PACKAGE_NAMES, FREENETIC_DISPLAY_VERSION, FREENETIC_RELEASE_PACKAGES, freeneticBuildVersion, compareFreeneticBuilds, freeneticReleasePlan, freeneticReleaseLine, freeneticReleaseCandidates, formatFreeneticReleaseDate, freeneticReleaseNotes, upperString, getFirewallConfig, getInterfaceDump, getWanConnections, mergeWanGroup, connectionLabel, connectionInterfaceLabel, getWirelessConfig, getPorts, backupEthernetDevices, getIwinfoDevices, getWifiRadios, mhzToChannel, getLanInfo, getConntrack, getArpTable, ip2int, ipInLan, dashboardClientRows, getSystemBoard, getSystemInfo, getProcStatCpu, getConntrackCounts, getSysupgradeConfig, getFreeneticInstalledPackages, getFreeneticUpdaterStatus, getFreeneticUpdateState, freeneticBuildRevision, freeneticReleaseTag, freeneticReleaseCodename, formatFreeneticVersion, fmtMB, fmtDateTime, getWirelessStatus, getActiveArpMacs, getWifiStations, getIwinfoInfos, findIfaceEntry, getNetworkConfig, getDhcpConfig, getDhcpLeases, getInterfaceInfo, formatWifiMeta } = dashboardData;
 const TRAFFIC_COLORS = [ 'fn-tc-0', 'fn-tc-1', 'fn-tc-2', 'fn-tc-3', 'fn-tc-4', 'fn-tc-other' ];
 
 function getMultiwanStatus() {
@@ -341,6 +341,7 @@ return view.extend({
 		((multiwanStatus && multiwanStatus.interfaces) || []).forEach(item => {
 			this.mwanStates[item.name] = item.state;
 		});
+		this.backupPortDevices = backupEthernetDevices(multiwanStatus);
 
 		const container = E('div', { class: 'fn-dash' }, [
 			E('div', { class: 'fn-dash-col' }, [
@@ -1001,19 +1002,20 @@ return view.extend({
 		const row = E('div', { class: 'fn-ports-row' });
 		ports.forEach(port => {
 			const isWan = port.role === 'wan';
+			const isBackup = (this.backupPortDevices || []).indexOf(port.device) !== -1;
 			const label = isWan
 				? svgIcon('M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2ZM2 12h20M12 2c2.5 2.7 4 6.2 4 10s-1.5 7.3-4 10c-2.5-2.7-4-6.2-4-10s1.5-7.3 4-10Z', 16)
 				: E('span', {}, port.device.replace(/^lan/, ''));
 
 			const dot = E('span', { class: 'fn-port-dot' });
-			const speedLabel = E('div', { class: 'fn-port-speed' }, '–');
+			const speedLabel = E('div', { class: 'fn-port-speed' }, isBackup ? _('Reserve') : '–');
 
 			const box = E('div', { class: 'fn-port' + (isWan ? ' fn-port-wan' : '') }, [
 				E('div', { class: 'fn-port-icon' }, [ label, dot ]),
 				speedLabel
 			]);
 
-			this.portEls[port.device] = { dot, speedLabel };
+			this.portEls[port.device] = { dot, speedLabel, isBackup };
 			row.appendChild(box);
 		});
 
@@ -1035,9 +1037,10 @@ return view.extend({
 
 			if (active && st.speed) {
 				const m = /^(\d+)([HF])$/.exec(st.speed);
-				dom_content(els.speedLabel, m ? '%s %s'.format(m[2] === 'F' ? 'FDX' : 'HDX', m[1] >= 1000 ? (m[1] / 1000) + 'G' : m[1] + 'M') : st.speed);
+				const speed = m ? '%s %s'.format(m[2] === 'F' ? 'FDX' : 'HDX', m[1] >= 1000 ? (m[1] / 1000) + 'G' : m[1] + 'M') : st.speed;
+				dom_content(els.speedLabel, els.isBackup ? '%s · %s'.format(_('Reserve'), speed) : speed);
 			} else {
-				dom_content(els.speedLabel, '–');
+				dom_content(els.speedLabel, els.isBackup ? _('Reserve') : '–');
 			}
 		});
 	},

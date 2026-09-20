@@ -15,6 +15,7 @@
 		<script>L.require('menu-freenetic')</script>
 		<script>L.require('settings-freenetic')</script>
 		<script>L.require('freenetic-navigation')</script>
+		<script>L.require('freenetic-zapret2-tabs')</script>
 		{% endif %}
 	</body>
 </html>

@@ -115,11 +115,55 @@ async function sharedRemovalCase() {
 	assert.equal(application.installedNames.xl2tpd, undefined);
 }
 
+async function mwanRemovalRecoveryCase() {
+	const calls = [];
+	const application = evaluate((helper, args) => {
+		calls.push([ helper, args.slice() ]);
+		return Promise.resolve(helper.endsWith('freenetic-tailscale-recover')
+			? { ok: true, scheduled: true }
+			: { code: 0 });
+	}, []);
+	initialize(application);
+	application.installedNames = { mwan3: true, 'luci-app-mwan3': true };
+	const item = { id: 'mwan3', name: 'Multi-WAN', packages: [ 'mwan3', 'luci-app-mwan3' ] };
+	await application.toggleItem(item, true, { disabled: false, textContent: '', className: '' },
+		{ textContent: '', className: '' }, {});
+
+	assert.equal(calls[0][0], '/usr/libexec/freenetic-tailscale-recover');
+	assert.deepEqual(calls[0][1], [ 'schedule' ]);
+	assert.equal(calls[1][0], '/usr/libexec/package-manager-call');
+	assert.deepEqual(calls[1][1], [ 'remove', 'mwan3', 'luci-app-mwan3' ]);
+}
+
+async function zapret2ReleaseInstallCase() {
+	const calls = [];
+	const notifications = [];
+	const application = evaluate((helper, args) => {
+		calls.push([ helper, args.slice() ]);
+		return Promise.resolve({ code: 0, stdout: 'installed' });
+	}, notifications);
+	initialize(application);
+	const item = {
+		id: 'nfqws2', name: 'Zapret2 (NFQWS2)', packages: [ 'freenetic-zapret2' ],
+		installHelper: '/usr/libexec/freenetic-zapret2-package'
+	};
+	await application.toggleItem(item, false, { disabled: false, textContent: '', className: '' },
+		{ textContent: '', className: '' }, {});
+
+	assert.deepEqual(calls, [
+		[ '/usr/libexec/freenetic-zapret2-package', [ 'install' ] ]
+	], 'Zapret2 must install from the signed Freenetic release instead of the upstream OpenWrt feed');
+	assert.equal(application.installedNames['freenetic-zapret2'], true);
+	assert.equal(notifications.at(-1).level, 'info');
+}
+
 String.prototype.format = format;
 Promise.resolve()
 	.then(successCase)
 	.then(failedUpdateCase)
 	.then(sharedRemovalCase)
+	.then(mwanRemovalRecoveryCase)
+	.then(zapret2ReleaseInstallCase)
 	.then(() => console.log('Applications package install runtime: ok'))
 	.finally(() => {
 		if (originalFormat)

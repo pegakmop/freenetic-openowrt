@@ -19,6 +19,8 @@ const notify = uiHelper.notifyLong;
 
 const NETWORK_RESTART_HELPER = '/usr/libexec/freenetic-network-restart';
 const PACKAGE_MANAGER_HELPER = '/usr/libexec/package-manager-call';
+const TAILSCALE_RECOVERY_HELPER = '/usr/libexec/freenetic-tailscale-recover';
+const ZAPRET2_PACKAGE_HELPER = '/usr/libexec/freenetic-zapret2-package';
 
 /* Keep the catalog universal: "recommended" means safe for a normal router
  * setup, while "advanced" marks tools which can alter routing, firewall, DNS
@@ -30,6 +32,25 @@ const APP_FILTERS = [
 	{ id: 'installed', label: _('Installed') },
 	{ id: 'all', label: _('All') }
 ];
+
+function requestedAppId() {
+	try {
+		const id = new URL(window.location.href).searchParams.get('focus') || '';
+		return /^[a-z0-9_]+$/.test(id) ? id : '';
+	}
+	catch (e) {
+		return '';
+	}
+}
+
+function catalogItem(id) {
+	for (const group of GROUPS) {
+		const item = group.items.find(entry => entry.id === id);
+		if (item)
+			return { group, item };
+	}
+	return null;
+}
 
 function svgIcon(d, size) {
 	size = size || 20;
@@ -162,14 +183,25 @@ const GROUPS = [
 			title: _('Advanced networking'),
 			tier: 'advanced',
 		items: [
-			{ id: 'mwan3', name: _('Multi-WAN'), tier: 'advanced', restartNetifdOnInstall: true,
+				{ id: 'mwan3', name: _('Multi-WAN'), tier: 'advanced',
 				packages: [ 'mwan3', 'luci-app-mwan3' ],
 				desc: _('Fail over between multiple Internet connections or balance traffic across them.') },
 				{ id: 'pbr', name: _('Policy-based routing'), packages: [ 'pbr' ],
 					desc: _('Route a network segment through a selected WAN or VPN tunnel.') },
-			{ id: 'zapret', name: _('Zapret'), tier: 'advanced', restartNetifdOnInstall: true,
-				packages: [ 'zapret' ],
-				desc: _('Advanced traffic-processing tool for regional connectivity scenarios.') },
+			{ id: 'nfqws2', name: _('Zapret2 (NFQWS2)'), tier: 'advanced',
+				/* Prefer the complete LuCI package already used by OpenWrt builds.
+				 * The signed Freenetic runtime remains a fallback for older feeds
+				 * which do not publish zapret2/luci-app-zapret2 separately. */
+				packages: [ 'zapret2', 'luci-app-zapret2' ],
+				packageSets: [
+					[ 'zapret2', 'luci-app-zapret2' ],
+					[ 'freenetic-zapret2' ]
+				],
+				externallyAvailable: true, installHelper: ZAPRET2_PACKAGE_HELPER,
+				installHelperSet: 1,
+				configurePath: [ 'admin', 'network', 'zapret2' ],
+				nativeConfigurePath: [ 'admin', 'services', 'zapret2' ],
+				desc: _('Programmable DPI-bypass engine with Lua strategies.') },
 			{ id: 'magitrickle', name: _('MagiTrickle'), tier: 'advanced', restartNetifdOnInstall: true,
 				packages: [ 'magitrickle' ],
 				desc: _('Specialized traffic-routing and filtering tool for experienced users.') }
@@ -182,19 +214,18 @@ const GROUPS = [
  * the catalog only needs to resolve the concrete names used by its cards. */
 const APP_PACKAGE_NAMES = [];
 const APP_PACKAGE_SEEN = {};
-GROUPS.forEach(group => group.items.forEach(item => item.packages.forEach(name => {
+function packageSets(item) {
+	return Array.isArray(item.packageSets) && item.packageSets.length
+		? item.packageSets
+		: [ item.packages ];
+}
+
+GROUPS.forEach(group => group.items.forEach(item => packageSets(item).forEach(set => set.forEach(name => {
 	if (!APP_PACKAGE_SEEN[name]) {
 		APP_PACKAGE_SEEN[name] = true;
 		APP_PACKAGE_NAMES.push(name);
 	}
-})));
-
-function getInstalled() {
-	return getPackageStatus()
-		.then(status => status ? Object.entries(status).filter(([, state]) => state && state.installed)
-			.map(([ name ]) => ({ name })) : [])
-		.catch(() => []);
-}
+}))));
 
 function updatePackageIndexes() {
 	return fs.exec_direct(PACKAGE_MANAGER_HELPER, [ 'update' ], 'json').then(result => {
@@ -223,22 +254,27 @@ function restartNetifd() {
 
 return view.extend({
 	load() {
-		/* Do not make the first paint wait for an availability probe.  apk has to
-		 * scan every configured repository for that probe, which is noticeably
-		 * slower than reading the installed package list on embedded hardware. */
-		return getInstalled();
+		/* Read installed and available state in one batched lookup. Repository
+		 * indexes are refreshed only when the user actually starts an install. */
+		return getPackageStatus();
 	},
 
 	render(data) {
-		const installed = Array.isArray(data) ? data : [];
-		this.packageStatus = null;
-		this.packageAvailabilityKnown = false;
+		const initialStatus = data && typeof data === 'object' && !Array.isArray(data) ? data : null;
+		this.packageStatus = initialStatus;
+		this.packageAvailabilityKnown = !!initialStatus;
 		this.packageOperationInProgress = 0;
 		this.packageStatusRefreshPending = false;
 		this.packageIndexRefresh = null;
 		this.installedNames = {};
-		installed.forEach(p => { if (p && p.name) this.installedNames[p.name] = true; });
-		this.activeFilter = 'recommended';
+		Object.entries(initialStatus || {}).forEach(([ name, state ]) => {
+			if (state && state.installed)
+				this.installedNames[name] = true;
+		});
+		this.focusedAppId = requestedAppId();
+		this.focusedAppScrolled = false;
+		const focused = catalogItem(this.focusedAppId);
+		this.activeFilter = focused ? this.itemTier(focused.item, focused.group) : 'recommended';
 		this.appTabs = {};
 		this.appsCatalog = E('div', {
 			id: 'fn-apps-catalog',
@@ -249,11 +285,7 @@ return view.extend({
 			'aria-labelledby': 'fn-app-tab-recommended'
 		});
 		this.renderCatalog();
-		/* Availability is only needed to explain missing packages.  Fetch it in
-		 * the background after the catalog is visible, then refresh the cards once
-		 * no install/remove operation is being edited. */
-		this.refreshPackageStatus();
-
+		window.setTimeout(() => this.focusRequestedItem(), 0);
 		return E('div', { class: 'fn-dash' }, [
 			E('div', { class: 'fn-card', style: 'grid-column: 1 / -1' }, [
 				E('div', { class: 'fn-card-head' }, [ E('h3', {}, _('Applications')) ]),
@@ -266,8 +298,22 @@ return view.extend({
 		]);
 	},
 
+	focusRequestedItem(attempt) {
+		if (this.focusedAppScrolled || !this.focusedAppRow)
+			return;
+		attempt = attempt || 0;
+		if (!this.focusedAppRow.isConnected) {
+			if (attempt < 40)
+				window.setTimeout(() => this.focusRequestedItem(attempt + 1), 50);
+			return;
+		}
+		this.focusedAppScrolled = true;
+		this.focusedAppRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		this.focusedAppRow.focus({ preventScroll: true });
+	},
+
 	refreshPackageStatus() {
-		return this.ensurePackageIndexes().then(() => getPackageStatus()).then(status => {
+		return getPackageStatus().then(status => {
 			if (!status)
 				return;
 
@@ -357,17 +403,53 @@ return view.extend({
 		return item.tier || (group && group.tier) || 'recommended';
 	},
 
+	itemInstalledPackageSet(item) {
+		return packageSets(item).find(set => set.length && set.every(p => this.installedNames[p])) || null;
+	},
+
+	itemPackageSetAvailable(item, set) {
+		return set.length && set.every(p => {
+			const status = this.packageStatus && this.packageStatus[p];
+			return this.installedNames[p] || (status && (status.available || status.installed));
+		});
+	},
+
+	itemInstallPackageSet(item) {
+		const installed = this.itemInstalledPackageSet(item);
+		if (installed)
+			return installed;
+		return packageSets(item).find(set => this.itemPackageSetAvailable(item, set)) ||
+			packageSets(item)[packageSets(item).length - 1] || [];
+	},
+
+	itemUsesInstallHelper(item, set) {
+		return !!item.installHelper && packageSets(item)[item.installHelperSet || 0] === set;
+	},
+
+	itemConfigurePath(item) {
+		const installed = this.itemInstalledPackageSet(item);
+		const native = packageSets(item)[0];
+		return installed && item.nativeConfigurePath && installed === native
+			? item.nativeConfigurePath : item.configurePath;
+	},
+
 	itemInstalled(item) {
-		return item.packages.every(p => this.installedNames[p]);
+		return !!this.itemInstalledPackageSet(item);
 	},
 
 	removablePackages(item) {
+		const installedSet = this.itemInstalledPackageSet(item);
+		if (!installedSet)
+			return [];
 		const needed = {};
 		GROUPS.forEach(group => group.items.forEach(other => {
-			if (other.id !== item.id && this.itemInstalled(other))
-				other.packages.forEach(name => { needed[name] = true; });
+			if (other.id !== item.id) {
+				const otherSet = this.itemInstalledPackageSet(other);
+				if (otherSet)
+					otherSet.forEach(name => { needed[name] = true; });
+			}
 		}));
-		return item.packages.filter(name => !needed[name]);
+		return installedSet.filter(name => !needed[name]);
 	},
 
 	itemMatchesFilter(item, group) {
@@ -412,6 +494,10 @@ return view.extend({
 
 		dom_empty(this.appsCatalog);
 		content.forEach(node => this.appsCatalog.appendChild(node));
+		if (this.focusedAppRow && this.focusedAppRow.isConnected) {
+			this.focusedAppScrolled = false;
+			window.setTimeout(() => this.focusRequestedItem(), 0);
+		}
 	},
 
 	renderGroup(group, items) {
@@ -423,9 +509,12 @@ return view.extend({
 	},
 
 	renderItem(item, group) {
+		const focused = item.id === this.focusedAppId;
 		const installed = this.itemInstalled(item);
-		const unavailablePackages = !installed && this.packageAvailabilityKnown
-			? item.packages.filter(p => {
+		const availableSet = !installed && this.packageAvailabilityKnown
+			? packageSets(item).find(set => this.itemPackageSetAvailable(item, set)) : null;
+		const unavailablePackages = !installed && !availableSet && !item.externallyAvailable && this.packageAvailabilityKnown
+			? (packageSets(item)[0] || []).filter(p => {
 				const status = this.packageStatus[p];
 				return !this.installedNames[p] && !(status && (status.available || status.installed));
 			}) : [];
@@ -452,36 +541,94 @@ return view.extend({
 		if (this.itemTier(item, group) === 'advanced')
 			nameParts.push(E('span', { class: 'fn-apps-tier fn-apps-tier-advanced' }, _('Advanced')));
 
-		const row = E('div', { class: 'fn-apps-row' }, [
+		const actions = [ btn ];
+		const configurePath = this.itemConfigurePath(item);
+		if (installed && configurePath) {
+			actions.unshift(E('a', {
+				class: 'fn-settings-btn fn-settings-btn-primary',
+				href: L.url.apply(L, configurePath)
+			}, _('Configure')));
+		}
+
+		const row = E('div', {
+			id: 'fn-app-' + item.id,
+			class: 'fn-apps-row' + (focused ? ' fn-apps-row-focused' : ''),
+			tabindex: focused ? '-1' : null
+		}, [
 			svgIcon('M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5', 22),
 			E('div', { class: 'fn-apps-info' }, [
 				E('div', { class: 'fn-apps-name' }, nameParts),
 				E('div', { class: 'fn-apps-desc' }, description)
 			]),
 			statusPill,
-			btn
+			E('div', { class: 'fn-apps-actions' }, actions)
 		]);
+		if (focused)
+			this.focusedAppRow = row;
 
-		if (!unavailable)
-			btn.addEventListener('click', () => this.toggleItem(item, installed, btn, statusPill, row));
+		if (!unavailable) {
+			btn.addEventListener('click', () => {
+				if (!installed && item.id === 'mwan3')
+					this.confirmMwanInstall(item, btn, statusPill, row);
+				else
+					this.toggleItem(item, installed, btn, statusPill, row);
+			});
+		}
 
 		return row;
 	},
 
+	confirmMwanInstall(item, btn, statusPill, row) {
+		ui.showModal(_('Install Multi-WAN?'), [
+			E('p', {}, _('Multi-WAN adds routing rules and restarts the LuCI session while it is being installed.')),
+			E('p', {}, _('After installation you will be signed out once. Sign in again to continue.')),
+			E('div', { class: 'button-row' }, [
+				E('button', { class: 'btn', click: ui.hideModal }, _('Cancel')),
+				E('button', {
+					class: 'btn cbi-button-positive',
+					click: () => {
+						ui.showModal(_('Installing Multi-WAN…'), [
+							E('p', { class: 'spinning' }, _('The package manager is preparing Multi-WAN. The page will reopen when LuCI is ready.'))
+						]);
+						this.toggleItem(item, false, btn, statusPill, row);
+					}
+				}, _('Install Multi-WAN'))
+			])
+		]);
+	},
+
 	toggleItem(item, wasInstalled, btn, statusPill, row) {
 		const action = wasInstalled ? 'remove' : 'install';
-		const operationPackages = wasInstalled ? this.removablePackages(item) : item.packages.slice();
+		const installSet = wasInstalled ? null : this.itemInstallPackageSet(item);
+		const operationPackages = wasInstalled ? this.removablePackages(item) : installSet.slice();
+		const useInstallHelper = !wasInstalled && this.itemUsesInstallHelper(item, installSet);
 		this.packageOperationInProgress++;
 		btn.disabled = true;
 		dom_content(btn, wasInstalled ? _('Removing…') : _('Installing…'));
 
-		const run = () => operationPackages.length
-			? fs.exec_direct(PACKAGE_MANAGER_HELPER, [ action ].concat(operationPackages), 'json')
-			: Promise.resolve({ code: 0 });
-		const operation = wasInstalled ? run() : this.ensurePackageIndexes().then(run);
+		let mwanInstallTimer = null;
+		const run = () => {
+			if (!operationPackages.length)
+				return Promise.resolve({ code: 0 });
+			if (!wasInstalled && item.id === 'mwan3' && typeof window !== 'undefined')
+				mwanInstallTimer = window.setTimeout(() => window.location.reload(), 10000);
+			if (useInstallHelper)
+				return fs.exec_direct(item.installHelper, [ 'install' ], 'json');
+			return fs.exec_direct(PACKAGE_MANAGER_HELPER, [ action ].concat(operationPackages), 'json');
+		};
+		const prepareRemoval = wasInstalled && item.id === 'mwan3'
+			? fs.exec_direct(TAILSCALE_RECOVERY_HELPER, [ 'schedule' ], 'json').catch(() => null)
+			: Promise.resolve(null);
+		const operation = wasInstalled ? prepareRemoval.then(run) : useInstallHelper ? run() : this.ensurePackageIndexes().then(run);
+		if (wasInstalled && item.id === 'mwan3' && typeof window !== 'undefined')
+			window.setTimeout(() => window.location.reload(), 12000);
 
 		return operation.then(res => {
 			if (!res || res.code !== 0) {
+				if (mwanInstallTimer !== null && typeof window !== 'undefined')
+					window.clearTimeout(mwanInstallTimer);
+				if (!wasInstalled && item.id === 'mwan3')
+					ui.hideModal();
 				const detail = (res && (res.stderr || res.stdout)) || _('unknown error');
 				notify(_('Failed to %s %s: %s').format(wasInstalled ? _('remove') : _('install'), item.name, detail), 'danger');
 				btn.disabled = false;
@@ -519,10 +666,17 @@ return view.extend({
 				btn.className = 'fn-settings-btn' + (nowInstalled ? ' fn-settings-btn-danger' : ' fn-settings-btn-primary');
 				btn.disabled = false;
 				dom_content(btn, nowInstalled ? _('Remove') : _('Install'));
-				if (this.activeFilter === 'installed')
+				/* Rebuild cards with a configuration action after installation so
+				 * their click handlers and action set reflect the new package state. */
+				if (this.activeFilter === 'installed' || item.configurePath)
 					this.renderCatalog();
 			});
 		}).catch(err => {
+			/* Installing mwan3 intentionally restarts rpcd. Its in-flight RPC call
+			 * may reject even though apk succeeded; keep the progress modal and let
+			 * the armed reload open the fresh login session. */
+			if (!wasInstalled && item.id === 'mwan3' && mwanInstallTimer !== null)
+				return;
 			notify(_('Failed to %s %s: %s').format(wasInstalled ? _('remove') : _('install'), item.name, err.message || err), 'danger');
 			btn.disabled = false;
 			dom_content(btn, wasInstalled ? _('Remove') : _('Install'));
